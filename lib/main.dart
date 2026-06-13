@@ -2,55 +2,48 @@ import 'package:flutter/widgets.dart';
 // ThemeMode is a Flutter enum that only ships via material.dart — import just
 // the enum, not Material's widgets. The UI itself is built entirely on ShadApp.
 import 'package:flutter/material.dart' show ThemeMode;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'features/settings/theme_mode_controller.dart';
 import 'theme/mantle_theme.dart';
 
-void main() => runApp(const MantleCompanionApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const ProviderScope(child: MantleCompanionApp()));
+}
 
 /// Root of the app. Uses [ShadApp] (the shadcn app type) rather than
-/// `MaterialApp`, so no Material design language is pulled in — the whole
-/// surface is themed with shadcn/ui's Tailwind-style design tokens.
-class MantleCompanionApp extends StatefulWidget {
+/// `MaterialApp`, so no Material design language is pulled in. Theme mode comes
+/// from [themeModeControllerProvider] (persisted via Drift); the palette is
+/// Mantle's Clean Slate theme.
+class MantleCompanionApp extends ConsumerWidget {
   const MantleCompanionApp({super.key});
 
   @override
-  State<MantleCompanionApp> createState() => _MantleCompanionAppState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Fall back to system while the persisted value is still loading.
+    final themeMode =
+        ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
 
-class _MantleCompanionAppState extends State<MantleCompanionApp> {
-  // Follows the OS by default; the in-app toggle flips between light/dark.
-  ThemeMode _themeMode = ThemeMode.system;
-
-  void _toggleTheme() {
-    setState(() {
-      _themeMode =
-          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return ShadApp(
       title: 'Mantle Companion',
-      themeMode: _themeMode,
+      themeMode: themeMode,
       theme: MantleTheme.light(),
       darkTheme: MantleTheme.dark(),
-      home: HomeScreen(onToggleTheme: _toggleTheme),
+      home: const HomeScreen(),
     );
   }
 }
 
-/// Placeholder landing screen — exists to prove the theme system renders
-/// natively in light/dark with no Material widgets. Real features (chat,
-/// notifications, message-attached location) replace this.
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, required this.onToggleTheme});
-
-  final VoidCallback onToggleTheme;
+/// Placeholder landing screen — exists to prove the stack renders natively and
+/// that theme changes persist. Real features (chat, notifications,
+/// message-attached location) replace this.
+class HomeScreen extends ConsumerWidget {
+  const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
 
     return Container(
@@ -66,7 +59,9 @@ class HomeScreen extends StatelessWidget {
                 children: [
                   Text('Mantle Companion', style: theme.textTheme.h3),
                   ShadButton.ghost(
-                    onPressed: onToggleTheme,
+                    onPressed: () => ref
+                        .read(themeModeControllerProvider.notifier)
+                        .cycle(),
                     child: const Text('Theme'),
                   ),
                 ],
