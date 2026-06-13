@@ -4,6 +4,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'theme/mantle_theme.dart';
+
 void main() => runApp(const MantleCompanionApp());
 
 /// Root of the app. Uses [ShadApp] (the shadcn app type) rather than
@@ -32,14 +34,8 @@ class _MantleCompanionAppState extends State<MantleCompanionApp> {
     return ShadApp(
       title: 'Mantle Companion',
       themeMode: _themeMode,
-      theme: ShadThemeData(
-        brightness: Brightness.light,
-        colorScheme: const ShadSlateColorScheme.light(),
-      ),
-      darkTheme: ShadThemeData(
-        brightness: Brightness.dark,
-        colorScheme: const ShadSlateColorScheme.dark(),
-      ),
+      theme: MantleTheme.light(),
+      darkTheme: MantleTheme.dark(),
       home: HomeScreen(onToggleTheme: _toggleTheme),
     );
   }
