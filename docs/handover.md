@@ -16,16 +16,29 @@ assistant. Connects to a user's own Mantle server over an authenticated REST API
 
 ## State at this checkpoint
 
-> **Latest session (2026-06-14).** **Mantle Push M1 — the relay MVP — built and
-> verified.** New repo `~/Projects/mantle-push` (Node + TS + Hono, its own
-> Postgres): TOFU `/instances`, ticket-gated `/enroll`, instance-token `/notify`,
-> `/refresh`, `DELETE /device`, `/instance`; APNs (HTTP/2 + ES256 `.p8`) + FCM v1
-> providers, plus a credential-less **mock** provider; per-instance rate limits.
-> The whole spine passes a **14-check end-to-end CLI smoke test** on the mock
-> provider (register → enroll → notify → list → rotate → unpair, every security
-> boundary asserted). Caddy site block for `push.crossworks.network` wired into
-> the Mantle Caddyfile (inert until the container is up). **Not deployed** (gated).
-> `mantle-push` is uncommitted pending Jason's go-ahead.
+> **Latest session (2026-06-14).** **Mantle Push M1 built AND deployed to prod;
+> latest Mantle (v0.24.0, the mobile-companion backend) deployed to prod.**
+>
+> - **`mantle-push` is LIVE** at `https://push.crossworks.network` (valid LE cert),
+>   running the **mock** provider. New repo (Node + TS + Hono, own Postgres):
+>   TOFU `/instances`, ticket-gated `/enroll`, instance-token `/notify`, `/refresh`,
+>   `DELETE /device`, `/instance`; APNs (HTTP/2 + ES256 `.p8`) + FCM v1 + mock
+>   providers; per-instance rate limits. **14-check smoke test passes against the
+>   public prod endpoint.** Repo public: github.com/crossworks-engineering/mantle-push.
+>   Co-located on the prod box as its own compose stack joined to `mantle_default`;
+>   Caddy proxies `push:8787`. (Gotcha hit: a Caddyfile bind-mount needs
+>   `docker restart mantle_caddy` after rsync — the rename swaps the inode; noted in
+>   mantle/docs/update-prod.md.)
+> - **Mantle v0.24.0 deployed**: migrations 0089/0090/0091 applied on prod (89→92),
+>   data intact, all mobile-API routes live + gating correctly. Pre-dump taken.
+> - **To make notifications ACTUALLY deliver** (next): (1) **M2 Mantle-side** —
+>   push schema + connect/subscribe/reset routes + the send-worker off
+>   `conversation_changed` that seals a teaser and POSTs the relay's `/notify`;
+>   (2) **real APNs/FCM creds** — an Apple Developer `.p8` + a Firebase service
+>   account — to flip the relay `PUSH_PROVIDER=mock → live` (one env var +
+>   mounting the secrets; see mantle-push/docs/deploy.md); (3) **M3/M4 app** —
+>   keypair, NSE/FCM handler, one-tap Connect. The relay + transport are proven;
+>   what's missing is M2, the credentials, and the on-device half.
 >
 > **Prior session (2026-06-13).** Backend verified live + committed; avatar
 > endpoint fixed; dashboard theme-color fix; inbox redesigned as flat accent
