@@ -46,7 +46,7 @@ final class PushPrefsControllerProvider
 }
 
 String _$pushPrefsControllerHash() =>
-    r'7192a6c1440da3aaf8d12e7b508e663a04584f44';
+    r'407e0903e2e704555f73a779d27a1f1c6b86e969';
 
 /// Loads + updates push preferences (per-trigger toggles + quiet hours). On
 /// first load it adopts the device's IANA timezone so quiet hours are in local

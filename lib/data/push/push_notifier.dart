@@ -28,8 +28,9 @@ class PushNotifier {
     _inited = true;
   }
 
-  /// Decrypt the data payload and show it. No-ops if there's no `ct` or it can't
-  /// be opened (best-effort — the app reconciles over SSE/REST on next open).
+  /// Decrypt an FCM data payload's sealed `ct` and show it. No-ops if there's no
+  /// `ct` or it can't be opened (best-effort — the app reconciles over SSE/REST
+  /// on next open).
   static Future<void> showFromData(Map<String, dynamic> data) async {
     final ct = data['ct'];
     if (ct is! String || ct.isEmpty) return;
@@ -38,9 +39,18 @@ class PushNotifier {
     final payload = await decryptor.open(ct);
     if (payload == null) return;
 
+    await showPlain(
+      title: (payload['t'] as String?) ?? 'Mantle',
+      body: (payload['b'] as String?) ?? 'You have a new message.',
+      deepLink: payload['deepLink'] as String?,
+    );
+  }
+
+  /// Show a plaintext notification — used by the **direct connection** path
+  /// (no-Google Android), where the message arrives over the user's own TLS SSE
+  /// stream, so there's nothing to decrypt.
+  static Future<void> showPlain({required String title, required String body, String? deepLink}) async {
     await _ensureInit();
-    final title = (payload['t'] as String?) ?? 'Mantle';
-    final body = (payload['b'] as String?) ?? 'You have a new message.';
     await _plugin.show(
       id: title.hashCode,
       title: title,
@@ -53,7 +63,7 @@ class PushNotifier {
           priority: Priority.high,
         ),
       ),
-      payload: payload['deepLink'] as String?,
+      payload: deepLink,
     );
   }
 }

@@ -334,14 +334,36 @@ offload APNs/FCM plumbing; E2E means they'd see only ciphertext anyway.)
 - FCM **data messages** + a background isolate handler that decrypts and posts a
   local notification (via `flutter_local_notifications`).
 
-### 9.3 Android, the free/self-host path — **UnifiedPush**
-- UnifiedPush lets the **user pick their push distributor** (e.g. self-hosted
-  **ntfy**) instead of FCM — no Google, fully self-hostable, free. Great for the
-  de-Googled audience. The same E2E ciphertext flows through it.
-- **iOS has no equivalent** (Apple permits no third-party distributor), so Mantle
-  Push stays mandatory there.
-- → Android can be **free + fully self-hosted**; Mantle Push is the convenience
-  default (iOS always, Android-via-FCM optionally).
+### 9.3 Android, the no-Google path — **built-in direct connection** (decided)
+
+FCM needs **Google Play Services**, which de-Googled ROMs (GrapheneOS, /e/OS,
+LineageOS-sans-Play) don't have — and that's exactly the audience a self-hosted
+Mantle attracts. For them, the chosen path is a **built-in "direct connection"**,
+not a third-party distributor:
+
+- An Android **foreground service** keeps the app's existing **SSE stream**
+  (`/api/assistant/stream`) alive while backgrounded, and posts a local
+  notification when an outbound turn arrives. The message comes **directly from
+  the user's own Mantle over TLS** — so this path needs **no relay, no FCM, no
+  ntfy, no Google, and no sealed-box crypto** (there's no middleman to blind).
+  It reuses the live-chat stack we already have.
+- **Cost:** Android requires a persistent foreground-service notification
+  ("Mantle is connected"), and it uses more battery than FCM's shared socket;
+  aggressive OEM ROMs may need a battery-optimization exemption. Android-only —
+  iOS suspends background sockets, so iOS is **always** APNs via the relay.
+- **UnifiedPush + ntfy** remains a possible *secondary* option (shared, battery-
+  friendlier distributor) but is **not** the default: it needs a second app
+  installed, whereas the built-in path is self-contained and depends on no one
+  but the user's own server.
+
+**Per-device transport (the hybrid):** each device enrolls with exactly ONE
+transport; the backend delivers to whichever it chose.
+
+| Device | Transport | Path |
+|---|---|---|
+| iOS | APNs (E2E) | via Mantle Push relay — no alternative |
+| Android + Google | FCM (E2E) | via Mantle Push relay |
+| Android, no Google | **Direct connection** | foreground service ↔ the user's Mantle (no relay/FCM/ntfy) |
 
 ---
 
@@ -468,7 +490,11 @@ Push is strictly additive on top of the existing live stream.
    IANA tz auto-adopted), the device list with unpair, and Reset push (confirm →
    `/api/push/reset`). Quiet-hours helper unit-tested; analyze + tests clean both
    sides. Not deployed (batches with the device-verified push deploy).
-6. **M6 — UnifiedPush (Android)**: the free/self-host distributor path.
+6. **M6 — Direct connection (Android, no-Google)**: a foreground service that
+   holds the SSE stream open and posts local notifications straight from the
+   user's Mantle — no relay/FCM/ntfy/crypto (§9.3). The de-Googled path; FCM
+   stays the default for Play-Services devices. (UnifiedPush+ntfy considered and
+   set aside as a secondary option — built-in is more self-contained.)
 7. **(later) Paid seam**: entitlement field + billing webhook, only if/when we
    monetize.
 
@@ -494,6 +520,12 @@ Each milestone is independently demoable; M1–M3 prove the whole spine.
   Mantle-side; all toggleable in Settings.
 - **TOFU hardening** (email / build attestation): **deferred** — launch with
   trust-on-first-use as in §5.2; revisit if abuse shows up.
+- **No-Google Android** (decided 2026-06-14): the path is a **built-in direct
+  connection** (a foreground service holding the SSE stream open, posting local
+  notifications straight from the user's Mantle — no relay/FCM/ntfy/crypto), NOT
+  UnifiedPush. Per-device hybrid: FCM stays the default for Play-Services devices;
+  direct connection is the de-Googled fallback; iOS is always APNs. UnifiedPush+
+  ntfy is set aside as a secondary option (§9.3).
 
 _No open decisions remain — the spec is ready to build against (§14)._
 

@@ -5,6 +5,9 @@
     <!-- Push notifications (FCM data messages → local notification). Required on
          Android 13+; requested at runtime by FirebaseMessaging.requestPermission(). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Direct-connection push (no-Google path): a foreground service holds the
+         SSE stream open. dataSync type required on Android 14+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
     <application
         android:label="mantle_companion"
         android:name="${applicationName}"
@@ -36,6 +39,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- flutter_foreground_task service for the direct-connection push path. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

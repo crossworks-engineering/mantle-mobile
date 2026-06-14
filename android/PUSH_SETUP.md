@@ -71,3 +71,33 @@ fvm flutter run                 # a real device or an emulator WITH Google Play 
 
 Note: the relay already authenticates to FCM (verified 2026-06-14). Once a
 decrypted notification lands on an Android device, M4 is done.
+
+---
+
+## Direct connection — the no-Google path (M6)
+
+For de-Googled devices (GrapheneOS / e-OS / LineageOS without Play Services), FCM
+doesn't exist. **Settings → Notifications → "Direct connection"** (Android only)
+runs a **foreground service** that holds the app's SSE stream
+(`/api/assistant/stream`) open and posts a local notification on each outbound
+turn — straight from the user's own Mantle over TLS. **No relay, no FCM, no ntfy,
+no crypto** (there's no middleman to blind). It's mutually exclusive with FCM
+Connect (turning one on turns the other off).
+
+Wired in the repo: `flutter_foreground_task` + the `FOREGROUND_SERVICE_DATA_SYNC`
+permission + the `ForegroundService` declaration in the manifest;
+`lib/data/push/direct_push_service.dart` (the foreground TaskHandler) +
+`DirectPushController`.
+
+**Verify (real device or Play-less emulator):**
+1. Toggle **Direct connection** on. Grant the notification + battery-optimization
+   prompts. A persistent "Mantle connected" notification appears.
+2. Background the app; trigger an outbound assistant turn (from the web). A
+   notification with the agent name + preview should arrive — with **no Google
+   Play on the device**.
+
+**Caveats:** the persistent foreground notification is unavoidable (Android 8+);
+aggressive OEM ROMs (Xiaomi/Samsung/Huawei) may still kill it without the
+battery-optimization exemption (the toggle requests it). Quiet-hours / per-trigger
+toggles are **not** applied to this path yet (it bypasses the server-side worker);
+that's a follow-up. iOS has no equivalent — it's always APNs.

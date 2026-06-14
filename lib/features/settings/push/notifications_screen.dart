@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../data/push/push_api.dart';
 import '../../../widgets/mantle_header.dart';
+import 'direct_push_controller.dart';
 import 'push_controller.dart';
 import 'push_prefs_controller.dart';
 
@@ -35,7 +38,21 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _connect() async {
     setState(() => _busyLabel = 'Connecting…');
+    // Mutually exclusive with the direct connection — only one transport at a time.
+    await ref.read(directPushControllerProvider.notifier).disable();
     await ref.read(pushControllerProvider.notifier).connect();
+    if (mounted) setState(() => _busyLabel = null);
+  }
+
+  Future<void> _setDirect(bool on) async {
+    setState(() => _busyLabel = on ? 'Starting…' : 'Stopping…');
+    final direct = ref.read(directPushControllerProvider.notifier);
+    if (on) {
+      await ref.read(pushControllerProvider.notifier).disconnect(); // mutual exclusion
+      await direct.enable();
+    } else {
+      await direct.disable();
+    }
     if (mounted) setState(() => _busyLabel = null);
   }
 
@@ -120,6 +137,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 padding: const EdgeInsets.all(24),
                 children: [
                   _statusCard(theme, connected: connected, busy: busy, error: error),
+                  if (Platform.isAndroid) ...[
+                    const SizedBox(height: 24),
+                    _directCard(theme, busy: busy),
+                  ],
                   if (connected) ...[
                     const SizedBox(height: 24),
                     _triggersCard(theme),
@@ -195,6 +216,37 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 const SizedBox(height: 10),
                 Text(error, style: theme.textTheme.small.copyWith(color: scheme.destructive)),
               ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _directCard(ShadThemeData theme, {required bool busy}) {
+    final on = ref.watch(directPushControllerProvider).value ?? false;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Without Google Play', style: theme.textTheme.small),
+        const SizedBox(height: 8),
+        ShadCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: Text('Direct connection', style: theme.textTheme.p)),
+                  ShadSwitch(value: on, onChanged: busy ? null : _setDirect),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Keeps a connection to your Mantle open in the background, so you get '
+                'notifications without Google services. Shows a persistent “connected” '
+                'notification and uses a little more battery. An alternative to Connect.',
+                style: theme.textTheme.muted,
+              ),
             ],
           ),
         ),
