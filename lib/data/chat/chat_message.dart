@@ -1,3 +1,5 @@
+import 'chat_attachment.dart';
+
 /// Who a message is from. Mirrors Mantle's `direction`:
 /// `inbound` = from the user (us), `outbound` = from the assistant.
 enum MessageDirection { inbound, outbound }
@@ -15,6 +17,7 @@ class ChatMessage {
     required this.createdAt,
     this.model,
     this.status = MessageStatus.sent,
+    this.attachments = const [],
   });
 
   final String id;
@@ -28,9 +31,18 @@ class ChatMessage {
   /// Only meaningful for an outgoing user message we're sending optimistically.
   final MessageStatus status;
 
+  /// Images / files riding on this message — shown inline (images) or as a
+  /// labeled chip (everything else). See [ChatAttachment].
+  final List<ChatAttachment> attachments;
+
   bool get isFromUser => direction == MessageDirection.inbound;
 
-  ChatMessage copyWith({String? id, String? text, MessageStatus? status}) {
+  ChatMessage copyWith({
+    String? id,
+    String? text,
+    MessageStatus? status,
+    List<ChatAttachment>? attachments,
+  }) {
     return ChatMessage(
       id: id ?? this.id,
       direction: direction,
@@ -38,6 +50,7 @@ class ChatMessage {
       createdAt: createdAt,
       model: model,
       status: status ?? this.status,
+      attachments: attachments ?? this.attachments,
     );
   }
 }

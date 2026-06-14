@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart' show TextInputAction;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +9,8 @@ import '../agents/agent_avatar.dart';
 import '../agents/agent_controller.dart';
 import '../conversations/conversations_controller.dart';
 import '../../data/chat/chat_message.dart';
+import 'attachment_view.dart';
+import 'chat_composer.dart';
 import 'chat_controller.dart';
 import 'markdown/mantle_markdown.dart';
 
@@ -57,13 +58,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (position.pixels >= position.maxScrollExtent - 300) {
       ref.read(_provider.notifier).loadMore();
     }
-  }
-
-  void _send() {
-    final text = _input.text;
-    if (text.trim().isEmpty) return;
-    _input.clear();
-    ref.read(_provider.notifier).send(text);
   }
 
   @override
@@ -147,7 +141,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
           ),
-          _Composer(theme: theme, controller: _input, onSend: _send),
+          ChatComposer(provider: _provider, textController: _input),
         ],
       ),
     );
@@ -241,6 +235,30 @@ class _Bubble extends StatelessWidget {
     final failed = message.status == MessageStatus.failed;
     final sending = message.status == MessageStatus.sending;
 
+    final hasText = message.text.trim().isNotEmpty;
+    // User messages are plain text (they typed plain text); assistant replies
+    // are GFM markdown rendered with our theme tokens. Attachments (images
+    // inline, files as chips) stack above the text.
+    final body = <Widget>[
+      for (final attachment in message.attachments)
+        Padding(
+          padding: EdgeInsets.only(bottom: hasText ? 8 : 0),
+          child: AttachmentView(
+            attachment: attachment,
+            theme: theme,
+            onUserBubble: fromUser,
+          ),
+        ),
+      if (hasText)
+        fromUser
+            ? Text(
+                message.text,
+                style:
+                    theme.textTheme.p.copyWith(color: scheme.primaryForeground),
+              )
+            : MantleMarkdown(message.text, textColor: scheme.foreground),
+    ];
+
     final bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.sizeOf(context).width * 0.78,
@@ -250,14 +268,11 @@ class _Bubble extends StatelessWidget {
         color: fromUser ? scheme.primary : scheme.muted,
         borderRadius: BorderRadius.circular(16),
       ),
-      // User messages are plain text (they typed plain text); assistant replies
-      // are GFM markdown rendered with our theme tokens.
-      child: fromUser
-          ? Text(
-              message.text,
-              style: theme.textTheme.p.copyWith(color: scheme.primaryForeground),
-            )
-          : MantleMarkdown(message.text, textColor: scheme.foreground),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: body,
+      ),
     );
 
     return Padding(
@@ -276,60 +291,6 @@ class _Bubble extends StatelessWidget {
               ),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _Composer extends StatelessWidget {
-  const _Composer({
-    required this.theme,
-    required this.controller,
-    required this.onSend,
-  });
-
-  final ShadThemeData theme;
-  final TextEditingController controller;
-  final VoidCallback onSend;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.background,
-        border: Border(top: BorderSide(color: theme.colorScheme.border)),
-      ),
-      // Clear the keyboard when open, else the home indicator (the screen no
-      // longer sits inside a bottom SafeArea — the header owns the top one).
-      padding: EdgeInsets.fromLTRB(
-        16,
-        10,
-        16,
-        10 +
-            (MediaQuery.viewInsetsOf(context).bottom == 0
-                ? MediaQuery.viewPaddingOf(context).bottom
-                : MediaQuery.viewInsetsOf(context).bottom),
-      ),
-      // IntrinsicHeight + stretch keeps the Send button exactly as tall as the
-      // input (general rule: buttons beside an input match its height).
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: ShadInput(
-                controller: controller,
-                placeholder: const Text('Message Mantle…'),
-                maxLines: 5,
-                minLines: 1,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            ShadButton(onPressed: onSend, child: const Text('Send')),
-          ],
-        ),
       ),
     );
   }

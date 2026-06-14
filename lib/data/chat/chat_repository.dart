@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'chat_api.dart';
+import 'chat_attachment.dart';
 import 'chat_message.dart';
 
 part 'chat_repository.g.dart';
@@ -22,8 +23,15 @@ class ChatRepository {
     String? agentSlug,
   }) => _api.fetchHistory(before: before, limit: limit, agentSlug: agentSlug);
 
-  Future<TurnResult> send(String text, {String? agentSlug}) =>
-      _api.sendTurn(text, agentSlug: agentSlug);
+  Future<TurnResult> send(
+    String text, {
+    String? agentSlug,
+    OutgoingAttachment? attachment,
+  }) =>
+      _api.sendTurn(text, agentSlug: agentSlug, attachment: attachment);
+
+  /// Transcribe a recorded voice note to text (used by the composer's mic).
+  Future<String> transcribe(String audioPath) => _api.transcribe(audioPath);
 }
 
 @Riverpod(keepAlive: true)

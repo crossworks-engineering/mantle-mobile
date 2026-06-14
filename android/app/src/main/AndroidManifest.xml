@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Chat composer voice notes (transcribed server-side). image_picker /
+         file_picker use the system pickers, so they need no storage permission. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application
         android:label="mantle_companion"
         android:name="${applicationName}"

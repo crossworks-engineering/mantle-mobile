@@ -197,12 +197,38 @@ the bubble colour drive it). User messages stay plain `Text`. Built in phases:
    rendered by a nested `MantleMarkdown`; the `chart-N` palette lives in
    `mantle_theme.dart`). Invalid colour tokens are baked out of the inline regex
    so they fall through to plain text. Inline spans flatten nested emphasis (v1).
-3. **Images & attachments** — extend `ChatMessage`/`ChatApi` to parse
-   `artifacts[]`/`attachments[]`; a Dio-backed `ImageProvider` (carries the
-   Bearer header, resolves relative URLs) feeds the markdown `imageBuilder` and
-   inline media below the bubble.
+3. **Images & attachments (done)** — see [Attachments & voice](#attachments--voice).
 4. **Math & syntax highlighting** — `$…$` / `$$…$$` (flutter_math_fork) and
    code-block highlighting.
+
+### Attachments & voice
+
+The composer ([`features/chat/chat_composer.dart`](../lib/features/chat/chat_composer.dart))
+adds an attach button (photo library / camera via **image_picker**, document
+via **file_picker**) and a mic. Both reuse Mantle's existing endpoints — no new
+server work:
+
+- **Send.** A picked file rides on the turn as multipart
+  (`POST /api/assistant/turn`, field `image` for pictures / `file` for the
+  ingestable doc types `pdf,docx,xlsx,xls,csv,txt,md,json,yaml,yml`); text-only
+  turns stay JSON. The user's bubble shows the picked file immediately (from
+  disk); the server strips image bytes from the reply, so we keep rendering the
+  local preview after the turn lands.
+- **Voice.** Tap the mic to record (**record** → `.m4a`/aac to a temp file, with
+  a live timer + cancel); tap send to stop → `POST /api/assistant/transcribe`
+  (Mantle's default STT worker) → the transcript is sent as a normal turn. A
+  missing STT worker (412) / failed transcription (422) surfaces the server's
+  message inline.
+- **Render** ([`features/chat/attachment_view.dart`](../lib/features/chat/attachment_view.dart)).
+  `ChatMessage.attachments` (`ChatAttachment`) drives it: an image shows inline —
+  from `localPath` when just-sent, else fetched authed by `nodeId` via
+  `fileBytesProvider` (`GET /api/files/files/{nodeId}?raw=1`, the path on history
+  reload); any other kind (document, voice note) is a labeled chip with its file
+  type. History rows carry `attachments[]`; the just-completed turn's inbound
+  `artifacts[]` are echoed but the client prefers its own local preview.
+- **Native permissions**: iOS `NSMicrophoneUsageDescription` /
+  `NSPhotoLibraryUsageDescription` / `NSCameraUsageDescription`; Android
+  `RECORD_AUDIO` (the pickers use the system UIs, so no storage permission).
 
 ## Mantle integration contract
 
@@ -210,10 +236,12 @@ the bubble colour drive it). User messages stay plain `Text`. Built in phases:
 - **Auth**: `Authorization: Bearer <token>` on every call.
 - **Endpoints used**: `/api/version` (probe), `/api/auth/mobile-login`,
   `/api/auth/mobile-logout`, `/api/agents` (agent list),
-  `/api/assistant/messages`, `/api/assistant/turn`, `/api/dashboard/summary`
-  (landing stats — **added to Mantle**), `/api/health` (system vitals),
-  `/api/assistant/conversations` (inbox — **added**), `/api/assistant/read`
-  (read cursor — **added**), `/api/agents/{slug}/avatar` (avatar SVG — **added**).
+  `/api/assistant/messages`, `/api/assistant/turn` (JSON or multipart upload),
+  `/api/assistant/transcribe` (voice → text), `/api/files/files/{id}?raw=1`
+  (attachment image bytes), `/api/dashboard/summary` (landing stats — **added to
+  Mantle**), `/api/health` (system vitals), `/api/assistant/conversations`
+  (inbox — **added**), `/api/assistant/read` (read cursor — **added**),
+  `/api/agents/{slug}/avatar` (avatar SVG — **added**).
 - **Auth-failure contract**: treat **401 OR 3xx→/login** as "session invalid →
   clear token → re-login".
 
@@ -264,8 +292,8 @@ cleartext to local hosts. Production Mantle is HTTPS.
 
 ## Roadmap
 
-- **Rich reply rendering** — Phases 1–2 (GFM text + Mantle custom blocks/inline)
-  done; Phases 3–4 (images/attachments, math/highlighting) outlined under
+- **Rich reply rendering** — Phases 1–3 (GFM text + Mantle custom blocks/inline
+  + images/attachments & voice) done; Phase 4 (math/highlighting) outlined under
   [Chat](#rendering-assistant-replies)
 - Drift message **cache + offline send-queue** (the `ChatRepository` seam exists)
 - **Message-attached location** (geolocator, When-In-Use)

@@ -4,6 +4,14 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Chat composer: record a voice note (transcribed by Mantle), and attach
+	     photos / documents to a message. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mantle Companion records voice notes that your assistant transcribes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mantle Companion lets you attach photos to a message for your assistant.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Mantle Companion lets you take a photo to attach to a message for your assistant.</string>
 	<!-- Dev convenience: allow cleartext HTTP to local/unqualified hosts (e.g.
 	     http://localhost:3000) so the app can reach a Mantle dev server. This
 	     only relaxes ATS for local networking, not arbitrary public HTTP;

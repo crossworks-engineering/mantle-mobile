@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../data/chat/chat_attachment.dart';
 import '../../data/chat/chat_message.dart';
 import '../../data/chat/chat_repository.dart';
 import '../../data/chat/conversation_stream.dart';
@@ -113,30 +114,48 @@ class ChatController extends _$ChatController {
     }
   }
 
-  Future<void> send(String text) async {
+  /// Transcribe a recorded voice note to text (the composer then sends it as a
+  /// normal turn). Throws on failure so the composer can surface the server's
+  /// message (e.g. "no STT worker configured").
+  Future<String> transcribe(String audioPath) =>
+      ref.read(chatRepositoryProvider).transcribe(audioPath);
+
+  /// Send a turn. [attachment] (optional) is an image or document picked
+  /// locally; the user's bubble shows it immediately (from disk) and the turn
+  /// posts it as multipart. Either [text] or [attachment] must be non-empty.
+  Future<void> send(String text, {OutgoingAttachment? attachment}) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && attachment == null) return;
 
     final base =
         state.value ?? const ChatState(messages: [], hasMore: false);
     final tempId = 'temp-${DateTime.now().microsecondsSinceEpoch}';
+    // The local preview rides on the optimistic bubble and is kept after the
+    // turn lands (the server strips image bytes from the reply).
+    final localAttachments = attachment != null
+        ? [attachment.toChatAttachment()]
+        : const <ChatAttachment>[];
     final pending = ChatMessage(
       id: tempId,
       direction: MessageDirection.inbound,
       text: trimmed,
       createdAt: DateTime.now(),
       status: MessageStatus.sending,
+      attachments: localAttachments,
     );
     state = AsyncData(base.copyWith(messages: [...base.messages, pending]));
 
     try {
       final result = await ref
           .read(chatRepositoryProvider)
-          .send(trimmed, agentSlug: agentSlug);
+          .send(trimmed, agentSlug: agentSlug, attachment: attachment);
       final current = state.value ?? base;
+      final landed = localAttachments.isEmpty
+          ? result.inbound
+          : result.inbound.copyWith(attachments: localAttachments);
       final replaced = [
         for (final m in current.messages)
-          if (m.id == tempId) result.inbound else m,
+          if (m.id == tempId) landed else m,
         result.outbound,
       ];
       state = AsyncData(current.copyWith(messages: replaced));

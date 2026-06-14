@@ -49,3 +49,106 @@ final class ChatApiProvider
 }
 
 String _$chatApiHash() => r'137318d40b3ab5ba3df06f2aed38d72ef5faf1a4';
+
+/// Raw bytes of a Mantle file node (`GET /api/files/files/{nodeId}?raw=1`),
+/// fetched through the authed [Dio]. Backs inline image attachments when
+/// history reloads (the just-sent path renders from disk instead). Returns null
+/// on any failure so the renderer falls back to a chip. Kept alive so an image
+/// isn't re-fetched every time the list rebuilds while scrolling.
+
+@ProviderFor(fileBytes)
+final fileBytesProvider = FileBytesFamily._();
+
+/// Raw bytes of a Mantle file node (`GET /api/files/files/{nodeId}?raw=1`),
+/// fetched through the authed [Dio]. Backs inline image attachments when
+/// history reloads (the just-sent path renders from disk instead). Returns null
+/// on any failure so the renderer falls back to a chip. Kept alive so an image
+/// isn't re-fetched every time the list rebuilds while scrolling.
+
+final class FileBytesProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<Uint8List?>,
+          Uint8List?,
+          FutureOr<Uint8List?>
+        >
+    with $FutureModifier<Uint8List?>, $FutureProvider<Uint8List?> {
+  /// Raw bytes of a Mantle file node (`GET /api/files/files/{nodeId}?raw=1`),
+  /// fetched through the authed [Dio]. Backs inline image attachments when
+  /// history reloads (the just-sent path renders from disk instead). Returns null
+  /// on any failure so the renderer falls back to a chip. Kept alive so an image
+  /// isn't re-fetched every time the list rebuilds while scrolling.
+  FileBytesProvider._({
+    required FileBytesFamily super.from,
+    required String super.argument,
+  }) : super(
+         retry: null,
+         name: r'fileBytesProvider',
+         isAutoDispose: false,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$fileBytesHash();
+
+  @override
+  String toString() {
+    return r'fileBytesProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<Uint8List?> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<Uint8List?> create(Ref ref) {
+    final argument = this.argument as String;
+    return fileBytes(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is FileBytesProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$fileBytesHash() => r'd6e6551a7815ac2f9904d739d9ed441c72320e3d';
+
+/// Raw bytes of a Mantle file node (`GET /api/files/files/{nodeId}?raw=1`),
+/// fetched through the authed [Dio]. Backs inline image attachments when
+/// history reloads (the just-sent path renders from disk instead). Returns null
+/// on any failure so the renderer falls back to a chip. Kept alive so an image
+/// isn't re-fetched every time the list rebuilds while scrolling.
+
+final class FileBytesFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<Uint8List?>, String> {
+  FileBytesFamily._()
+    : super(
+        retry: null,
+        name: r'fileBytesProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: false,
+      );
+
+  /// Raw bytes of a Mantle file node (`GET /api/files/files/{nodeId}?raw=1`),
+  /// fetched through the authed [Dio]. Backs inline image attachments when
+  /// history reloads (the just-sent path renders from disk instead). Returns null
+  /// on any failure so the renderer falls back to a chip. Kept alive so an image
+  /// isn't re-fetched every time the list rebuilds while scrolling.
+
+  FileBytesProvider call(String nodeId) =>
+      FileBytesProvider._(argument: nodeId, from: this);
+
+  @override
+  String toString() => r'fileBytesProvider';
+}
