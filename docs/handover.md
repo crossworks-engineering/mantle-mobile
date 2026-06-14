@@ -127,13 +127,12 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
      wired (Caddy block + `docs/deploy.md`) but **gated** — ships when Jason says.
      APNs/FCM creds (Apple Dev account, Firebase project) don't exist yet; only
      needed at M3/M4 when the app flips the relay to `live`.
-   - **M2 — Mantle side** (next): in `~/Projects/mantle`, add `push_instance` +
-     `push_subscriptions` schema, the `POST /api/push/connect` (lazy instance-token
-     gen + ticket mint), `/api/push/subscriptions`, `/api/push/reset` routes, and
-     the **send-worker off the existing `conversation_changed` signal** (migration
-     0091) that seals a teaser to each device pubkey and calls the relay's
-     `/notify`. The ticket/token wire format to mirror is in
-     `mantle-push/src/lib/ticket.ts` + `tokens.ts`.
+   - ~~**M2 — Mantle side**~~ **DONE** (2026-06-14, Mantle v0.25.0). Migration 0092
+     (`push_instance` + `push_subscriptions`), the connect/subscribe/reset routes,
+     `lib/push/*` (libsodium `crypto_box_seal` + relay client + token/ticket
+     wire-compatible with the relay), and **`worker_push`** off `conversation_changed`.
+     Verified E2E against the **live** relay (`apps/web/scripts/verify-push-m2.ts`).
+     Committed on `main`, not pushed/deployed.
    - **M3 iOS** (keypair + Keychain group + NSE decrypt + one-tap Connect),
      **M4 Android** (FCM data handler), **M5** Settings/quiet-hours, **M6**
      UnifiedPush. Push is the only path for *backgrounded* proactive messages

@@ -383,9 +383,18 @@ Push is strictly additive on top of the existing live stream.
    the container joins `mantle_default`); full steps in `mantle-push/docs/deploy.md`.
    Interim co-location on prod, own-compose joined to Caddy's network — no edit to
    Mantle's `docker-compose.yml` required.
-2. **M2 — Mantle side**: `push_instance` + `push_subscriptions`, the
-   connect/subscribe/reset routes, the send-worker off `conversation_changed`,
-   E2E sealing.
+2. **M2 — Mantle side** — ✅ **BUILT (2026-06-14, Mantle v0.25.0)**. Migration
+   0092 (`push_instance` singleton w/ instance token sealed at rest +
+   `push_subscriptions`); owner-gated `POST /api/push/connect` (lazy instance-token
+   gen → relay register → enrollment-ticket mint), `POST|GET /api/push/subscriptions`,
+   `DELETE /api/push/subscriptions/:id`, `POST /api/push/reset`; `lib/push/*`
+   (token + HMAC ticket wire-compatible with the relay, **libsodium
+   `crypto_box_seal`** to the device pubkey, relay client); **`worker_push`**
+   LISTENs `conversation_changed` and forwards each outbound turn's sealed teaser
+   to the relay `/notify`. Verified E2E against the **live** relay
+   (`scripts/verify-push-m2.ts`: sealed-box round-trip; relay accepts
+   instance/ticket/notify; `pushOutbound` delivers 1/1; worker fires on trigger).
+   Committed on `main`, **not deployed** (no app/creds yet).
 3. **M3 — Companion iOS**: keypair + Keychain group, APNs, NSE decrypt, one-tap
    Connect. End-to-end on one platform.
 4. **M4 — Companion Android**: FCM data + decrypt handler.
