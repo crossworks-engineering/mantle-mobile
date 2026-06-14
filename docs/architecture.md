@@ -223,9 +223,19 @@ server work:
   `ChatMessage.attachments` (`ChatAttachment`) drives it: an image shows inline —
   from `localPath` when just-sent, else fetched authed by `nodeId` via
   `fileBytesProvider` (`GET /api/files/files/{nodeId}?raw=1`, the path on history
-  reload); any other kind (document, voice note) is a labeled chip with its file
-  type. History rows carry `attachments[]`; the just-completed turn's inbound
+  reload); any other kind (document) is a labeled chip with its file type.
+  History rows carry `attachments[]`; the just-completed turn's inbound
   `artifacts[]` are echoed but the client prefers its own local preview.
+- **Voice reply (assistant → you).** Saskia can answer with audio via Mantle's
+  built-in *"Send a voice reply"* tool (needs a default **TTS** worker; she calls
+  it when asked — "send that as a voice note" — or on her own). The turn returns
+  an outbound `artifacts[]` entry (`kind:'audio'`, mp3 base64 on the web surface
+  the companion uses — **Telegram's opus/sendVoice path is untouched**).
+  `ChatApi.sendTurn` decodes it to a temp file and hangs it on the reply as an
+  `audio` `ChatAttachment`; [`audio_bubble.dart`](../lib/features/chat/audio_bubble.dart)
+  (`AudioBubble`, **just_audio**) plays it inline (play/pause + progress). These
+  bytes are live-only (not persisted for web turns), so a voice reply doesn't
+  survive a history reload — same as the web `/assistant`.
 - **Native permissions**: iOS `NSMicrophoneUsageDescription` /
   `NSPhotoLibraryUsageDescription` / `NSCameraUsageDescription`; Android
   `RECORD_AUDIO` (the pickers use the system UIs, so no storage permission).

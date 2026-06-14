@@ -1,6 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/network/dio_provider.dart';
@@ -98,8 +101,86 @@ class ChatApi {
         text: (outbound['text'] as String?) ?? (data['reply'] as String? ?? ''),
         createdAt: DateTime.parse(outbound['createdAt'] as String),
         model: outbound['model'] as String?,
+        // Sidecar artifacts the agent's tools produced this turn — a voice
+        // reply (TTS audio) or a generated image. They carry live base64 bytes
+        // (not persisted for web turns), so we stash them on disk and play /
+        // show them inline. Absent on a plain text reply.
+        attachments: await _attachmentsFromArtifacts(data['artifacts'] as List?),
       ),
     );
+  }
+
+  /// Turn outbound `artifacts[]` (live base64 audio/image) into attachments by
+  /// writing each blob to a temp file the player / image widget can read. Non-
+  /// audio/image kinds and empty payloads are skipped.
+  Future<List<ChatAttachment>> _attachmentsFromArtifacts(List? artifacts) async {
+    if (artifacts == null || artifacts.isEmpty) return const [];
+    final out = <ChatAttachment>[];
+    var i = 0;
+    for (final raw in artifacts) {
+      if (raw is! Map) continue;
+      final kind = raw['kind'] as String?;
+      final base64Str = raw['base64'] as String?;
+      if (base64Str == null || base64Str.isEmpty) continue;
+      final mime = raw['mimeType'] as String?;
+      final caption = raw['caption'] as String?;
+      final AttachmentKind attachmentKind;
+      final String ext;
+      if (kind == 'audio') {
+        attachmentKind = AttachmentKind.audio;
+        ext = _extForMime(mime, 'mp3');
+      } else if (kind == 'image') {
+        attachmentKind = AttachmentKind.image;
+        ext = _extForMime(mime, 'png');
+      } else {
+        continue;
+      }
+      try {
+        final dir = await getTemporaryDirectory();
+        final path =
+            '${dir.path}/artifact-${DateTime.now().microsecondsSinceEpoch}-${i++}.$ext';
+        await File(path).writeAsBytes(base64Decode(base64Str));
+        out.add(ChatAttachment(
+          kind: attachmentKind,
+          localPath: path,
+          mime: mime,
+          caption: caption,
+        ));
+      } catch (_) {
+        /* a bad blob shouldn't sink the whole reply — skip it */
+      }
+    }
+    return out;
+  }
+
+  /// Pick a file extension from a MIME subtype (`audio/mpeg` → `mp3`), with a
+  /// sensible fallback when the MIME is missing or odd.
+  String _extForMime(String? mime, String fallback) {
+    final sub = (mime ?? '').split('/').last.toLowerCase();
+    switch (sub) {
+      case 'mpeg':
+      case 'mp3':
+        return 'mp3';
+      case 'mp4':
+      case 'm4a':
+      case 'aac':
+        return 'm4a';
+      case 'ogg':
+      case 'opus':
+        return 'ogg';
+      case 'wav':
+      case 'x-wav':
+        return 'wav';
+      case 'jpeg':
+      case 'jpg':
+        return 'jpg';
+      case 'png':
+      case 'webp':
+      case 'gif':
+        return sub;
+      default:
+        return fallback;
+    }
   }
 
   /// `POST /api/assistant/transcribe` — multipart audio in, transcript out.

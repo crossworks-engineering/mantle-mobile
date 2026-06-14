@@ -1,5 +1,6 @@
 // ChatApi parsing, with a mocked Dio.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -8,8 +9,19 @@ import 'package:mantle_companion/data/chat/chat_api.dart';
 import 'package:mantle_companion/data/chat/chat_attachment.dart';
 import 'package:mantle_companion/data/chat/chat_message.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 class MockDio extends Mock implements Dio {}
+
+/// Routes `getTemporaryDirectory()` at the system temp dir so artifact bytes
+/// can be written to disk under `flutter test` (no real plugin channel).
+class _FakePathProvider extends Fake
+    with MockPlatformInterfaceMixin
+    implements PathProviderPlatform {
+  @override
+  Future<String?> getTemporaryPath() async => Directory.systemTemp.path;
+}
 
 Response<Map<String, dynamic>> _resp(Map<String, dynamic> data) => Response(
       requestOptions: RequestOptions(path: '/'),
@@ -194,5 +206,51 @@ void main() {
 
     final text = await api.transcribe(tmp.path);
     expect(text, 'hello there');
+  });
+
+  test('sendTurn writes an outbound audio artifact to a playable file',
+      () async {
+    PathProviderPlatform.instance = _FakePathProvider();
+    final audioBytes = [1, 2, 3, 4, 5];
+
+    when(() => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        )).thenAnswer(
+      (_) async => _resp({
+        'inbound': {
+          'id': 'i1',
+          'text': 'read that aloud',
+          'createdAt': '2026-06-13T10:00:00.000Z',
+        },
+        'outbound': {
+          'id': 'o1',
+          'text': 'Here you go 🔊',
+          'createdAt': '2026-06-13T10:00:02.000Z',
+        },
+        'artifacts': [
+          {
+            'kind': 'audio',
+            'mimeType': 'audio/mpeg',
+            'base64': base64Encode(audioBytes),
+            'caption': 'Here you go',
+            'producedBy': 'send-voice-reply',
+          },
+        ],
+      }),
+    );
+
+    final result = await api.sendTurn('read that aloud');
+
+    expect(result.outbound.attachments, hasLength(1));
+    final audio = result.outbound.attachments.single;
+    expect(audio.kind, AttachmentKind.audio);
+    expect(audio.localPath, isNotNull);
+    final file = File(audio.localPath!);
+    addTearDown(() => file.delete());
+    expect(file.existsSync(), isTrue);
+    expect(file.path, endsWith('.mp3'));
+    expect(await file.readAsBytes(), audioBytes);
   });
 }

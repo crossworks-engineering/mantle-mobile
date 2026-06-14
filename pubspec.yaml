@@ -58,6 +58,7 @@ dependencies:
   file_picker: ^10.0.0
   record: ^7.1.0
   mime: ^2.0.0
+  just_audio: ^0.10.5
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +79,8 @@ dev_dependencies:
   # analyzer ^8, which conflicts with drift_dev 2.34 (needs analyzer >=10).
   # Re-add once custom_lint supports analyzer 10+.
   mocktail: ^1.0.5
+  path_provider_platform_interface: ^2.1.2
+  plugin_platform_interface: ^2.1.8
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
