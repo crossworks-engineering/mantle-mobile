@@ -44,10 +44,10 @@ relay/app wire up against.
 
 | Field | Value |
 |---|---|
-| Firebase project | **pusher** · id `pusher-5bacc` (free Spark plan — FCM included) |
+| Firebase project | **pusher** · id `pusher-5bacc` · sender/project number `426833137509` (free Spark plan — FCM included) |
 | Android app (package) | `me.schoeman.mantle_companion` |
-| `google-services.json` | for the Flutter app at `android/app/` — re-download: Firebase → pusher → ⚙ Project settings → Your apps → Mantle Companion. Not a secret. |
-| Service-account JSON | for the relay's FCM v1 sends — generate: Project settings → **Service accounts → Generate new private key**. **Server secret** → into `mantle-push` secrets; never commit. Re-generatable. |
+| `google-services.json` | ✅ downloaded (for the Flutter app at `android/app/`). Re-download: Firebase → pusher → ⚙ Project settings → Your apps → Mantle Companion. Not a secret. |
+| Service-account JSON | ✅ **generated 2026-06-14** (`firebase-adminsdk-m8shx@pusher-5bacc`) for the relay's FCM v1 sends → `mantle-push` `secrets/fcm-service-account.json`. **Server secret; never commit** (the relay repo is public). Re-generatable. |
 
 > iOS does **not** need Firebase — it goes straight to APNs via the `.p8`. FCM is
 > Android-only here.
