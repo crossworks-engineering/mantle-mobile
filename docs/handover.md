@@ -92,7 +92,9 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
 6. Roadmap (not started): Drift message **cache + offline send-queue**,
    **message-attached location** (geolocator, When-In-Use), **push notifications**
    (FCM/APNs — needs new Mantle infra; the only path for *backgrounded* proactive
-   messages, since SSE pauses when backgrounded), markdown **images + math**
+   messages, since SSE pauses when backgrounded — **design drafted in
+   [push-notifications.md](push-notifications.md)**: a blind, E2E-encrypted central
+   relay as the paid tier), markdown **images + math**
    (Phases 3–4), in-app routing for internal links.
 
 ## Gotchas (carried forward)
