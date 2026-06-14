@@ -1,6 +1,6 @@
 # Mantle Companion — Handover
 
-_Last updated: 2026-06-14._
+_Last updated: 2026-06-15._
 
 A checkpoint for picking the work back up. For the system map read
 [architecture.md](architecture.md); for UI rules read
@@ -16,29 +16,56 @@ assistant. Connects to a user's own Mantle server over an authenticated REST API
 
 ## State at this checkpoint
 
-> **Latest session (2026-06-14).** **Mantle Push M1 built AND deployed to prod;
-> latest Mantle (v0.24.0, the mobile-companion backend) deployed to prod.**
+> **Latest session (2026-06-15) — the ENTIRE push project (M1–M6) was built; the
+> whole server side is deployed and live in prod.** This was a long session that
+> went from "no push at all" to "everything built + server deployed." Three repos.
 >
-> - **`mantle-push` is LIVE** at `https://push.crossworks.network` (valid LE cert),
->   running the **mock** provider. New repo (Node + TS + Hono, own Postgres):
->   TOFU `/instances`, ticket-gated `/enroll`, instance-token `/notify`, `/refresh`,
->   `DELETE /device`, `/instance`; APNs (HTTP/2 + ES256 `.p8`) + FCM v1 + mock
->   providers; per-instance rate limits. **14-check smoke test passes against the
->   public prod endpoint.** Repo public: github.com/crossworks-engineering/mantle-push.
->   Co-located on the prod box as its own compose stack joined to `mantle_default`;
->   Caddy proxies `push:8787`. (Gotcha hit: a Caddyfile bind-mount needs
->   `docker restart mantle_caddy` after rsync — the rename swaps the inode; noted in
->   mantle/docs/update-prod.md.)
-> - **Mantle v0.24.0 deployed**: migrations 0089/0090/0091 applied on prod (89→92),
->   data intact, all mobile-API routes live + gating correctly. Pre-dump taken.
-> - **To make notifications ACTUALLY deliver** (next): (1) **M2 Mantle-side** —
->   push schema + connect/subscribe/reset routes + the send-worker off
->   `conversation_changed` that seals a teaser and POSTs the relay's `/notify`;
->   (2) **real APNs/FCM creds** — an Apple Developer `.p8` + a Firebase service
->   account — to flip the relay `PUSH_PROVIDER=mock → live` (one env var +
->   mounting the secrets; see mantle-push/docs/deploy.md); (3) **M3/M4 app** —
->   keypair, NSE/FCM handler, one-tap Connect. The relay + transport are proven;
->   what's missing is M2, the credentials, and the on-device half.
+> **Done & in production (server side — nothing left to deploy):**
+> - **`mantle-push` relay — LIVE + CREDENTIALED** at `https://push.crossworks.network`
+>   (`provider:"live"`). Node+TS+Hono, own Postgres, co-located on the prod box as
+>   its own compose stack (`mantle_push` + `mantle_push_db`) behind Caddy. APNs
+>   (prod) + FCM both **authenticate** (smoke-live: fake token → APNs `BadDeviceToken`
+>   / FCM `INVALID_ARGUMENT`). Public repo, now with `docs/architecture.md`.
+> - **Mantle v0.26.0 deployed to prod.** Migrations 0089–0093 all applied (drizzle
+>   94, data intact). Live: the mobile-companion API (M2: `/api/push/connect|
+>   subscriptions|reset`, the seal+send `worker_push` off `conversation_changed`)
+>   **and** M5 (push_prefs, `/api/push/preferences`, the worker's prefs-gating +
+>   tz-aware quiet hours + the **approvals trigger** off `pending_changed`).
+> - **Credentials provisioned** (Apple `.p8` `2TJ76S5L69` topic-specific/**production**,
+>   Firebase `pusher-5bacc`). Secret files on the prod box at `~/mantle-push/secrets/`.
+>   Bundle id `crossworks.engineering.mantle`; Android pkg `me.schoeman.mantle_companion`.
+>
+> **Built, code-complete, NOT yet device-verified (the companion app halves):**
+> - **M3 iOS** — Dart Connect + libsodium keypair (`sodium_libs`) + the Swift
+>   **Notification Service Extension** (decrypt). Needs Xcode (capabilities + the NSE
+>   target + signing) and **TestFlight** (our APNs key is production-only). Runbook:
+>   `ios/PUSH_SETUP.md`.
+> - **M4 Android** — `firebase_messaging` + a Dart background-isolate decrypt → local
+>   notification. Needs a **Play-Services** device. Runbook: `android/PUSH_SETUP.md`.
+> - **M6 direct connection (no-Google Android)** — a foreground service holding the
+>   SSE stream open → local notification, straight from the user's Mantle (no
+>   relay/FCM/ntfy/crypto). Chosen over UnifiedPush. Needs a **Play-less** device.
+>
+> **➡️ NEXT SESSION — pick from, in priority:**
+> 1. **On-device verification** (yours to run): M3 on TestFlight, M4 on a
+>    Play-Services device, M6 on a Play-less device. The whole spine is proven in
+>    code; this is the only thing between "built" and "a notification on a phone."
+> 2. **Unit-test gap** (the live question when this session ended — a good coding
+>    task): **`mantle-push` has ZERO unit tests** (only `scripts/smoke.ts`, an
+>    integration test needing a running server) — and its untested code is
+>    security-critical (ticket HMAC verify, token hashing, rate limiter). Add
+>    **`node:test`** (built-in, zero deps, runs TS via the same strip mode) tests for
+>    `src/lib/ticket.ts` (round-trip / tampered / expired / wrong-key / malformed),
+>    `tokens.ts`, `ratelimit.ts`. Mantle backend is thin too (only
+>    `apps/web/lib/push/quiet-hours.test.ts`) — worth adding `notify.ts` gating +
+>    the prefs-route sanitizer. The app is OK (64 tests, incl. push controllers).
+> 3. Other open items below (Pending screen, account settings).
+>
+> **Commit/deploy state:** all three repos clean on `main`. `mantle` +
+> `mantle-push` fully pushed to origin. `mantle-companion` was merged/pushed by
+> Jason. Durable detail is in the `mantle-push` project memory (loads automatically).
+> Model in use: **Opus 4.8**. Deploy loop = build-on-VPS (`mantle/docs/update-prod.md`);
+> always pre-dump (`scripts/db-dump.sh`) before a migration.
 >
 > **Prior session (2026-06-13).** Backend verified live + committed; avatar
 > endpoint fixed; dashboard theme-color fix; inbox redesigned as flat accent
