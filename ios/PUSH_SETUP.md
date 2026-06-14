@@ -60,6 +60,14 @@ token, the second is shared with the NSE).
 
 This links `swift-sodium` into the extension for `crypto_box_seal_open`.
 
+> **Firebase pods on iOS (from M4).** `firebase_messaging` is a cross-platform
+> plugin, so its iOS pods ship even though **iOS uses raw APNs, not Firebase**.
+> We never initialize Firebase on iOS (`main.dart` guards on `Platform.isAndroid`)
+> and disable its app-delegate swizzling (`FirebaseAppDelegateProxyEnabled = NO`
+> in `Info.plist`), so it stays inert. The only consequence: the iOS **deployment
+> target must be ≥ 15.0** (set in the Podfile; also set Runner +
+> NotificationService to 15.0 in Xcode → Build Settings).
+
 ## 4. Build to a device & TestFlight
 
 Because the APNs key is **production-only**:

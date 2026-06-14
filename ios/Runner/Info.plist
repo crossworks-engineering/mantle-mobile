@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- iOS uses raw APNs + the Notification Service Extension, NOT Firebase.
+	     firebase_messaging's pod ships on iOS too (it's a cross-platform plugin),
+	     so disable its app-delegate swizzling to keep our manual APNs handling in
+	     AppDelegate.swift authoritative. Firebase is never initialized on iOS. -->
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<!-- Chat composer: record a voice note (transcribed by Mantle), and attach

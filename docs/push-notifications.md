@@ -449,7 +449,16 @@ Push is strictly additive on top of the existing live stream.
    the NSE target, sign, archive) — our APNs key is production-only so a real
    decrypted push verifies via TestFlight, not `flutter run`. Full runbook:
    `ios/PUSH_SETUP.md`.
-4. **M4 — Companion Android**: FCM data + decrypt handler.
+4. **M4 — Companion Android** — ✅ **CODE-COMPLETE (2026-06-14)**. `firebase_messaging`
+   FCM token (platform-aware `PushTokenService`; Connect now does iOS **or** Android),
+   a Dart **background-isolate handler** that opens the sealed box (`sodium_libs`
+   `crypto_box_seal_open`, key from secure storage) and posts a local notification
+   via `flutter_local_notifications`. Gradle (`google-services` plugin) + manifest
+   (`POST_NOTIFICATIONS`) wired; `google-services.json` staged. Firebase kept
+   **Android-only** (guarded init + `FirebaseAppDelegateProxyEnabled=NO`) so the iOS
+   raw-APNs path is untouched (note: pulls iOS deploy target to 15+). analyze + tests
+   clean. **Remaining = run on a Play-services device/emulator** (runbook:
+   `android/PUSH_SETUP.md`).
 5. **M5 — Settings & polish**: per-trigger toggles, quiet hours, device list,
    instance reset.
 6. **M6 — UnifiedPush (Android)**: the free/self-host distributor path.

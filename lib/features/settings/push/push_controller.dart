@@ -1,8 +1,8 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../data/push/apns_bridge.dart';
 import '../../../data/push/push_api.dart';
 import '../../../data/push/push_keys.dart';
+import '../../../data/push/push_token_service.dart';
 
 part 'push_controller.g.dart';
 
@@ -57,27 +57,28 @@ class PushController extends _$PushController {
     state = await AsyncValue.guard(() async {
       final api = ref.read(pushApiProvider);
       final keyStore = await ref.read(pushKeyStoreProvider.future);
-      final bridge = ref.read(apnsBridgeProvider);
 
-      final token = await bridge.requestPermissionAndToken();
-      if (token == null || token.isEmpty) {
+      final pushToken = await ref.read(pushTokenServiceProvider).requestToken();
+      if (pushToken == null || pushToken.token.isEmpty) {
         throw const PushException('Notification permission was declined.');
       }
+      final platform = pushToken.platform;
+      final token = pushToken.token;
 
       final publicKey = await keyStore.ensureDeviceKeyPair();
 
-      final conn = await api.connect(platform: 'ios', osPushToken: token, publicKey: publicKey);
+      final conn = await api.connect(platform: platform, osPushToken: token, publicKey: publicKey);
       final enrolled = await api.enroll(
         relayUrl: conn.relayUrl,
         ticket: conn.ticket,
-        platform: 'ios',
+        platform: platform,
         osPushToken: token,
       );
       final id = await api.subscribe(
         routingToken: enrolled.routingToken,
         publicKey: publicKey,
-        platform: 'ios',
-        label: 'iPhone',
+        platform: platform,
+        label: platform == 'android' ? 'Android device' : 'iPhone',
         deviceId: enrolled.deviceId,
       );
       await keyStore.setSubscriptionId(id);

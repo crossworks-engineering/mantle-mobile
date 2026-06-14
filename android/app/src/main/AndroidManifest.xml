@@ -2,6 +2,9 @@
     <!-- Chat composer voice notes (transcribed server-side). image_picker /
          file_picker use the system pickers, so they need no storage permission. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Push notifications (FCM data messages → local notification). Required on
+         Android 13+; requested at runtime by FirebaseMessaging.requestPermission(). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="mantle_companion"
         android:name="${applicationName}"

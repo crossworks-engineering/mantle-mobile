@@ -13,6 +13,8 @@ analyzer:
   exclude:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    # Transient build output (e.g. SwiftPM SourcePackages pulled by firebase_*).
+    - "build/**"
 
 linter:
   # The lint rules applied to this project can be customized in the

@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/push/apns_bridge.dart';
 import 'package:mantle_companion/data/push/push_api.dart';
 import 'package:mantle_companion/data/push/push_keys.dart';
+import 'package:mantle_companion/data/push/push_token_service.dart';
 import 'package:mantle_companion/features/settings/push/push_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -10,17 +10,17 @@ class MockPushApi extends Mock implements PushApi {}
 
 class MockPushKeyStore extends Mock implements PushKeyStore {}
 
-class MockApnsBridge extends Mock implements ApnsBridge {}
+class MockPushTokenService extends Mock implements PushTokenService {}
 
 void main() {
   late MockPushApi api;
   late MockPushKeyStore keys;
-  late MockApnsBridge bridge;
+  late MockPushTokenService tokens;
 
   setUp(() {
     api = MockPushApi();
     keys = MockPushKeyStore();
-    bridge = MockApnsBridge();
+    tokens = MockPushTokenService();
     // Defaults for build()/_load(): disconnected, no devices.
     when(() => keys.subscriptionId()).thenAnswer((_) async => null);
     when(() => api.list()).thenAnswer((_) async => <PushDevice>[]);
@@ -30,7 +30,7 @@ void main() {
     final c = ProviderContainer(
       overrides: [
         pushApiProvider.overrideWithValue(api),
-        apnsBridgeProvider.overrideWithValue(bridge),
+        pushTokenServiceProvider.overrideWithValue(tokens),
         pushKeyStoreProvider.overrideWith((ref) async => keys),
       ],
     );
@@ -39,7 +39,8 @@ void main() {
   }
 
   test('connect runs permission → keypair → connect → enroll → subscribe', () async {
-    when(() => bridge.requestPermissionAndToken()).thenAnswer((_) async => 'apns-token');
+    when(() => tokens.requestToken())
+        .thenAnswer((_) async => (platform: 'ios', token: 'apns-token'));
     when(() => keys.ensureDeviceKeyPair()).thenAnswer((_) async => 'PUBKEY');
     when(() => api.connect(
           platform: any(named: 'platform'),
@@ -76,7 +77,7 @@ void main() {
   });
 
   test('connect with declined permission surfaces a PushException', () async {
-    when(() => bridge.requestPermissionAndToken()).thenAnswer((_) async => null);
+    when(() => tokens.requestToken()).thenAnswer((_) async => null);
 
     final container = makeContainer();
     await container.read(pushControllerProvider.future);

@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/widgets.dart';
 // ThemeMode is a Flutter enum that only ships via material.dart — import just
 // the enum, not Material's widgets. The UI itself is built entirely on ShadApp.
@@ -6,12 +8,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'core/lifecycle/app_lifecycle.dart';
+import 'data/push/push_notifier.dart';
 import 'features/settings/theme_mode_controller.dart';
 import 'routing/app_router.dart';
 import 'theme/mantle_theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Android push is FCM: init Firebase + register the data-message handlers.
+  // iOS uses raw APNs + the Notification Service Extension (no Firebase).
+  if (Platform.isAndroid) {
+    await setupAndroidPush();
+  }
   runApp(const ProviderScope(child: MantleCompanionApp()));
 }
 

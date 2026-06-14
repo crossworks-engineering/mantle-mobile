@@ -138,9 +138,13 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
      and the **Notification Service Extension** (swift-sodium decrypt). Remaining =
      **Xcode + TestFlight** (Apple-account-only) — see `ios/PUSH_SETUP.md`. Our APNs
      key is production-only, so a real decrypted push verifies via TestFlight.
-   - **M4 Android** (FCM data handler), **M5** Settings/quiet-hours, **M6**
-     UnifiedPush. Push is the only path for *backgrounded* proactive messages
-     (SSE pauses when backgrounded).
+   - ~~**M4 Android**~~ **CODE-COMPLETE (2026-06-14)**: `firebase_messaging` FCM
+     token + Dart background-isolate decrypt (`sodium_libs` seal-open) →
+     `flutter_local_notifications`; gradle/manifest wired, Firebase kept
+     Android-only. Remaining = run on a Play-services device (`android/PUSH_SETUP.md`).
+   - **M5** Settings/quiet-hours/device-list/instance-reset, **M6** UnifiedPush.
+     Push is the only path for *backgrounded* proactive messages (SSE pauses when
+     backgrounded).
 2. **Pending screen** is a placeholder — build the real approvals list +
    approve/reject (`GET /api/pending`, `PATCH /api/pending/{id}`).
 3. **Settings** — account/profile management (only theme + sign out exist).

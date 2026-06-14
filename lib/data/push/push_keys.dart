@@ -24,8 +24,9 @@ class PushKeyStore {
   /// `$(AppIdentifierPrefix)crossworks.engineering.mantle.pushkeys` (the prefix
   /// resolves to team id `P6NLP32L8H`). See ios/PUSH_SETUP.md.
   static const _iosAccessGroup = 'P6NLP32L8H.crossworks.engineering.mantle.pushkeys';
-  static const _secretKeyKey = 'mantle_push_secret_key';
-  static const _publicKeyKey = 'mantle_push_public_key';
+  // Public so the Android background-isolate decryptor reads the same items.
+  static const secretKeyKey = 'mantle_push_secret_key';
+  static const publicKeyKey = 'mantle_push_public_key';
   static const _subscriptionIdKey = 'mantle_push_subscription_id';
 
   // first_unlock so the NSE (a background extension) can still read the key
@@ -43,19 +44,19 @@ class PushKeyStore {
   /// Return the device public key (base64), generating + persisting a fresh
   /// keypair the first time. Idempotent across repeated Connect taps.
   Future<String> ensureDeviceKeyPair() async {
-    final existing = await _storage.read(key: _publicKeyKey);
+    final existing = await _storage.read(key: publicKeyKey);
     if (existing != null && existing.isNotEmpty) return existing;
 
     final keyPair = _sodium.crypto.box.keyPair();
     final publicB64 = base64.encode(keyPair.publicKey);
     final secretB64 = base64.encode(keyPair.secretKey.extractBytes());
     keyPair.secretKey.dispose();
-    await _storage.write(key: _secretKeyKey, value: secretB64);
-    await _storage.write(key: _publicKeyKey, value: publicB64);
+    await _storage.write(key: secretKeyKey, value: secretB64);
+    await _storage.write(key: publicKeyKey, value: publicB64);
     return publicB64;
   }
 
-  Future<String?> publicKey() => _storage.read(key: _publicKeyKey);
+  Future<String?> publicKey() => _storage.read(key: publicKeyKey);
 
   /// The local id of THIS device's Mantle subscription — its presence is how we
   /// know this device is connected. Not a secret; kept alongside the keys.
@@ -66,8 +67,8 @@ class PushKeyStore {
   /// Drop the keypair + subscription marker (on disconnect / reset) — the NSE
   /// can no longer decrypt.
   Future<void> clear() async {
-    await _storage.delete(key: _secretKeyKey);
-    await _storage.delete(key: _publicKeyKey);
+    await _storage.delete(key: secretKeyKey);
+    await _storage.delete(key: publicKeyKey);
     await _storage.delete(key: _subscriptionIdKey);
   }
 }

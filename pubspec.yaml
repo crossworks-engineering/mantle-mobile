@@ -60,6 +60,9 @@ dependencies:
   mime: ^2.0.0
   just_audio: ^0.10.5
   sodium_libs: ^3.4.6+4
+  firebase_core: ^4.10.0
+  firebase_messaging: ^16.3.0
+  flutter_local_notifications: ^22.0.1
 
 dev_dependencies:
   flutter_test:
