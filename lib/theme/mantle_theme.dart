@@ -57,15 +57,68 @@ abstract final class MantleTheme {
     selection: Color(0xFF374151),
   );
 
+  /// `--chart-1`..`--chart-5` from Clean Slate (the indigo ramp), used by the
+  /// markdown renderer for callout accents, asides, and colour spans. Index 0 =
+  /// chart-1. sRGB conversions of the web oklch values.
+  static const List<Color> lightChart = [
+    Color(0xFF6366F1), // chart-1 (== primary)
+    Color(0xFF4F46E5), // chart-2
+    Color(0xFF4338CA), // chart-3
+    Color(0xFF3730A3), // chart-4
+    Color(0xFF312E81), // chart-5
+  ];
+
+  static const List<Color> darkChart = [
+    Color(0xFF818CF8), // chart-1 (== primary)
+    Color(0xFF6366F1), // chart-2
+    Color(0xFF4F46E5), // chart-3
+    Color(0xFF4338CA), // chart-4
+    Color(0xFF3730A3), // chart-5
+  ];
+
+  /// chart-N (1-based, matching Mantle's `chart-1`..`chart-5`) for the given
+  /// brightness. Out-of-range N clamps into the palette.
+  static Color chart(Brightness brightness, int n) {
+    final list = brightness == Brightness.dark ? darkChart : lightChart;
+    return list[(n - 1).clamp(0, list.length - 1)];
+  }
+
+  /// Bumps every text style **+1pt** over shadcn's defaults — so the scale runs
+  /// `small`/`muted` 15, body 17, `large` 19, `lead`/`h4` 21, `h3` 25, up to
+  /// `h1Large` 49. 15 is the app's minimum font size; the +1 keeps a visible
+  /// step between the smallest text and body. Colours are applied by the theme
+  /// from [ShadColorScheme].
+  static ShadTextTheme _textTheme() {
+    final base = ShadTextTheme();
+    TextStyle up(TextStyle s) => s.copyWith(fontSize: (s.fontSize ?? 14) + 1);
+    return base.copyWith(
+      h1Large: up(base.h1Large),
+      h1: up(base.h1),
+      h2: up(base.h2),
+      h3: up(base.h3),
+      h4: up(base.h4),
+      p: up(base.p),
+      blockquote: up(base.blockquote),
+      table: up(base.table),
+      list: up(base.list),
+      lead: up(base.lead),
+      large: up(base.large),
+      small: up(base.small),
+      muted: up(base.muted),
+    );
+  }
+
   static ShadThemeData light() => ShadThemeData(
     brightness: Brightness.light,
     colorScheme: lightColors,
     radius: _radius,
+    textTheme: _textTheme(),
   );
 
   static ShadThemeData dark() => ShadThemeData(
     brightness: Brightness.dark,
     colorScheme: darkColors,
     radius: _radius,
+    textTheme: _textTheme(),
   );
 }

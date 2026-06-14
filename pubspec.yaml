@@ -33,18 +33,27 @@ dependencies:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.9
   shadcn_ui: ^0.54.0
-  flutter_riverpod: ^3.1.0
-  riverpod_annotation: ^4.0.0
+  flutter_riverpod: ^3.3.2
+  riverpod_annotation: ^4.0.3
   freezed_annotation: ^3.1.0
-  json_annotation: ^4.9.0
-  drift: ^2.31.0
+  json_annotation: ^4.12.0
+  drift: ^2.34.0
   sqlite3_flutter_libs: ^0.6.0+eol
   path_provider: ^2.1.5
   path: ^1.9.1
   dio: ^5.9.2
   flutter_secure_storage: ^10.3.1
+  go_router: ^17.3.0
+  # Markdown rendering for assistant replies. flutter_markdown_plus is the
+  # maintained fork of the archived flutter_markdown; it bundles the `markdown`
+  # parser, which we depend on directly so we can register Mantle's custom
+  # syntaxes (callouts, color spans) in later phases. See docs/architecture.md.
+  flutter_markdown_plus: ^1.0.7
+  markdown: ^7.3.1
+  url_launcher: ^6.3.1
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -61,8 +70,9 @@ dev_dependencies:
   freezed: ^3.2.3
   json_serializable: ^6.11.2
   drift_dev: ^2.31.0
-  riverpod_lint: ^3.1.0
-  custom_lint: ^0.8.1
+  # NOTE: riverpod_lint / custom_lint dropped — custom_lint is still pinned to
+  # analyzer ^8, which conflicts with drift_dev 2.34 (needs analyzer >=10).
+  # Re-add once custom_lint supports analyzer 10+.
   mocktail: ^1.0.5
 
 # For information on the generic Dart part of this file, see the
@@ -75,6 +85,13 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  fonts:
+    # Mantle's wordmark/logo font (Bukhari Script), copied from
+    # apps/web/public/fonts. Used for the agent name in the chat header.
+    - family: BukhariScript
+      fonts:
+        - asset: assets/fonts/BukhariScript-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -46,7 +46,7 @@ final class ThemeModeControllerProvider
 }
 
 String _$themeModeControllerHash() =>
-    r'76fddccf4ce452b3c4677c2172bcaad5a7825e61';
+    r'b41ef505deae25d96c2a133479e4a3961525c614';
 
 /// Owns the app's theme mode: loads it from [SettingsRepository] on build and
 /// writes through on every change, so the choice survives restarts. Exposed as
@@ -57,7 +57,7 @@ abstract class _$ThemeModeController extends $AsyncNotifier<ThemeMode> {
   FutureOr<ThemeMode> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<ThemeMode>, ThemeMode>;
     final element =
         ref.element
@@ -67,6 +67,6 @@ abstract class _$ThemeModeController extends $AsyncNotifier<ThemeMode> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }
