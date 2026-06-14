@@ -427,7 +427,10 @@ Push is strictly additive on top of the existing live stream.
    to the relay `/notify`. Verified E2E against the **live** relay
    (`scripts/verify-push-m2.ts`: sealed-box round-trip; relay accepts
    instance/ticket/notify; `pushOutbound` delivers 1/1; worker fires on trigger).
-   Committed on `main`, **not deployed** (no app/creds yet).
+   **DEPLOYED to prod 2026-06-14** (Mantle v0.25.0): migration 0092 applied
+   (drizzle 93), `worker_push` listening, `/api/push/*` routes live + owner-gated.
+   Relay still **mock** — flip to live needs the two §0 secret files on the box;
+   then M3/M4 for a device to actually receive.
 3. **M3 — Companion iOS**: keypair + Keychain group, APNs, NSE decrypt, one-tap
    Connect. End-to-end on one platform.
 4. **M4 — Companion Android**: FCM data + decrypt handler.
