@@ -26,12 +26,19 @@ relay/app wire up against.
 | Field | Value |
 |---|---|
 | App ID (bundle id / APNs topic) | `crossworks.engineering.mantle` ("Mantle Companion", **Push Notifications** enabled) |
-| APNs Auth Key | name **pushy2**, **Key ID `J65R8HBX33`** (team-scoped, all topics; **Sandbox & Production**) |
+| APNs Auth Key | name **Mantle Push**, **Key ID `2TJ76S5L69`** — **Topic Specific** (`crossworks.engineering.mantle`), **Production** env |
 | Team ID | `P6NLP32L8H` |
-| Private key file | `AuthKey_J65R8HBX33.p8` — held by Jason; **one-time download, can't be re-issued** → into `mantle-push` secrets |
+| Private key file | `AuthKey_2TJ76S5L69.p8` — downloaded 2026-06-14 (valid EC P-256, 257 B); **one-time download, can't be re-issued** → into `mantle-push` secrets as `secrets/AuthKey.p8` |
 
-> Reused the existing team-scoped key (the team-scoped slot was full). It works
-> for any team app, including Mantle Companion.
+> **Relay config:** `APNS_KEY_ID=2TJ76S5L69`, `APNS_TEAM_ID=P6NLP32L8H`,
+> `APNS_TOPIC=crossworks.engineering.mantle`, **`APNS_ENV=production`** (this is a
+> Production-only topic-specific key — won't auth Xcode dev/sandbox builds; that's
+> fine, testing is via TestFlight).
+>
+> _History: the earlier plan reused the team-scoped "pushy2" (`J65R8HBX33`), but
+> its one-time `.p8` was unrecoverable (only existed on a machine in ZA), and the
+> team-scoped slot was full — so we created this fresh topic-specific Production
+> key instead. `J65R8HBX33` is now irrelevant; ignore it everywhere._
 
 **Firebase (Android / FCM) — HTTP v1:**
 
