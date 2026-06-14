@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 'development' for dev signing; Xcode's distribution profile flips this to
+	     'production' at archive time. Our APNs key is production-only, so real
+	     push works on TestFlight/App Store builds. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!-- First entry is the app's default group (keeps the existing bearer token,
+	     written without a group, readable). Second is shared with the
+	     NotificationService extension so it can read the device secret key. -->
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)crossworks.engineering.mantle</string>
+		<string>$(AppIdentifierPrefix)crossworks.engineering.mantle.pushkeys</string>
+	</array>
+</dict>
+</plist>

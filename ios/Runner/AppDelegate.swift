@@ -1,16 +1,97 @@
 import Flutter
 import UIKit
+import UserNotifications
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  // Held only while a registerForRemoteNotifications() round-trip is in flight,
+  // so the MethodChannel call can resolve with the APNs token (or nil on
+  // failure/denial). See lib/data/push/apns_bridge.dart.
+  private var pendingTokenResult: FlutterResult?
+  private var pushChannel: FlutterMethodChannel?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
+    UNUserNotificationCenter.current().delegate = self
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+    if let messenger = engineBridge.pluginRegistry
+      .registrar(forPlugin: "MantlePush")?.messenger() {
+      let channel = FlutterMethodChannel(name: "mantle/push", binaryMessenger: messenger)
+      channel.setMethodCallHandler { [weak self] call, result in
+        self?.handle(call, result)
+      }
+      pushChannel = channel
+    }
+  }
+
+  // MARK: - Push MethodChannel
+
+  private func handle(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    switch call.method {
+    case "requestAuthorizationAndRegister":
+      requestAuthorizationAndRegister(result)
+    case "isAuthorized":
+      UNUserNotificationCenter.current().getNotificationSettings { settings in
+        DispatchQueue.main.async {
+          let ok = settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional
+          result(ok)
+        }
+      }
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func requestAuthorizationAndRegister(_ result: @escaping FlutterResult) {
+    UNUserNotificationCenter.current()
+      .requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
+        guard granted, error == nil else {
+          DispatchQueue.main.async { result(nil) } // declined → null token
+          return
+        }
+        DispatchQueue.main.async {
+          // Resolve once the device token arrives (didRegister… below).
+          self?.pendingTokenResult = result
+          UIApplication.shared.registerForRemoteNotifications()
+        }
+      }
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    pendingTokenResult?(token)
+    pendingTokenResult = nil
+  }
+
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    pendingTokenResult?(nil)
+    pendingTokenResult = nil
+  }
+}
+
+// Show the (NSE-decrypted) banner even when the app is foregrounded. Suppressing
+// it while the live SSE stream is showing the same message is a later
+// refinement (push-notifications.md §10).
+extension AppDelegate {
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .sound, .badge])
   }
 }

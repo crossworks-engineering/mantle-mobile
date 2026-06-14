@@ -30,9 +30,12 @@ class PushKeyStore {
 
   // first_unlock so the NSE (a background extension) can still read the key
   // after the device has been unlocked once since boot.
+  // accountName fixes kSecAttrService to a known value ('mantle_push') so the
+  // Swift NSE can query the exact same Keychain item (see ios/PUSH_SETUP.md).
   FlutterSecureStorage get _storage => const FlutterSecureStorage(
         iOptions: IOSOptions(
           groupId: _iosAccessGroup,
+          accountName: 'mantle_push',
           accessibility: KeychainAccessibility.first_unlock,
         ),
       );
