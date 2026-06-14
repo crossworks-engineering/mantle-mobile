@@ -4,6 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantle_companion/data/agents/agent.dart';
+import 'package:mantle_companion/data/chat/conversation_stream.dart';
 import 'package:mantle_companion/data/conversations/conversation_models.dart';
 import 'package:mantle_companion/data/conversations/conversations_api.dart';
 import 'package:mantle_companion/features/conversations/conversations_controller.dart';
@@ -25,7 +26,13 @@ void main() {
 
   ProviderContainer make() {
     final c = ProviderContainer(
-      overrides: [conversationsApiProvider.overrideWithValue(api)],
+      overrides: [
+        conversationsApiProvider.overrideWithValue(api),
+        // No live SSE in unit tests — an empty stream keeps the listen inert.
+        conversationEventsProvider.overrideWith(
+          (ref) => const Stream<ConversationEvent>.empty(),
+        ),
+      ],
     );
     addTearDown(c.dispose);
     c.listen(conversationsControllerProvider, (_, _) {});

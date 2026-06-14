@@ -10,14 +10,18 @@ part of 'conversations_controller.dart';
 // ignore_for_file: type=lint, type=warning
 /// Owns the conversations inbox. Loads on build; [markRead] zeroes an agent's
 /// unread optimistically then persists. ChatController invalidates this after a
-/// turn so previews/unread refresh.
+/// turn so previews/unread refresh. While mounted it also listens to the live
+/// [conversationEventsProvider] SSE and silently refetches when any thread gets
+/// a turn (from any channel), so previews + unread stay current with no pull.
 
 @ProviderFor(ConversationsController)
 final conversationsControllerProvider = ConversationsControllerProvider._();
 
 /// Owns the conversations inbox. Loads on build; [markRead] zeroes an agent's
 /// unread optimistically then persists. ChatController invalidates this after a
-/// turn so previews/unread refresh.
+/// turn so previews/unread refresh. While mounted it also listens to the live
+/// [conversationEventsProvider] SSE and silently refetches when any thread gets
+/// a turn (from any channel), so previews + unread stay current with no pull.
 final class ConversationsControllerProvider
     extends
         $AsyncNotifierProvider<
@@ -26,7 +30,9 @@ final class ConversationsControllerProvider
         > {
   /// Owns the conversations inbox. Loads on build; [markRead] zeroes an agent's
   /// unread optimistically then persists. ChatController invalidates this after a
-  /// turn so previews/unread refresh.
+  /// turn so previews/unread refresh. While mounted it also listens to the live
+  /// [conversationEventsProvider] SSE and silently refetches when any thread gets
+  /// a turn (from any channel), so previews + unread stay current with no pull.
   ConversationsControllerProvider._()
     : super(
         from: null,
@@ -47,11 +53,13 @@ final class ConversationsControllerProvider
 }
 
 String _$conversationsControllerHash() =>
-    r'1ec47e5769c323cabd9d85cd3c59f715939108c2';
+    r'80098bd92e28e7b276fe7a550bb23a90aaea1ab5';
 
 /// Owns the conversations inbox. Loads on build; [markRead] zeroes an agent's
 /// unread optimistically then persists. ChatController invalidates this after a
-/// turn so previews/unread refresh.
+/// turn so previews/unread refresh. While mounted it also listens to the live
+/// [conversationEventsProvider] SSE and silently refetches when any thread gets
+/// a turn (from any channel), so previews + unread stay current with no pull.
 
 abstract class _$ConversationsController
     extends $AsyncNotifier<List<AgentConversation>> {

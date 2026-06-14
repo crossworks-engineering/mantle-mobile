@@ -80,10 +80,20 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
 3. **Pending screen** is a placeholder — build the real approvals list +
    approve/reject (`GET /api/pending`, `PATCH /api/pending/{id}`).
 4. **Settings** — account/profile management (only theme + sign out exist).
-5. Roadmap (not started): Drift message **cache + offline send-queue**, realtime
-   updates (`GET /api/realtime` SSE), **message-attached location** (geolocator,
-   When-In-Use), **push notifications** (FCM/APNs — needs new Mantle infra),
-   markdown **images + math** (Phases 3–4), in-app routing for internal links.
+5. **Live chat (SSE) — DONE 2026-06-13.** `GET /api/assistant/stream` (Mantle)
+   emits `data: {agentSlug, direction}` on every turn (any channel), driven by a
+   `conversation_changed` Postgres NOTIFY (migration 0091). Companion side:
+   `data/chat/conversation_stream.dart` opens it via Dio (`ResponseType.stream`),
+   parses SSE, reconnects with capped backoff, and **pauses while backgrounded**
+   (`core/lifecycle/app_lifecycle.dart` + the root `WidgetsBindingObserver`).
+   `ChatController` merges new messages into the open thread; `ConversationsController`
+   silently refetches the inbox. Both `ref.listen(conversationEventsProvider)`;
+   tests override it with an empty stream.
+6. Roadmap (not started): Drift message **cache + offline send-queue**,
+   **message-attached location** (geolocator, When-In-Use), **push notifications**
+   (FCM/APNs — needs new Mantle infra; the only path for *backgrounded* proactive
+   messages, since SSE pauses when backgrounded), markdown **images + math**
+   (Phases 3–4), in-app routing for internal links.
 
 ## Gotchas (carried forward)
 

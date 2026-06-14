@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mantle_companion/data/chat/chat_api.dart';
 import 'package:mantle_companion/data/chat/chat_message.dart';
 import 'package:mantle_companion/data/chat/chat_repository.dart';
+import 'package:mantle_companion/data/chat/conversation_stream.dart';
 import 'package:mantle_companion/features/chat/chat_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -32,7 +33,13 @@ void main() {
 
   ProviderContainer makeContainer() {
     final c = ProviderContainer(
-      overrides: [chatRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        chatRepositoryProvider.overrideWithValue(repo),
+        // No live SSE in unit tests — an empty stream keeps the listen inert.
+        conversationEventsProvider.overrideWith(
+          (ref) => const Stream<ConversationEvent>.empty(),
+        ),
+      ],
     );
     addTearDown(c.dispose);
     return c;

@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/chat/chat_message.dart';
 import '../../data/chat/chat_repository.dart';
+import '../../data/chat/conversation_stream.dart';
 import '../conversations/conversations_controller.dart';
 
 part 'chat_controller.g.dart';
@@ -41,10 +42,43 @@ class ChatState {
 class ChatController extends _$ChatController {
   @override
   Future<ChatState> build(String agentSlug) async {
+    // Live updates: when a turn lands on THIS agent's thread (any channel — a
+    // proactive heartbeat, or a message you sent from web/Telegram), merge the
+    // new messages in without disturbing scroll or paging.
+    ref.listen(conversationEventsProvider, (_, next) {
+      if (next is AsyncData<ConversationEvent> &&
+          next.value.agentSlug == agentSlug) {
+        _onRemoteTurn();
+      }
+    });
+
     final page = await ref
         .read(chatRepositoryProvider)
         .history(limit: chatPageSize, agentSlug: agentSlug);
     return ChatState(messages: page, hasMore: page.length >= chatPageSize);
+  }
+
+  /// A turn landed on this thread elsewhere — pull the latest page and append
+  /// any messages we don't already have. Skipped while an optimistic send is in
+  /// flight (that path reconciles itself, and refetching mid-send could briefly
+  /// double the user's bubble).
+  Future<void> _onRemoteTurn() async {
+    final current = state.value;
+    if (current == null) return;
+    if (current.messages.any((m) => m.status == MessageStatus.sending)) return;
+    try {
+      final latest = await ref
+          .read(chatRepositoryProvider)
+          .history(limit: chatPageSize, agentSlug: agentSlug);
+      final known = current.messages.map((m) => m.id).toSet();
+      final fresh = latest.where((m) => !known.contains(m.id)).toList();
+      if (fresh.isEmpty) return;
+      final merged = [...current.messages, ...fresh]
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      state = AsyncData(current.copyWith(messages: merged));
+    } catch (_) {
+      /* keep what we have; the next event or refresh reconciles */
+    }
   }
 
   /// Fetch the next older page and prepend it. No-op while one is in flight,

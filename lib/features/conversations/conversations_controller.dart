@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../data/chat/conversation_stream.dart';
 import '../../data/conversations/conversation_models.dart';
 import '../../data/conversations/conversations_api.dart';
 
@@ -7,12 +8,28 @@ part 'conversations_controller.g.dart';
 
 /// Owns the conversations inbox. Loads on build; [markRead] zeroes an agent's
 /// unread optimistically then persists. ChatController invalidates this after a
-/// turn so previews/unread refresh.
+/// turn so previews/unread refresh. While mounted it also listens to the live
+/// [conversationEventsProvider] SSE and silently refetches when any thread gets
+/// a turn (from any channel), so previews + unread stay current with no pull.
 @riverpod
 class ConversationsController extends _$ConversationsController {
   @override
-  Future<List<AgentConversation>> build() =>
-      ref.read(conversationsApiProvider).list();
+  Future<List<AgentConversation>> build() {
+    ref.listen(conversationEventsProvider, (_, next) {
+      if (next is AsyncData<ConversationEvent>) _reloadSilently();
+    });
+    return ref.read(conversationsApiProvider).list();
+  }
+
+  /// Refetch without flipping to a loading state — for live updates that
+  /// shouldn't blank the inbox. Keeps the current list on error.
+  Future<void> _reloadSilently() async {
+    try {
+      state = AsyncData(await ref.read(conversationsApiProvider).list());
+    } catch (_) {
+      /* keep current; the next event or pull-to-refresh reconciles */
+    }
+  }
 
   Future<void> refresh() async {
     state = const AsyncLoading();
