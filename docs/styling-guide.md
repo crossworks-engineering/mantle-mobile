@@ -137,6 +137,42 @@ height (see the chat composer in `chat_screen.dart`). Don't hand-tune a fixed
 `title:` (`Text` `h4`) + `description:` (`Text`) + optional `child:`
 (wrap actions in `Padding(top: 16)`).
 
+### Flat accent list cards (the conversations inbox)
+
+For a tappable list of rows that should read as distinct cards (e.g. the agents
+inbox), use a **flat `accent` card**: `Container(color: scheme.accent,
+borderRadius: 16)`, generous padding, a small outer margin so cards separate
+(`Padding(fromLTRB(12, 4, 12, 4))` over a `ListView` with vertical padding).
+No shadow, no border — flat fill + rounded corners.
+
+**The pairing rule is load-bearing here.** A coloured fill only guarantees
+contrast with its **own** `…Foreground`, so on an `accent` card *every* piece of
+text comes from `accentForeground`, tinting secondary text with opacity
+(`accentForeground.withValues(alpha: 0.6)`) — **never** `mutedForeground` or
+`foreground`, whose contrast against `accent` isn't guaranteed. A badge or chip
+that needs to pop carries its own pair instead (the unread count is
+`primary` + `primaryForeground`). This is the Flutter mirror of Mantle web's
+rule "`bg-accent` is fine only where text is `accent-foreground`" — see the
+[surface-fill table](#which-fill-where) below.
+
+### Which fill where
+
+A fill and its text must come from the **same pair** (see [Color tokens](#color-tokens--shadthemeofcontextcolorscheme)). What each surface is *for*:
+
+| Fill | Foreground | Use it for |
+|---|---|---|
+| `background` | `foreground` | the screen itself |
+| `card` | `cardForeground` | neutral raised panels (`ShadCard`) |
+| `accent` | `accentForeground` | a **soft highlighted surface** — list cards, selected/emphasised rows |
+| `secondary` | `secondaryForeground` | a quieter filled chip/segment |
+| `muted` | `mutedForeground` | the most subdued surface (assistant bubble) + secondary text on `background` |
+| `primary` | `primaryForeground` | the one brand/action accent — header bar, user bubble, badges, primary button. Don't tile large areas with it (it's saturated). |
+| `destructive` | `destructiveForeground` | errors / destructive actions only |
+
+Rule of thumb: **`accent` is the "card accent" you reach for; `primary` is the
+single pop on top of it; `muted`/`secondary` are the quiet ones.** Never tint a
+surface with one token and text it with another's foreground.
+
 ## Chat bubbles
 
 - **User** (inbound): align right, `bg primary`, `text primaryForeground`.

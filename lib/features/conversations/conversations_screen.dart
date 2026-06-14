@@ -105,90 +105,108 @@ class _ConversationTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
     final c = conversation;
+    // Flat `accent` card. Every text on it comes from the paired
+    // `accentForeground` (tinted with opacity for secondary text) — never
+    // `mutedForeground`/`foreground` — so contrast holds even on a theme whose
+    // accent is a saturated tint. The unread badge brings its own
+    // `primary`/`primaryForeground` pair. See the styling guide (Cards).
+    final onAccent = scheme.accentForeground;
     final preview = c.lastText == null
         ? 'No messages yet'
         : '${c.lastFromUser ? 'You: ' : ''}${c.lastText}';
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => context.push('/chat/${c.agent.slug}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AgentAvatar(agent: c.agent, size: 48),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          c.agent.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.p.copyWith(
-                            fontWeight:
-                                c.hasUnread ? FontWeight.w600 : FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _relativeTime(c.lastAt),
-                        style: theme.textTheme.small.copyWith(
-                          color: c.hasUnread
-                              ? scheme.primary
-                              : scheme.mutedForeground,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          preview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.muted.copyWith(
-                            color: c.hasUnread
-                                ? scheme.foreground
-                                : scheme.mutedForeground,
-                          ),
-                        ),
-                      ),
-                      if (c.hasUnread) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: scheme.primary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.push('/chat/${c.agent.slug}'),
+        child: Container(
+          decoration: BoxDecoration(
+            color: scheme.accent,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AgentAvatar(agent: c.agent, size: 48),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
                           child: Text(
-                            c.unreadCount > 99 ? '99+' : '${c.unreadCount}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: scheme.primaryForeground,
+                            c.agent.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.p.copyWith(
+                              color: onAccent,
+                              fontWeight: c.hasUnread
+                                  ? FontWeight.w600
+                                  : FontWeight.w500,
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _relativeTime(c.lastAt),
+                          style: theme.textTheme.small.copyWith(
+                            color: onAccent.withValues(
+                              alpha: c.hasUnread ? 0.9 : 0.6,
+                            ),
+                            fontWeight: c.hasUnread
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                        ),
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            preview,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.muted.copyWith(
+                              color: onAccent.withValues(
+                                alpha: c.hasUnread ? 0.85 : 0.6,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (c.hasUnread) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: scheme.primary,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              c.unreadCount > 99 ? '99+' : '${c.unreadCount}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.primaryForeground,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
