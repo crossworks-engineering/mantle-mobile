@@ -131,10 +131,14 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
      (`push_instance` + `push_subscriptions`), the connect/subscribe/reset routes,
      `lib/push/*` (libsodium `crypto_box_seal` + relay client + token/ticket
      wire-compatible with the relay), and **`worker_push`** off `conversation_changed`.
-     Verified E2E against the **live** relay (`apps/web/scripts/verify-push-m2.ts`).
-     Committed on `main`, not pushed/deployed.
-   - **M3 iOS** (keypair + Keychain group + NSE decrypt + one-tap Connect),
-     **M4 Android** (FCM data handler), **M5** Settings/quiet-hours, **M6**
+     **DEPLOYED to prod (Mantle v0.25.0)**; relay is **live + credentialed** at
+     `push.crossworks.network` (APNs prod + FCM both authenticate).
+   - ~~**M3 iOS**~~ **CODE-COMPLETE (2026-06-14)**: `data/push/*` + `PushController`
+     + Settings→Notifications (Dart, analyze+tests clean), `AppDelegate` APNs bridge,
+     and the **Notification Service Extension** (swift-sodium decrypt). Remaining =
+     **Xcode + TestFlight** (Apple-account-only) — see `ios/PUSH_SETUP.md`. Our APNs
+     key is production-only, so a real decrypted push verifies via TestFlight.
+   - **M4 Android** (FCM data handler), **M5** Settings/quiet-hours, **M6**
      UnifiedPush. Push is the only path for *backgrounded* proactive messages
      (SSE pauses when backgrounded).
 2. **Pending screen** is a placeholder — build the real approvals list +

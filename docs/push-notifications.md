@@ -438,8 +438,17 @@ Push is strictly additive on top of the existing live stream.
    (drizzle 93), `worker_push` listening, `/api/push/*` routes live + owner-gated.
    Relay still **mock** — flip to live needs the two §0 secret files on the box;
    then M3/M4 for a device to actually receive.
-3. **M3 — Companion iOS**: keypair + Keychain group, APNs, NSE decrypt, one-tap
-   Connect. End-to-end on one platform.
+3. **M3 — Companion iOS** — ✅ **CODE-COMPLETE (2026-06-14)**. Dart: `data/push/*`
+   (PushApi, sodium_libs X25519 keypair → secret key in a shared iOS Keychain
+   group, ApnsBridge MethodChannel), `PushController` one-tap Connect, Settings →
+   Notifications screen (analyze clean; connect happy-path + declined tests pass).
+   Native: `AppDelegate.swift` (APNs registration + token bridge), the
+   **Notification Service Extension** (`ios/NotificationService/*` — swift-sodium
+   `crypto_box_seal_open` from the shared Keychain), entitlements + Podfile block.
+   **Remaining = Xcode + TestFlight** (Apple-account-only: add capabilities, create
+   the NSE target, sign, archive) — our APNs key is production-only so a real
+   decrypted push verifies via TestFlight, not `flutter run`. Full runbook:
+   `ios/PUSH_SETUP.md`.
 4. **M4 — Companion Android**: FCM data + decrypt handler.
 5. **M5 — Settings & polish**: per-trigger toggles, quiet hours, device list,
    instance reset.
