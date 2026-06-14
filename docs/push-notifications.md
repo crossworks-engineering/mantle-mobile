@@ -14,6 +14,39 @@ later — while the app and backend stay open-source.
 
 ---
 
+## 0. Provisioning — Apple + Firebase (done 2026-06-13)
+
+The publisher-side push credentials are registered. **Secrets are NOT in this
+repo** — the APNs `.p8` and the FCM service-account JSON live only in the
+`mantle-push` deployment's secrets. These are the non-secret identifiers the
+relay/app wire up against.
+
+**Apple (iOS / APNs) — token auth (`.p8`):**
+
+| Field | Value |
+|---|---|
+| App ID (bundle id / APNs topic) | `crossworks.engineering.mantle` ("Mantle Companion", **Push Notifications** enabled) |
+| APNs Auth Key | name **pushy2**, **Key ID `J65R8HBX33`** (team-scoped, all topics; **Sandbox & Production**) |
+| Team ID | `P6NLP32L8H` |
+| Private key file | `AuthKey_J65R8HBX33.p8` — held by Jason; **one-time download, can't be re-issued** → into `mantle-push` secrets |
+
+> Reused the existing team-scoped key (the team-scoped slot was full). It works
+> for any team app, including Mantle Companion.
+
+**Firebase (Android / FCM) — HTTP v1:**
+
+| Field | Value |
+|---|---|
+| Firebase project | **pusher** · id `pusher-5bacc` (free Spark plan — FCM included) |
+| Android app (package) | `me.schoeman.mantle_companion` |
+| `google-services.json` | for the Flutter app at `android/app/` — re-download: Firebase → pusher → ⚙ Project settings → Your apps → Mantle Companion. Not a secret. |
+| Service-account JSON | for the relay's FCM v1 sends — generate: Project settings → **Service accounts → Generate new private key**. **Server secret** → into `mantle-push` secrets; never commit. Re-generatable. |
+
+> iOS does **not** need Firebase — it goes straight to APNs via the `.p8`. FCM is
+> Android-only here.
+
+---
+
 ## 1. The constraint we can't engineer around
 
 A store-distributed app (one App Store / Play Store listing) has **one** bundle
