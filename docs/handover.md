@@ -30,9 +30,11 @@ assistant. Connects to a user's own Mantle server over an authenticated REST API
 - **Avatars** — boring-avatars SVG from Mantle, initials fallback.
 - **Settings** (`/settings`) — theme select + sign out.
 
-**Built but NOT live-verified** — the **Mantle backend** additions (TypeScript was
-not run/built in this environment). See the backend section; verify against local
-Mantle before trusting.
+**Verified live on local dev (2026-06-13)** — the **Mantle backend** additions.
+Migration 0090 applied; all four route groups smoke-tested with a mobile bearer
+(dashboard summary, conversations, read cursor, avatar all 200; owner-gate 307s
+without a token). `apps/web` typecheck is now clean. The avatar route needed two
+fixes during that pass — see the backend section.
 
 ## Mantle backend additions (in `~/Projects/mantle`, uncommitted there too)
 
@@ -45,7 +47,7 @@ All owner-gated (`requireOwner()`), so they work with a mobile bearer token. See
 | Dashboard | `app/api/dashboard/summary/route.ts` | Aggregates existing `lib/dashboard.ts`/`metrics.ts`. |
 | Conversations | `app/api/assistant/conversations/route.ts`, `lib/assistant-inbox.ts` | Per-agent last message + unread. |
 | Read state | `app/api/assistant/read/route.ts`, `schema/assistant-read-cursors.ts`, migration `0090` | `assistant_read_cursors(owner, agent, last_read_at)`. |
-| Avatars | `app/api/agents/[slug]/avatar/route.ts` | Server-renders boring-avatars SVG via `renderToStaticMarkup` (hex palette). **Riskiest piece** — if it errors the app falls back to initials. |
+| Avatars | `app/api/agents/[id]/avatar/route.ts`, `lib/avatar-svg.ts` | Pure-string port of boring-avatars (no React — `react-dom/server` can't render its `useId()` in a route). Under the existing `[id]` segment, resolves uuid-or-slug. Parity pinned by `lib/avatar-svg.test.ts`. |
 
 **To run the backend:** in `~/Projects/mantle`: `pnpm db:migrate` (applies 0089 +
 0090), then the `next dev` server hot-loads the new routes.
@@ -69,10 +71,9 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
 
 ## Open items / next steps
 
-1. **Verify the Mantle backend live** — especially the avatar endpoint
-   (`renderToStaticMarkup` + `boring-avatars` server import) and that 0090 applies
-   cleanly. The dashboard/conversations endpoints return real numbers only once
-   `pnpm db:migrate` + `next dev` are up.
+1. ~~Verify the Mantle backend live~~ — **done 2026-06-13** (Mantle commit
+   `0f8afaf`): 0090 applied, all four routes smoke-tested 200, avatar endpoint
+   fixed (segment conflict + `react-dom/server`/`useId` crash → pure SVG port).
 2. **"Incorrect in Mantle" stat** — Jason flagged a dashboard value as computed
    wrong server-side but hasn't said which. Get the specific value, then fix the
    `lib/dashboard.ts`/`metrics.ts` query.
