@@ -13,6 +13,44 @@ class PushDevice {
   final String? label;
 }
 
+/// Per-trigger toggles + quiet hours (mirrors Mantle's push_prefs).
+class PushPreferences {
+  const PushPreferences({
+    required this.assistantMessages,
+    required this.approvals,
+    required this.quietEnabled,
+    required this.quietStart,
+    required this.quietEnd,
+    required this.timezone,
+  });
+
+  final bool assistantMessages;
+  final bool approvals;
+  final bool quietEnabled;
+  final String quietStart; // HH:MM
+  final String quietEnd; // HH:MM
+  final String timezone; // IANA
+
+  factory PushPreferences.fromJson(Map<String, dynamic> j) => PushPreferences(
+        assistantMessages: j['assistantMessages'] as bool? ?? true,
+        approvals: j['approvals'] as bool? ?? true,
+        quietEnabled: j['quietEnabled'] as bool? ?? false,
+        quietStart: j['quietStart'] as String? ?? '22:00',
+        quietEnd: j['quietEnd'] as String? ?? '07:00',
+        timezone: j['timezone'] as String? ?? 'UTC',
+      );
+
+  /// Apply a partial patch (the same keys the API accepts) for optimistic UI.
+  PushPreferences merge(Map<String, dynamic> patch) => PushPreferences(
+        assistantMessages: patch['assistantMessages'] as bool? ?? assistantMessages,
+        approvals: patch['approvals'] as bool? ?? approvals,
+        quietEnabled: patch['quietEnabled'] as bool? ?? quietEnabled,
+        quietStart: patch['quietStart'] as String? ?? quietStart,
+        quietEnd: patch['quietEnd'] as String? ?? quietEnd,
+        timezone: patch['timezone'] as String? ?? timezone,
+      );
+}
+
 /// Talks to Mantle's `/api/push/*` endpoints (over the authed [Dio]) and, for
 /// the one enrollment hop, directly to the relay's `/enroll` (with a bare client
 /// so the Mantle bearer never leaves the host).
@@ -94,6 +132,21 @@ class PushApi {
   /// `DELETE /api/push/subscriptions/:id` — unpair a device (Mantle also tells
   /// the relay to drop its row).
   Future<void> unsubscribe(String id) => _dio.delete('/api/push/subscriptions/$id');
+
+  /// `GET /api/push/preferences` — per-trigger toggles + quiet hours.
+  Future<PushPreferences> getPreferences() async {
+    final res = await _dio.get<Map<String, dynamic>>('/api/push/preferences');
+    return PushPreferences.fromJson(res.data ?? const {});
+  }
+
+  /// `PUT /api/push/preferences` — partial update; returns the merged result.
+  Future<PushPreferences> updatePreferences(Map<String, dynamic> patch) async {
+    final res = await _dio.put<Map<String, dynamic>>('/api/push/preferences', data: patch);
+    return PushPreferences.fromJson(res.data ?? const {});
+  }
+
+  /// `POST /api/push/reset` — roll the instance token; all devices must re-Connect.
+  Future<void> resetInstance() => _dio.post('/api/push/reset');
 }
 
 @Riverpod(keepAlive: true)

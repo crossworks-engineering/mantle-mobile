@@ -105,4 +105,22 @@ class PushController extends _$PushController {
       return _load();
     });
   }
+
+  /// Reset push for this whole install: roll Mantle's instance token (which
+  /// invalidates every enrolled device) and clear this device's local keys.
+  /// Everyone must re-Connect afterwards.
+  Future<void> reset() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final api = ref.read(pushApiProvider);
+      final keyStore = await ref.read(pushKeyStoreProvider.future);
+      try {
+        await api.resetInstance();
+      } catch (_) {
+        /* best-effort — still clear locally */
+      }
+      await keyStore.clear();
+      return _load();
+    });
+  }
 }
