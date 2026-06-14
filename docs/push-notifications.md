@@ -373,12 +373,16 @@ Push is strictly additive on top of the existing live stream.
 
 ## 14. Phased plan
 
-1. **M1 — `mantle-push` MVP**: APNs + FCM v1, `/instances` (TOFU), `/enroll`,
-   `/notify`, per-instance rate limits. Verifiable with a CLI before any app work.
-   **Deploy** as a service in the prod compose stack + a Caddy site block
-   `push.crossworks.network { reverse_proxy mantle-push:PORT }` (Caddy
-   auto-issues the cert on first request). DNS already points at prod; until the
-   site block exists the host correctly fails TLS ("nothing here yet").
+1. **M1 — `mantle-push` MVP** — ✅ **BUILT (2026-06-14)**, repo
+   `~/Projects/mantle-push` (Node + TS + Hono, own Postgres). APNs (HTTP/2 + ES256
+   `.p8`) + FCM v1, `/instances` (TOFU), `/enroll`, `/notify`, `/refresh`,
+   `DELETE /device`, `/instance`, per-instance rate limits, plus a **mock** provider
+   so the spine is CLI-verifiable with no creds (14-check `scripts/smoke.ts` passes).
+   **Deploy is wired but gated**: the Caddy site block `push.crossworks.network {
+   reverse_proxy push:8787 }` is already added to the Mantle Caddyfile (inert until
+   the container joins `mantle_default`); full steps in `mantle-push/docs/deploy.md`.
+   Interim co-location on prod, own-compose joined to Caddy's network — no edit to
+   Mantle's `docker-compose.yml` required.
 2. **M2 — Mantle side**: `push_instance` + `push_subscriptions`, the
    connect/subscribe/reset routes, the send-worker off `conversation_changed`,
    E2E sealing.

@@ -1,6 +1,6 @@
 # Mantle Companion — Handover
 
-_Last updated: 2026-06-13._
+_Last updated: 2026-06-14._
 
 A checkpoint for picking the work back up. For the system map read
 [architecture.md](architecture.md); for UI rules read
@@ -16,12 +16,23 @@ assistant. Connects to a user's own Mantle server over an authenticated REST API
 
 ## State at this checkpoint
 
-> **Latest session (2026-06-13).** Backend verified live + committed; avatar
+> **Latest session (2026-06-14).** **Mantle Push M1 — the relay MVP — built and
+> verified.** New repo `~/Projects/mantle-push` (Node + TS + Hono, its own
+> Postgres): TOFU `/instances`, ticket-gated `/enroll`, instance-token `/notify`,
+> `/refresh`, `DELETE /device`, `/instance`; APNs (HTTP/2 + ES256 `.p8`) + FCM v1
+> providers, plus a credential-less **mock** provider; per-instance rate limits.
+> The whole spine passes a **14-check end-to-end CLI smoke test** on the mock
+> provider (register → enroll → notify → list → rotate → unpair, every security
+> boundary asserted). Caddy site block for `push.crossworks.network` wired into
+> the Mantle Caddyfile (inert until the container is up). **Not deployed** (gated).
+> `mantle-push` is uncommitted pending Jason's go-ahead.
+>
+> **Prior session (2026-06-13).** Backend verified live + committed; avatar
 > endpoint fixed; dashboard theme-color fix; inbox redesigned as flat accent
 > cards; a backend audit (JSON 401 gate + read-body validation); **live chat over
-> SSE shipped** (both repos); and the **Mantle Push** notification design is
-> approved & ready to build (`docs/push-notifications.md`). Everything committed on
-> `main` in both repos, **nothing pushed.**
+> SSE shipped** (both repos); and the **Mantle Push** notification design was
+> approved (`docs/push-notifications.md`). Everything committed on `main` in both
+> repos, **nothing pushed.**
 
 **Working & verified in the app** (`fvm flutter analyze` clean, **57 tests pass**):
 
@@ -97,12 +108,23 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
   backend table; the companion stream pauses while backgrounded.
 
 **Next, in rough priority:**
-1. **Build Mantle Push** (push notifications) — **design approved & ready to
-   build**: [`push-notifications.md`](push-notifications.md). A blind,
-   E2E-encrypted relay (`mantle-push`, we host, free at first); `push.crossworks.network`
-   DNS already points at prod. Start at **M1** (the relay), then Mantle side, then
-   iOS/Android. The only path for *backgrounded* proactive messages (SSE pauses
-   when backgrounded).
+1. **Mantle Push** (push notifications) — [`push-notifications.md`](push-notifications.md).
+   - ~~**M1 — the relay (`mantle-push`)**~~ **DONE** (2026-06-14). Built + smoke-
+     tested on the mock provider; see `~/Projects/mantle-push/README.md`. Deploy is
+     wired (Caddy block + `docs/deploy.md`) but **gated** — ships when Jason says.
+     APNs/FCM creds (Apple Dev account, Firebase project) don't exist yet; only
+     needed at M3/M4 when the app flips the relay to `live`.
+   - **M2 — Mantle side** (next): in `~/Projects/mantle`, add `push_instance` +
+     `push_subscriptions` schema, the `POST /api/push/connect` (lazy instance-token
+     gen + ticket mint), `/api/push/subscriptions`, `/api/push/reset` routes, and
+     the **send-worker off the existing `conversation_changed` signal** (migration
+     0091) that seals a teaser to each device pubkey and calls the relay's
+     `/notify`. The ticket/token wire format to mirror is in
+     `mantle-push/src/lib/ticket.ts` + `tokens.ts`.
+   - **M3 iOS** (keypair + Keychain group + NSE decrypt + one-tap Connect),
+     **M4 Android** (FCM data handler), **M5** Settings/quiet-hours, **M6**
+     UnifiedPush. Push is the only path for *backgrounded* proactive messages
+     (SSE pauses when backgrounded).
 2. **Pending screen** is a placeholder — build the real approvals list +
    approve/reject (`GET /api/pending`, `PATCH /api/pending/{id}`).
 3. **Settings** — account/profile management (only theme + sign out exist).
