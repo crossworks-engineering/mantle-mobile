@@ -459,8 +459,15 @@ Push is strictly additive on top of the existing live stream.
    raw-APNs path is untouched (note: pulls iOS deploy target to 15+). analyze + tests
    clean. **Remaining = run on a Play-services device/emulator** (runbook:
    `android/PUSH_SETUP.md`).
-5. **M5 — Settings & polish**: per-trigger toggles, quiet hours, device list,
-   instance reset.
+5. **M5 — Settings & polish** — ✅ **CODE-COMPLETE (2026-06-14)**. Backend (Mantle
+   v0.26.0): migration 0093 `push_prefs` (toggles + quiet hours), GET/PUT
+   `/api/push/preferences`; the send-worker enforces the assistant-messages toggle +
+   tz-aware quiet hours, and a new **approvals trigger** (`worker_push` also LISTENs
+   `pending_changed` → `pushApproval`, gated by the toggle). App: Settings →
+   Notifications now has per-trigger switches, quiet hours (enable + From/To, device
+   IANA tz auto-adopted), the device list with unpair, and Reset push (confirm →
+   `/api/push/reset`). Quiet-hours helper unit-tested; analyze + tests clean both
+   sides. Not deployed (batches with the device-verified push deploy).
 6. **M6 — UnifiedPush (Android)**: the free/self-host distributor path.
 7. **(later) Paid seam**: entitlement field + billing webhook, only if/when we
    monetize.

@@ -142,9 +142,12 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
      token + Dart background-isolate decrypt (`sodium_libs` seal-open) →
      `flutter_local_notifications`; gradle/manifest wired, Firebase kept
      Android-only. Remaining = run on a Play-services device (`android/PUSH_SETUP.md`).
-   - **M5** Settings/quiet-hours/device-list/instance-reset, **M6** UnifiedPush.
-     Push is the only path for *backgrounded* proactive messages (SSE pauses when
-     backgrounded).
+   - ~~**M5** Settings & polish~~ **CODE-COMPLETE (2026-06-14)**: per-trigger toggles
+     + quiet hours + approvals trigger (Mantle v0.26.0, migration 0093, worker
+     enforces them), and the Settings → Notifications UI (switches, quiet hours,
+     device unpair, reset). analyze + tests clean both sides.
+   - **M6** UnifiedPush (Android free/self-host distributor) — not started. Push is
+     the only path for *backgrounded* proactive messages (SSE pauses when backgrounded).
 2. **Pending screen** is a placeholder — build the real approvals list +
    approve/reject (`GET /api/pending`, `PATCH /api/pending/{id}`).
 3. **Settings** — account/profile management (only theme + sign out exist).
