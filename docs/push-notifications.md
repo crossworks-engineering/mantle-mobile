@@ -208,9 +208,19 @@ on tap (it already has the SSE/REST path). No plaintext ever rides APNs/FCM.
 
 ## 7. The relay service — `mantle-push`
 
-A small, stateless-ish service we host on a **small VPS at
-`https://push.crossworks.network`** (its own repo). **Holds the APNs `.p8` key +
-FCM service account. Never holds private keys or plaintext.**
+A small, stateless-ish service we host at **`https://push.crossworks.network`**
+(its own repo). **Holds the APNs `.p8` key + FCM service account. Never holds
+private keys or plaintext.**
+
+> **Deployment (interim).** For development and until the first real client,
+> `mantle-push` runs **co-located on the production server**, as another service
+> behind the existing Caddy reverse proxy — `push.crossworks.network` points at
+> prod. It moves to its **own small VPS** once there's usage. Because clients only
+> ever know the `relay_url` (DNS), that migration is a transparent repoint — no
+> client or token change. _Caveat to retire on the move:_ co-location puts the
+> APNs `.p8` + FCM creds on the prod box, so a prod compromise would also expose
+> push creds (and vice-versa); isolating them on a dedicated VPS is part of why we
+> move.
 
 ### 7.1 API (sketch)
 
@@ -390,8 +400,10 @@ Each milestone is independently demoable; M1–M3 prove the whole spine.
 - **Pricing**: **free at first**, with the paid seam in §11 reserved.
 - **Relay**: **build** (not buy), self-hosted by us (§7.3).
 - **Crypto**: **libsodium sealed boxes** (§6).
-- **Hosting**: a **small VPS** at **`https://push.crossworks.network`** (the
-  default `relay_url`; overridable for self-hosters).
+- **Hosting**: **`https://push.crossworks.network`** (the default `relay_url`;
+  overridable for self-hosters). **Interim**: co-located on the prod server behind
+  Caddy; moves to its own small VPS at the first real client — a transparent DNS
+  repoint (§7).
 - **Triggers + quiet hours**: ship the **§10 defaults** — proactive/heartbeat →
   approvals → @-mentions, foreground-suppressed, with quiet hours enforced
   Mantle-side; all toggleable in Settings.
