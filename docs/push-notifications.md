@@ -1,6 +1,6 @@
 # Design — Push notifications for Mantle Companion ("Mantle Push")
 
-_Status: **draft / proposal** · 2026-06-13 · owner: Jason_
+_Status: **approved — ready to build** · 2026-06-13 · owner: Jason_
 
 How a **self-hosted** Mantle backend delivers a push notification to a user's
 iPhone/Android when the companion app is **backgrounded or closed** — the one
@@ -175,13 +175,14 @@ default.)
 
 ## 6. End-to-end encryption
 
-**Scheme: libsodium sealed boxes (`crypto_box_seal`).**
+**Scheme: libsodium sealed boxes (`crypto_box_seal`). _Decided._**
 - Device publishes its **public key**; Mantle seals each payload to it. Only the
   device's secret key opens it. Anonymous-sender, no shared secret, no key
   exchange round-trip — ideal for a one-way notification.
 - Mantle side: `libsodium-wrappers` / `tweetnacl` (Node). Device side:
-  `sodium_libs` / `flutter_sodium`. (Alternative: `age` with X25519 recipients —
-  same shape, larger ecosystem; sealed boxes are smaller on the wire.)
+  `sodium_libs` / `flutter_sodium`. (`age`/X25519 was considered — same idea, but
+  a heavier format per message and thinner Dart support; sealed boxes win on size
+  + ecosystem for tiny single-device payloads.)
 
 **Payload (plaintext, before sealing):**
 ```jsonc
@@ -207,8 +208,9 @@ on tap (it already has the SSE/REST path). No plaintext ever rides APNs/FCM.
 
 ## 7. The relay service — `mantle-push`
 
-A small, stateless-ish service we host. **Holds the APNs `.p8` key + FCM service
-account. Never holds private keys or plaintext.** Its own repo.
+A small, stateless-ish service we host on a **small VPS at
+`https://push.crossworks.network`** (its own repo). **Holds the APNs `.p8` key +
+FCM service account. Never holds private keys or plaintext.**
 
 ### 7.1 API (sketch)
 
@@ -253,7 +255,8 @@ offload APNs/FCM plumbing; E2E means they'd see only ciphertext anyway.)
 - **Schema** `push_subscriptions(owner_id, device_id, routing_token,
   public_key, platform, label, created_at, last_push_at)` — one row per enrolled
   device. Plus a single-row **`push_instance(instance_token, relay_url,
-  connected_at)`** for this install's relay identity.
+  connected_at)`** for this install's relay identity (`relay_url` defaults to
+  `https://push.crossworks.network`, overridable for self-hosters).
 - **Routes** (owner-gated via the existing `getOwnerOr401`,
   [audit notes](../../mantle/docs/mobile-companion-backend.md)):
   `POST /api/push/connect` (lazily generate + register the instance token, mint
@@ -386,13 +389,16 @@ Each milestone is independently demoable; M1–M3 prove the whole spine.
   has a single **Connect** button; no purchase, no pasting (§5).
 - **Pricing**: **free at first**, with the paid seam in §11 reserved.
 - **Relay**: **build** (not buy), self-hosted by us (§7.3).
+- **Crypto**: **libsodium sealed boxes** (§6).
+- **Hosting**: a **small VPS** at **`https://push.crossworks.network`** (the
+  default `relay_url`; overridable for self-hosters).
+- **Triggers + quiet hours**: ship the **§10 defaults** — proactive/heartbeat →
+  approvals → @-mentions, foreground-suppressed, with quiet hours enforced
+  Mantle-side; all toggleable in Settings.
+- **TOFU hardening** (email / build attestation): **deferred** — launch with
+  trust-on-first-use as in §5.2; revisit if abuse shows up.
 
-**Still to confirm:**
-1. **Crypto**: libsodium sealed boxes (recommended) vs. `age`/X25519.
-2. **Hosting** for `mantle-push`: Fly / Render / a VPS alongside prod?
-3. **Default triggers** + quiet-hours defaults (§10).
-4. **Optional hardening** of TOFU (email/build attestation) — needed at launch,
-   or later?
+_No open decisions remain — the spec is ready to build against (§14)._
 
 ---
 
