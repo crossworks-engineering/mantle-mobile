@@ -146,8 +146,13 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
      + quiet hours + approvals trigger (Mantle v0.26.0, migration 0093, worker
      enforces them), and the Settings → Notifications UI (switches, quiet hours,
      device unpair, reset). analyze + tests clean both sides.
-   - **M6** UnifiedPush (Android free/self-host distributor) — not started. Push is
-     the only path for *backgrounded* proactive messages (SSE pauses when backgrounded).
+   - ~~**M6** no-Google Android~~ **CODE-COMPLETE (2026-06-14)**: a **direct
+     connection** (foreground service holding the SSE stream open → local
+     notifications, straight from the user's Mantle; no relay/FCM/ntfy/crypto) —
+     chosen over UnifiedPush. Settings toggle, Android-only, mutually exclusive
+     with FCM. See `android/PUSH_SETUP.md`.
+   - **Push is now M1–M6 built end to end.** Remaining = on-device verification
+     (M3 TestFlight, M4 Play device, M6 Play-less device) + deploy Mantle v0.26.0.
 2. **Pending screen** is a placeholder — build the real approvals list +
    approve/reject (`GET /api/pending`, `PATCH /api/pending/{id}`).
 3. **Settings** — account/profile management (only theme + sign out exist).
