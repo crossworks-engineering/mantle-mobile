@@ -10,6 +10,7 @@ import '../features/chat/chat_screen.dart';
 import '../features/conversations/conversations_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/pending/pending_screen.dart';
+import '../features/settings/push/notifications_screen.dart';
 import '../features/settings/settings_screen.dart';
 
 part 'app_router.g.dart';
@@ -60,6 +61,10 @@ GoRouter goRouter(Ref ref) {
       ),
       GoRoute(path: '/pending', builder: (_, _) => const PendingScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings/notifications',
+        builder: (_, _) => const NotificationsScreen(),
+      ),
     ],
   );
 }

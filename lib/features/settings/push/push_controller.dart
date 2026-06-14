@@ -1,0 +1,107 @@
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../../data/push/apns_bridge.dart';
+import '../../../data/push/push_api.dart';
+import '../../../data/push/push_keys.dart';
+
+part 'push_controller.g.dart';
+
+enum PushConnectionStatus { disconnected, connected }
+
+/// A user-facing failure in the Connect flow (permission declined, relay
+/// unreachable, …). The message is shown inline under the button.
+class PushException implements Exception {
+  const PushException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
+class PushState {
+  const PushState({required this.status, this.devices = const []});
+  final PushConnectionStatus status;
+  final List<PushDevice> devices;
+
+  bool get isConnected => status == PushConnectionStatus.connected;
+}
+
+/// Drives push notifications setup. `build()` reflects current state (is THIS
+/// device connected + the owner's device list); [connect]/[disconnect] run the
+/// one-tap flow against Mantle + the relay (push-notifications.md §5.1).
+@riverpod
+class PushController extends _$PushController {
+  @override
+  Future<PushState> build() => _load();
+
+  Future<PushState> _load() async {
+    final keyStore = await ref.read(pushKeyStoreProvider.future);
+    final subId = await keyStore.subscriptionId();
+    var devices = const <PushDevice>[];
+    try {
+      devices = await ref.read(pushApiProvider).list();
+    } catch (_) {
+      /* server unreachable — show no devices rather than fail the screen */
+    }
+    return PushState(
+      status: (subId != null && subId.isNotEmpty)
+          ? PushConnectionStatus.connected
+          : PushConnectionStatus.disconnected,
+      devices: devices,
+    );
+  }
+
+  /// One-tap Connect: permission → APNs token → device keypair → Mantle
+  /// `/connect` (ticket) → relay `/enroll` (routing token) → Mantle `/subscribe`.
+  Future<void> connect() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final api = ref.read(pushApiProvider);
+      final keyStore = await ref.read(pushKeyStoreProvider.future);
+      final bridge = ref.read(apnsBridgeProvider);
+
+      final token = await bridge.requestPermissionAndToken();
+      if (token == null || token.isEmpty) {
+        throw const PushException('Notification permission was declined.');
+      }
+
+      final publicKey = await keyStore.ensureDeviceKeyPair();
+
+      final conn = await api.connect(platform: 'ios', osPushToken: token, publicKey: publicKey);
+      final enrolled = await api.enroll(
+        relayUrl: conn.relayUrl,
+        ticket: conn.ticket,
+        platform: 'ios',
+        osPushToken: token,
+      );
+      final id = await api.subscribe(
+        routingToken: enrolled.routingToken,
+        publicKey: publicKey,
+        platform: 'ios',
+        label: 'iPhone',
+        deviceId: enrolled.deviceId,
+      );
+      await keyStore.setSubscriptionId(id);
+      return _load();
+    });
+  }
+
+  /// Unpair this device: drop the Mantle subscription (which also tells the
+  /// relay), then clear the local keypair so the NSE can no longer decrypt.
+  Future<void> disconnect() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final api = ref.read(pushApiProvider);
+      final keyStore = await ref.read(pushKeyStoreProvider.future);
+      final id = await keyStore.subscriptionId();
+      if (id != null && id.isNotEmpty) {
+        try {
+          await api.unsubscribe(id);
+        } catch (_) {
+          /* best-effort — clear locally regardless */
+        }
+      }
+      await keyStore.clear();
+      return _load();
+    });
+  }
+}

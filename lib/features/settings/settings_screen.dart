@@ -61,6 +61,28 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  Text('Notifications', style: theme.textTheme.small),
+                  const SizedBox(height: 8),
+                  ShadCard(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => context.push('/settings/notifications'),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: Row(
+                          children: [
+                            Icon(LucideIcons.bell, size: 18, color: scheme.mutedForeground),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text('Push notifications', style: theme.textTheme.p),
+                            ),
+                            Icon(LucideIcons.chevronRight, size: 18, color: scheme.mutedForeground),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   Text('Account', style: theme.textTheme.small),
                   const SizedBox(height: 8),
                   SizedBox(
