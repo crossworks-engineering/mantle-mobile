@@ -16,41 +16,56 @@ assistant. Connects to a user's own Mantle server over an authenticated REST API
 
 ## State at this checkpoint
 
-**Working & verified in the app** (`fvm flutter analyze` clean, **48 tests pass**):
+> **Latest session (2026-06-13).** Backend verified live + committed; avatar
+> endpoint fixed; dashboard theme-color fix; inbox redesigned as flat accent
+> cards; a backend audit (JSON 401 gate + read-body validation); **live chat over
+> SSE shipped** (both repos); and the **Mantle Push** notification design is
+> approved & ready to build (`docs/push-notifications.md`). Everything committed on
+> `main` in both repos, **nothing pushed.**
+
+**Working & verified in the app** (`fvm flutter analyze` clean, **57 tests pass**):
 
 - **Auth** — server setup → bearer login → session gate (go_router redirect).
 - **Dashboard landing** (`/`) — `mantle` header, 3 action tiles (Chat / Pending /
   Settings), stat cards (Spend 7d, Pending, Brain nodes, Vectors) + a Server card
   (CPU/RAM/Disk meters + service dots).
-- **Two-tier chat** — inbox (`/chat`) listing agents (avatar · name · preview ·
-  time · unread badge) → per-agent thread (`/chat/:slug`) with markdown rendering,
+- **Two-tier chat** — inbox (`/chat`) = **flat accent cards** (avatar · name ·
+  preview · time · unread badge) → per-agent thread (`/chat/:slug`) with markdown,
   scroll-up paging (30/page), optimistic send, read-on-open.
+- **Live chat (SSE)** — the open thread + inbox update in real time off
+  `/api/assistant/stream`; pauses while backgrounded (see open item 5).
 - **Markdown** — GFM + Mantle's custom blocks (`:::callouts`, `:::aside`,
   `:::columns`, `==highlight==`, `[text]{color}`); images/math still TODO.
 - **Avatars** — boring-avatars SVG from Mantle, initials fallback.
 - **Settings** (`/settings`) — theme select + sign out.
 
 **Verified live on local dev (2026-06-13)** — the **Mantle backend** additions.
-Migration 0090 applied; all four route groups smoke-tested with a mobile bearer
-(dashboard summary, conversations, read cursor, avatar all 200; owner-gate 307s
-without a token). `apps/web` typecheck is now clean. The avatar route needed two
-fixes during that pass — see the backend section.
+Migrations 0090 + 0091 applied; all routes smoke-tested with a mobile bearer
+(dashboard summary, conversations, read cursor, avatar, SSE stream); owner-gate
+returns a clean **401** for JSON routes / **307** for pages. `apps/web` typecheck
+clean.
 
-## Mantle backend additions (in `~/Projects/mantle`, uncommitted there too)
+## Mantle backend additions (in `~/Projects/mantle`, committed on `main`, not pushed)
 
-All owner-gated (`requireOwner()`), so they work with a mobile bearer token. See
+JSON API routes gate with **`getOwnerOr401()`** (clean 401); page routes use
+`requireOwner()` (307→/login). All work with a mobile bearer token. See
 `~/Projects/mantle/docs/mobile-companion-backend.md` for detail.
 
 | Area | Files | Notes |
 |---|---|---|
-| Bearer auth | `apps/web/lib/auth.ts`, `middleware.ts`, `schema/mobile-tokens.ts`, migration `0089` | Per-device token; verified E2E earlier. |
+| Bearer auth | `apps/web/lib/auth.ts`, `middleware.ts`, `schema/mobile-tokens.ts`, migration `0089` | Per-device token; `getOwnerOr401` for JSON routes. |
 | Dashboard | `app/api/dashboard/summary/route.ts` | Aggregates existing `lib/dashboard.ts`/`metrics.ts`. |
 | Conversations | `app/api/assistant/conversations/route.ts`, `lib/assistant-inbox.ts` | Per-agent last message + unread. |
-| Read state | `app/api/assistant/read/route.ts`, `schema/assistant-read-cursors.ts`, migration `0090` | `assistant_read_cursors(owner, agent, last_read_at)`. |
+| Read state | `app/api/assistant/read/route.ts`, `schema/assistant-read-cursors.ts`, migration `0090` | `assistant_read_cursors(owner, agent, last_read_at)`; body `safeParse`d → 400. |
 | Avatars | `app/api/agents/[id]/avatar/route.ts`, `lib/avatar-svg.ts` | Pure-string port of boring-avatars (no React — `react-dom/server` can't render its `useId()` in a route). Under the existing `[id]` segment, resolves uuid-or-slug. Parity pinned by `lib/avatar-svg.test.ts`. |
+| Live chat (SSE) | `app/api/assistant/stream/route.ts`, `lib/realtime.ts`, migration `0091` | Per-owner SSE; `conversation_changed` NOTIFY (trigger) → bridge → `data:{agentSlug,direction}`. Mirrors `/api/realtime`. |
 
-**To run the backend:** in `~/Projects/mantle`: `pnpm db:migrate` (applies 0089 +
-0090), then the `next dev` server hot-loads the new routes.
+**To run the backend:** in `~/Projects/mantle`: `pnpm db:migrate` (applies 0089–
+0091), then the `next dev` server hot-loads the new routes. **Note:** `lib/realtime.ts`
+keeps its LISTEN bridge in a `globalThis` singleton that survives HMR, so a
+newly-added LISTEN channel needs a **dev server restart** to register (prod evals
+once, fine) — verify realtime changes with a fresh-eval script, not the running
+dev server.
 
 ## How to run
 
@@ -71,31 +86,29 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
 
 ## Open items / next steps
 
-1. ~~Verify the Mantle backend live~~ — **done 2026-06-13** (Mantle commit
-   `0f8afaf`): 0090 applied, all four routes smoke-tested 200, avatar endpoint
-   fixed (segment conflict + `react-dom/server`/`useId` crash → pure SVG port).
-2. **"Incorrect in Mantle" stat** — Jason flagged a dashboard value as computed
-   wrong server-side but hasn't said which. Get the specific value, then fix the
-   `lib/dashboard.ts`/`metrics.ts` query.
-3. **Pending screen** is a placeholder — build the real approvals list +
+**Done this session (2026-06-13):**
+- ~~Verify the Mantle backend live~~ — 0090/0091 applied, routes smoke-tested,
+  **avatar endpoint fixed** (segment conflict + `react-dom/server`/`useId` crash →
+  pure SVG port).
+- ~~"Incorrect in Mantle" stat~~ — it was a **hardcoded `amber` colour** on the
+  Pending KPI card, not a bad calculation. Fixed to the `primary` theme token
+  (Mantle `8ffc62a`); documented "which fill where" in both style guides.
+- ~~Live chat (SSE)~~ — shipped (Mantle `9783d61`, companion `765df23`). See the
+  backend table; the companion stream pauses while backgrounded.
+
+**Next, in rough priority:**
+1. **Build Mantle Push** (push notifications) — **design approved & ready to
+   build**: [`push-notifications.md`](push-notifications.md). A blind,
+   E2E-encrypted relay (`mantle-push`, we host, free at first); `push.crossworks.network`
+   DNS already points at prod. Start at **M1** (the relay), then Mantle side, then
+   iOS/Android. The only path for *backgrounded* proactive messages (SSE pauses
+   when backgrounded).
+2. **Pending screen** is a placeholder — build the real approvals list +
    approve/reject (`GET /api/pending`, `PATCH /api/pending/{id}`).
-4. **Settings** — account/profile management (only theme + sign out exist).
-5. **Live chat (SSE) — DONE 2026-06-13.** `GET /api/assistant/stream` (Mantle)
-   emits `data: {agentSlug, direction}` on every turn (any channel), driven by a
-   `conversation_changed` Postgres NOTIFY (migration 0091). Companion side:
-   `data/chat/conversation_stream.dart` opens it via Dio (`ResponseType.stream`),
-   parses SSE, reconnects with capped backoff, and **pauses while backgrounded**
-   (`core/lifecycle/app_lifecycle.dart` + the root `WidgetsBindingObserver`).
-   `ChatController` merges new messages into the open thread; `ConversationsController`
-   silently refetches the inbox. Both `ref.listen(conversationEventsProvider)`;
-   tests override it with an empty stream.
-6. Roadmap (not started): Drift message **cache + offline send-queue**,
-   **message-attached location** (geolocator, When-In-Use), **push notifications**
-   (FCM/APNs — needs new Mantle infra; the only path for *backgrounded* proactive
-   messages, since SSE pauses when backgrounded — **design drafted in
-   [push-notifications.md](push-notifications.md)**: a blind, E2E-encrypted central
-   relay as the paid tier), markdown **images + math**
-   (Phases 3–4), in-app routing for internal links.
+3. **Settings** — account/profile management (only theme + sign out exist).
+4. Roadmap (not started): Drift message **cache + offline send-queue**,
+   **message-attached location** (geolocator, When-In-Use), markdown **images +
+   math** (Phases 3–4), in-app routing for internal links.
 
 ## Gotchas (carried forward)
 
@@ -109,5 +122,8 @@ The iOS simulator reaches the host's `http://localhost:3000` directly
   unused.
 - mocktail: `any(named:)` matches omitted args and the **last** matching stub wins
   — use one stub branching on the arg (see `chat_controller_test`).
+- **Live chat**: `ChatController`/`ConversationsController` `ref.listen` the live
+  `conversationEventsProvider` (SSE). Unit tests for them **must override it** with
+  `const Stream<ConversationEvent>.empty()`, or they pull in Dio + open a socket.
 - Generated `*.g.dart` are committed.
 - Local Mantle password was shared for testing only — never store it; rotate.

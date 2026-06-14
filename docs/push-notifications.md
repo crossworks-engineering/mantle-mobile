@@ -375,6 +375,10 @@ Push is strictly additive on top of the existing live stream.
 
 1. **M1 — `mantle-push` MVP**: APNs + FCM v1, `/instances` (TOFU), `/enroll`,
    `/notify`, per-instance rate limits. Verifiable with a CLI before any app work.
+   **Deploy** as a service in the prod compose stack + a Caddy site block
+   `push.crossworks.network { reverse_proxy mantle-push:PORT }` (Caddy
+   auto-issues the cert on first request). DNS already points at prod; until the
+   site block exists the host correctly fails TLS ("nothing here yet").
 2. **M2 — Mantle side**: `push_instance` + `push_subscriptions`, the
    connect/subscribe/reset routes, the send-worker off `conversation_changed`,
    E2E sealing.
