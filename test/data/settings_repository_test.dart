@@ -29,4 +29,33 @@ void main() {
     await repo.setThemeMode(ThemeMode.light);
     expect(await repo.themeMode(), ThemeMode.light);
   });
+
+  test('color theme defaults to clean-slate and round-trips', () async {
+    expect(await repo.colorTheme(), 'clean-slate');
+
+    await repo.setColorTheme('cosmic-night');
+    expect(await repo.colorTheme(), 'cosmic-night');
+  });
+
+  test('color theme falls back to default when the stored id is unknown',
+      () async {
+    await repo.setColorTheme('a-theme-that-was-removed');
+    expect(await repo.colorTheme(), 'clean-slate');
+  });
+
+  test('random mode defaults to off with the default interval', () async {
+    expect(await repo.randomThemeEnabled(), isFalse);
+    expect(await repo.randomInterval(), SettingsRepository.defaultRandomInterval);
+    expect(await repo.lastRandomAtMs(), 0);
+  });
+
+  test('random mode settings round-trip', () async {
+    await repo.setRandomThemeEnabled(true);
+    await repo.setRandomInterval(const Duration(hours: 6));
+    await repo.setLastRandomAtMs(1750000000000);
+
+    expect(await repo.randomThemeEnabled(), isTrue);
+    expect(await repo.randomInterval(), const Duration(hours: 6));
+    expect(await repo.lastRandomAtMs(), 1750000000000);
+  });
 }

@@ -9,7 +9,13 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 Future<void> _pump(WidgetTester tester, String markdown) async {
   await tester.pumpWidget(
-    ShadApp(theme: MantleTheme.light(), home: MantleMarkdown(markdown)),
+    MantleColors(
+      def: MantleTheme.defFor(MantleTheme.defaultId),
+      child: ShadApp(
+        theme: MantleTheme.light(MantleTheme.defaultId),
+        home: MantleMarkdown(markdown),
+      ),
+    ),
   );
   await tester.pumpAndSettle();
 }

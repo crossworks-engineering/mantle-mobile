@@ -9,6 +9,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'core/lifecycle/app_lifecycle.dart';
 import 'data/push/push_notifier.dart';
+import 'features/settings/color_theme_controller.dart';
+import 'features/settings/random_theme_controller.dart';
 import 'features/settings/theme_mode_controller.dart';
 import 'routing/app_router.dart';
 import 'theme/mantle_theme.dart';
@@ -60,14 +62,23 @@ class _MantleCompanionAppState extends ConsumerState<MantleCompanionApp>
   Widget build(BuildContext context) {
     final themeMode =
         ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
+    final themeId =
+        ref.watch(colorThemeControllerProvider).value ?? MantleTheme.defaultId;
+    // Activate random-rotation (side-effect-only provider; ignores the value).
+    ref.watch(randomThemeSchedulerProvider);
     final router = ref.watch(goRouterProvider);
 
-    return ShadApp.router(
-      title: 'Mantle Companion',
-      themeMode: themeMode,
-      theme: MantleTheme.light(),
-      darkTheme: MantleTheme.dark(),
-      routerConfig: router,
+    // MantleColors sits above ShadApp so every route can resolve the active
+    // theme's chart ramp (the markdown renderer uses it).
+    return MantleColors(
+      def: MantleTheme.defFor(themeId),
+      child: ShadApp.router(
+        title: 'Mantle Companion',
+        themeMode: themeMode,
+        theme: MantleTheme.light(themeId),
+        darkTheme: MantleTheme.dark(themeId),
+        routerConfig: router,
+      ),
     );
   }
 }

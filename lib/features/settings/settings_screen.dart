@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,10 +5,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../widgets/mantle_header.dart';
 import '../auth/session_controller.dart';
-import 'theme_mode_controller.dart';
 
-/// Settings: appearance (theme) and account. Profile/account management beyond
-/// sign-out is a TODO.
+/// Settings: appearance (theme), notifications, and account. Profile/account
+/// management beyond sign-out is a TODO.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -17,7 +15,6 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final mode = ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
 
     return Container(
       color: scheme.background,
@@ -44,43 +41,20 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   Text('Appearance', style: theme.textTheme.small),
                   const SizedBox(height: 8),
-                  ShadCard(
-                    child: Column(
-                      children: [
-                        for (final option in _themeOptions)
-                          _ThemeRow(
-                            theme: theme,
-                            label: option.label,
-                            icon: option.icon,
-                            selected: mode == option.mode,
-                            onTap: () => ref
-                                .read(themeModeControllerProvider.notifier)
-                                .setMode(option.mode),
-                          ),
-                      ],
-                    ),
+                  _NavRow(
+                    theme: theme,
+                    icon: LucideIcons.palette,
+                    label: 'Theme & appearance',
+                    onTap: () => context.push('/settings/appearance'),
                   ),
                   const SizedBox(height: 24),
                   Text('Notifications', style: theme.textTheme.small),
                   const SizedBox(height: 8),
-                  ShadCard(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => context.push('/settings/notifications'),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: Row(
-                          children: [
-                            Icon(LucideIcons.bell, size: 18, color: scheme.mutedForeground),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text('Push notifications', style: theme.textTheme.p),
-                            ),
-                            Icon(LucideIcons.chevronRight, size: 18, color: scheme.mutedForeground),
-                          ],
-                        ),
-                      ),
-                    ),
+                  _NavRow(
+                    theme: theme,
+                    icon: LucideIcons.bell,
+                    label: 'Push notifications',
+                    onTap: () => context.push('/settings/notifications'),
                   ),
                   const SizedBox(height: 24),
                   Text('Account', style: theme.textTheme.small),
@@ -111,50 +85,38 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class _ThemeOption {
-  const _ThemeOption(this.mode, this.label, this.icon);
-  final ThemeMode mode;
-  final String label;
-  final IconData icon;
-}
-
-const _themeOptions = [
-  _ThemeOption(ThemeMode.system, 'System', LucideIcons.sunMoon),
-  _ThemeOption(ThemeMode.light, 'Light', LucideIcons.sun),
-  _ThemeOption(ThemeMode.dark, 'Dark', LucideIcons.moon),
-];
-
-class _ThemeRow extends StatelessWidget {
-  const _ThemeRow({
+/// A card that navigates to a subscreen — icon, label, chevron.
+class _NavRow extends StatelessWidget {
+  const _NavRow({
     required this.theme,
-    required this.label,
     required this.icon,
-    required this.selected,
+    required this.label,
     required this.onTap,
   });
 
   final ShadThemeData theme;
-  final String label;
   final IconData icon;
-  final bool selected;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            Icon(icon, size: 18, color: scheme.mutedForeground),
-            const SizedBox(width: 12),
-            Expanded(child: Text(label, style: theme.textTheme.p)),
-            if (selected)
-              Icon(LucideIcons.check, size: 18, color: scheme.primary),
-          ],
+    return ShadCard(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: scheme.mutedForeground),
+              const SizedBox(width: 12),
+              Expanded(child: Text(label, style: theme.textTheme.p)),
+              Icon(LucideIcons.chevronRight,
+                  size: 18, color: scheme.mutedForeground),
+            ],
+          ),
         ),
       ),
     );

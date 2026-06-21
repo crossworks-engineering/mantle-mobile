@@ -86,7 +86,7 @@ class _CalloutBuilder extends MarkdownElementBuilder {
   ) {
     final theme = ShadTheme.of(context);
     final variant = element.attributes['variant'] ?? 'info';
-    final accent = _calloutColor(theme, variant);
+    final accent = _calloutColor(context, theme, variant);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
@@ -114,17 +114,18 @@ class _CalloutBuilder extends MarkdownElementBuilder {
     );
   }
 
-  Color _calloutColor(ShadThemeData theme, String variant) {
+  Color _calloutColor(BuildContext context, ShadThemeData theme, String variant) {
     final b = theme.brightness;
+    final colors = MantleColors.of(context);
     switch (variant) {
       case 'success':
-        return MantleTheme.chart(b, 4);
+        return colors.chart(b, 4);
       case 'warning':
-        return MantleTheme.chart(b, 5);
+        return colors.chart(b, 5);
       case 'danger':
         return theme.colorScheme.destructive;
       default:
-        return MantleTheme.chart(b, 2);
+        return colors.chart(b, 2);
     }
   }
 
@@ -155,7 +156,7 @@ class _AsideBuilder extends MarkdownElementBuilder {
     TextStyle? parentStyle,
   ) {
     final theme = ShadTheme.of(context);
-    final color = MantleTheme.chart(
+    final color = MantleColors.of(context).chart(
       theme.brightness,
       _chartIndex(element.attributes['color']),
     );
@@ -241,11 +242,12 @@ class _SpanBuilder extends MarkdownElementBuilder {
   ) {
     final theme = ShadTheme.of(context);
     final b = theme.brightness;
+    final colors = MantleColors.of(context);
     var style = parentStyle ?? theme.textTheme.p;
 
     final textColor = element.attributes['text-color'];
     if (textColor != null) {
-      style = style.copyWith(color: MantleTheme.chart(b, _chartIndex(textColor)));
+      style = style.copyWith(color: colors.chart(b, _chartIndex(textColor)));
     }
 
     final Widget text = Text(element.textContent, style: style);
@@ -255,7 +257,7 @@ class _SpanBuilder extends MarkdownElementBuilder {
 
     final background = highlight == 'default'
         ? theme.colorScheme.primary.withValues(alpha: 0.22)
-        : MantleTheme.chart(b, _chartIndex(highlight)).withValues(alpha: 0.30);
+        : colors.chart(b, _chartIndex(highlight)).withValues(alpha: 0.30);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       decoration: BoxDecoration(
