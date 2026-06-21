@@ -120,6 +120,28 @@ void main() {
     expect(result.outbound.model, 'claude-opus');
   });
 
+  test('sendTurn forwards the idempotency-key header when given', () async {
+    when(() => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        )).thenAnswer(
+      (_) async => _resp({
+        'inbound': {'id': 'i1', 'text': 'hey', 'createdAt': '2026-06-13T10:00:00.000Z'},
+        'outbound': {'id': 'o1', 'text': 'yo', 'createdAt': '2026-06-13T10:00:02.000Z'},
+      }),
+    );
+
+    await api.sendTurn('hey', idempotencyKey: 'abc123');
+
+    final options = verify(() => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+          options: captureAny(named: 'options'),
+        )).captured.single as Options;
+    expect(options.headers?['idempotency-key'], 'abc123');
+  });
+
   test('fetchHistory parses image attachments with a node id', () async {
     when(() => dio.get<Map<String, dynamic>>(
           any(),

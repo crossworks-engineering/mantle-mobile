@@ -130,7 +130,9 @@ void main() {
 
   test('send appends the user message then the assistant reply', () async {
     stubHistory(<ChatMessage>[]);
-    when(() => repo.send(any(), agentSlug: any(named: 'agentSlug'))).thenAnswer(
+    when(() => repo.send(any(),
+            agentSlug: any(named: 'agentSlug'),
+            idempotencyKey: any(named: 'idempotencyKey'))).thenAnswer(
       (_) async => TurnResult(
         inbound: _msg('i1', MessageDirection.inbound, 'hey'),
         outbound: _msg('o1', MessageDirection.outbound, 'reply'),
@@ -150,7 +152,9 @@ void main() {
 
   test('send marks the user message failed on error', () async {
     stubHistory(<ChatMessage>[]);
-    when(() => repo.send(any(), agentSlug: any(named: 'agentSlug')))
+    when(() => repo.send(any(),
+            agentSlug: any(named: 'agentSlug'),
+            idempotencyKey: any(named: 'idempotencyKey')))
         .thenThrow(Exception('network down'));
 
     final c = makeContainer();
@@ -165,7 +169,9 @@ void main() {
   test('send drops the bubble and returns cancelled when the request is aborted',
       () async {
     stubHistory(<ChatMessage>[]);
-    when(() => repo.send(any(), agentSlug: any(named: 'agentSlug'))).thenThrow(
+    when(() => repo.send(any(),
+            agentSlug: any(named: 'agentSlug'),
+            idempotencyKey: any(named: 'idempotencyKey'))).thenThrow(
       DioException(
         requestOptions: RequestOptions(path: '/api/assistant/turn'),
         type: DioExceptionType.cancel,
@@ -188,6 +194,8 @@ void main() {
     await c.read(chatControllerProvider(_slug).future);
     await c.read(chatControllerProvider(_slug).notifier).send('   ');
     expect(c.read(chatControllerProvider(_slug)).value!.messages, isEmpty);
-    verifyNever(() => repo.send(any(), agentSlug: any(named: 'agentSlug')));
+    verifyNever(() => repo.send(any(),
+            agentSlug: any(named: 'agentSlug'),
+            idempotencyKey: any(named: 'idempotencyKey')));
   });
 }

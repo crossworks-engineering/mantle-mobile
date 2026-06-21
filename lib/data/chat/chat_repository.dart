@@ -29,12 +29,14 @@ class ChatRepository {
     String? agentSlug,
     OutgoingAttachment? attachment,
     CancelToken? cancelToken,
+    String? idempotencyKey,
   }) =>
       _api.sendTurn(
         text,
         agentSlug: agentSlug,
         attachment: attachment,
         cancelToken: cancelToken,
+        idempotencyKey: idempotencyKey,
       );
 
   /// The responder's current stage label (or null), for the typing indicator.

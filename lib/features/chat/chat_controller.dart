@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:dio/dio.dart' show CancelToken, DioException, DioExceptionType;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -13,6 +15,16 @@ part 'chat_controller.g.dart';
 /// [sent], leave the failed bubble on [failed], or restore the text for editing
 /// on [cancelled] (the user hit stop).
 enum SendOutcome { sent, failed, cancelled }
+
+/// A fresh 128-bit hex `idempotency-key` for one send. The server replays a
+/// cached result for a repeated key, so a retried/replayed POST that already
+/// completed server-side won't create a duplicate turn.
+String _newIdempotencyKey() {
+  final rand = Random.secure();
+  return List<int>.generate(16, (_) => rand.nextInt(256))
+      .map((b) => b.toRadixString(16).padLeft(2, '0'))
+      .join();
+}
 
 /// The chat thread plus its paging state. [messages] is oldest-first (the screen
 /// reverses it for display). [hasMore] is true while older pages may still
@@ -168,6 +180,7 @@ class ChatController extends _$ChatController {
             agentSlug: agentSlug,
             attachment: attachment,
             cancelToken: cancelToken,
+            idempotencyKey: _newIdempotencyKey(),
           );
       final current = state.value ?? base;
       final landed = localAttachments.isEmpty

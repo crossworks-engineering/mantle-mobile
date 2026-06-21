@@ -72,8 +72,17 @@ class ChatApi {
     String? agentSlug,
     OutgoingAttachment? attachment,
     CancelToken? cancelToken,
+    String? idempotencyKey,
   }) async {
-    final options = Options(receiveTimeout: const Duration(seconds: 120));
+    // `idempotency-key` lets the server replay a cached result instead of
+    // re-running the turn if the same request is retried (e.g. a timeout where
+    // it actually completed server-side) — no duplicate turn.
+    final options = Options(
+      receiveTimeout: const Duration(seconds: 120),
+      headers: idempotencyKey == null
+          ? null
+          : {'idempotency-key': idempotencyKey},
+    );
     final Response<Map<String, dynamic>> res;
     if (attachment != null) {
       final field = attachment.isImage ? 'image' : 'file';

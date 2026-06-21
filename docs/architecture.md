@@ -218,7 +218,10 @@ attach and voice reuse Mantle's existing endpoints — no new server work:
   ingestable doc types `pdf,docx,xlsx,xls,csv,txt,md,json,yaml,yml`); text-only
   turns stay JSON. The user's bubble shows the picked file immediately (from
   disk); the server strips image bytes from the reply, so we keep rendering the
-  local preview after the turn lands.
+  local preview after the turn lands. Each send carries a fresh `idempotency-key`
+  header (128-bit, `ChatController._newIdempotencyKey`) so a retried/replayed
+  POST that already completed server-side replays the cached turn instead of
+  creating a duplicate.
 - **Stop & edit.** A turn is one atomic `POST` (the reply isn't streamed), so
   while it's in flight the send button becomes a red ■. Tapping it cancels the
   request via a Dio `CancelToken` (threaded `ChatApi.sendTurn` → repository →
