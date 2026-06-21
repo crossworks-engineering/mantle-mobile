@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -148,7 +149,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       }
                       // reverse:true → newest at the bottom.
                       final message = list[list.length - 1 - adjusted];
-                      return _Bubble(theme: theme, message: message);
+                      return _Bubble(
+                        theme: theme,
+                        message: message,
+                        onRetry: message.status == MessageStatus.failed
+                            ? () => ref.read(_provider.notifier).retry(message)
+                            : null,
+                      );
                     },
                   );
                 },
@@ -238,9 +245,58 @@ class _AgentIdentity extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.theme, required this.message});
+  const _Bubble({required this.theme, required this.message, this.onRetry});
   final ShadThemeData theme;
   final ChatMessage message;
+
+  /// Set for failed user messages — resends this turn.
+  final VoidCallback? onRetry;
+
+  /// Long-press menu: copy the text, and retry if this send failed.
+  Future<void> _showActions(BuildContext context) async {
+    final hasText = message.text.trim().isNotEmpty;
+    if (!hasText && onRetry == null) return;
+    final choice = await showShadSheet<String>(
+      context: context,
+      builder: (ctx) => ShadSheet(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (hasText)
+                _sheetAction(ctx, LucideIcons.copy, 'Copy text', 'copy'),
+              if (onRetry != null)
+                _sheetAction(ctx, LucideIcons.refreshCw, 'Retry send', 'retry'),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == 'copy') {
+      await Clipboard.setData(ClipboardData(text: message.text));
+    } else if (choice == 'retry') {
+      onRetry?.call();
+    }
+  }
+
+  Widget _sheetAction(
+      BuildContext ctx, IconData icon, String label, String value) {
+    return SizedBox(
+      width: double.infinity,
+      child: ShadButton.ghost(
+        onPressed: () => Navigator.of(ctx).pop(value),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 12),
+            Text(label),
+          ]),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -295,13 +351,43 @@ class _Bubble extends StatelessWidget {
         crossAxisAlignment:
             fromUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          Opacity(opacity: sending ? 0.6 : 1, child: bubble),
+          GestureDetector(
+            onLongPress: () => _showActions(context),
+            child: Opacity(opacity: sending ? 0.6 : 1, child: bubble),
+          ),
           if (failed)
             Padding(
               padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
-              child: Text(
-                'Failed to send',
-                style: theme.textTheme.small.copyWith(color: scheme.destructive),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Failed to send',
+                    style: theme.textTheme.small
+                        .copyWith(color: scheme.destructive),
+                  ),
+                  if (onRetry != null) ...[
+                    Text('  ·  ',
+                        style: theme.textTheme.small
+                            .copyWith(color: scheme.mutedForeground)),
+                    GestureDetector(
+                      onTap: onRetry,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.refreshCw,
+                              size: 13, color: scheme.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Retry',
+                            style: theme.textTheme.small
+                                .copyWith(color: scheme.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
         ],

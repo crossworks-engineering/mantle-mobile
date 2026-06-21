@@ -198,6 +198,38 @@ void main() {
     expect(c.read(chatControllerProvider(_slug)).value!.messages, isEmpty);
   });
 
+  test('retry resends a failed message and replaces it on success', () async {
+    stubHistory(<ChatMessage>[]);
+    // First attempt fails → one failed bubble.
+    when(() => repo.send(any(),
+        agentSlug: any(named: 'agentSlug'),
+        idempotencyKey: any(named: 'idempotencyKey'))).thenThrow(Exception('offline'));
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final notifier = c.read(chatControllerProvider(_slug).notifier);
+    await notifier.send('hello');
+
+    final failed = c.read(chatControllerProvider(_slug)).value!.messages.single;
+    expect(failed.status, MessageStatus.failed);
+
+    // Connection's back — retry succeeds.
+    when(() => repo.send(any(),
+            agentSlug: any(named: 'agentSlug'),
+            idempotencyKey: any(named: 'idempotencyKey')))
+        .thenAnswer((_) async => TurnResult(
+              inbound: _msg('i1', MessageDirection.inbound, 'hello'),
+              outbound: _msg('o1', MessageDirection.outbound, 'hi'),
+            ));
+
+    final outcome = await notifier.retry(failed);
+
+    expect(outcome, SendOutcome.sent);
+    final list = c.read(chatControllerProvider(_slug)).value!.messages;
+    expect(list.map((m) => m.id), containsAll(<String>['i1', 'o1']));
+    expect(list.where((m) => m.status == MessageStatus.failed), isEmpty);
+  });
+
   test('send ignores blank input', () async {
     stubHistory(<ChatMessage>[]);
     final c = makeContainer();

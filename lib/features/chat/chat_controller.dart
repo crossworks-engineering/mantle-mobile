@@ -225,6 +225,32 @@ class ChatController extends _$ChatController {
     }
   }
 
+  /// Resend a message that previously [MessageStatus.failed] (e.g. it went out
+  /// on a flaky connection). Drops the failed bubble, then re-sends its text and
+  /// attachment (reconstructed from the local preview) as a fresh turn.
+  Future<SendOutcome> retry(ChatMessage failed) async {
+    final current = state.value;
+    if (current != null) {
+      state = AsyncData(current.copyWith(
+        messages: current.messages.where((m) => m.id != failed.id).toList(),
+      ));
+    }
+
+    // Rebuild the OutgoingAttachment from the bubble's local preview, if any.
+    OutgoingAttachment? attachment;
+    for (final a in failed.attachments) {
+      if (a.localPath != null) {
+        attachment = OutgoingAttachment(
+          path: a.localPath!,
+          filename: a.caption ?? 'attachment',
+          mime: a.mime ?? 'application/octet-stream',
+        );
+        break;
+      }
+    }
+    return send(failed.text, attachment: attachment);
+  }
+
   /// Re-fetch the thread from the latest page.
   Future<void> refresh() async {
     state = const AsyncLoading();

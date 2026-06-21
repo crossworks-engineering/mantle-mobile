@@ -237,6 +237,10 @@ attach and voice reuse Mantle's existing endpoints — no new server work:
   /api/assistant/turn/stage` every ~900ms (mirroring the web — it's a poll, not a
   stream) only while the optimistic `sending` message exists, and stops the
   moment the turn lands. Label is null between mapped steps → dots only.
+- **Retry & copy.** A failed turn (e.g. flaky connection) keeps its bubble with a
+  one-tap **Retry** (`ChatController.retry` drops the failed bubble and re-sends
+  the text + attachment, reconstructed from the local preview). Long-pressing any
+  message opens a sheet to **copy** its text (and retry, if it failed).
 - **Voice.** Tap the mic to record (**record** → `.m4a`/aac to a temp file, with
   a live timer + cancel); tap send to stop → `POST /api/assistant/transcribe`
   (Mantle's default STT worker) → the transcript is sent as a normal turn. A
