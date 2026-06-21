@@ -22,10 +22,18 @@
 set -euo pipefail
 cd "$(dirname "$0")"   # this script lives at the repo root
 
-# Pull the <string> that follows the aps-environment <key> out of a plist/xml blob.
+# Pull the <string> that follows the aps-environment <key> out of a plist/xml
+# blob. Newline-agnostic on purpose: pretty-printed .entitlements files put the
+# value on the next line, but `codesign` emits the whole plist on ONE line, so a
+# line-based grep misses it. Slurp the whole input and match across newlines.
 aps_from_blob() {
-  # -A1: the value line is right after the key. Tolerant of indentation.
-  grep -A1 'aps-environment' | grep '<string>' | sed -E 's/.*<string>(.*)<\/string>.*/\1/' | head -1
+  perl -0777 -ne 'print "$1" if m{aps-environment</key>\s*<string>([^<]*)</string>}'
+}
+
+# Dump the entitlements embedded in a signed .app/.appex to stdout (single-line
+# XML on current macOS). `:-` writes the plist to stdout.
+entitlements_of() {
+  codesign -d --entitlements :- "$1" 2>/dev/null
 }
 
 endpoint_for() {
@@ -51,9 +59,9 @@ if [[ -z "$TARGET" ]]; then
   report "NotificationService:" "$ext_env"
   echo
   echo "  These values apply to dev signing (incl. \`fvm flutter run --release\`)."
-  echo "  An archive signed with a DISTRIBUTION profile is flipped to 'production'"
-  echo "  regardless — re-run against the built .app/.xcarchive to confirm:"
-  echo "      ./check_push_env.sh <path-to .app or .xcarchive>"
+  echo "  The .xcarchive is signed for DEVELOPMENT; \`flutter build ipa\` re-signs"
+  echo "  on export, flipping the IPA to 'production'. Check the real artifact:"
+  echo "      ./check_push_env.sh <path-to .ipa / .xcarchive / .app>"
   exit 0
 fi
 
@@ -63,25 +71,38 @@ if [[ ! -e "$TARGET" ]]; then
   exit 1
 fi
 
+# .ipa -> unzip to a temp dir and inspect Payload/*.app (cleaned up on exit). The
+# IPA is the artifact uploaded to TestFlight, so this is the one that matters.
+TMP=""
+cleanup() { [[ -n "$TMP" ]] && rm -rf "$TMP"; }
+trap cleanup EXIT
+if [[ "$TARGET" == *.ipa ]]; then
+  TMP="$(mktemp -d)"
+  unzip -q "$TARGET" -d "$TMP"
+  app="$(find "$TMP/Payload" -maxdepth 1 -name '*.app' 2>/dev/null | head -1 || true)"
+  [[ -n "$app" ]] || { echo "✗ No .app inside $TARGET" >&2; exit 1; }
+  echo "▸ Embedded entitlements in IPA: $(basename "$TARGET")"
+  TARGET="$app"
 # .xcarchive -> dive into the packaged .app
-if [[ "$TARGET" == *.xcarchive ]]; then
+elif [[ "$TARGET" == *.xcarchive ]]; then
   app="$(find "$TARGET/Products/Applications" -maxdepth 1 -name '*.app' 2>/dev/null | head -1 || true)"
   [[ -n "$app" ]] || { echo "✗ No .app inside $TARGET" >&2; exit 1; }
+  echo "▸ Embedded entitlements in archive (note: re-signed on IPA export)"
   TARGET="$app"
+else
+  echo "▸ Embedded entitlements (what the device will actually register with)"
+  echo "  $TARGET"
 fi
-
-echo "▸ Embedded entitlements (what the device will actually register with)"
-echo "  $TARGET"
 echo
 
 # Main app binary
-app_env="$(codesign -d --entitlements - --xml "$TARGET" 2>/dev/null | aps_from_blob || true)"
+app_env="$(entitlements_of "$TARGET" | aps_from_blob || true)"
 report "Runner (app):" "$app_env"
 
 # NotificationService extension, if bundled
 ext="$(find "$TARGET/PlugIns" -maxdepth 1 -name '*.appex' 2>/dev/null | head -1 || true)"
 if [[ -n "$ext" ]]; then
-  ext_env="$(codesign -d --entitlements - --xml "$ext" 2>/dev/null | aps_from_blob || true)"
+  ext_env="$(entitlements_of "$ext" | aps_from_blob || true)"
   report "NotificationService:" "$ext_env"
 else
   echo "  NotificationService:   <not bundled — extension missing from this build!>"
