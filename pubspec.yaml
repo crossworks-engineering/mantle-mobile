@@ -91,6 +91,10 @@ dev_dependencies:
   mocktail: ^1.0.5
   path_provider_platform_interface: ^2.1.3
   plugin_platform_interface: ^2.1.8
+  # App-icon generation (dev-only). `image` is used by tool/generate_app_icon.dart
+  # to compose the masters; flutter_launcher_icons fans them out to all platforms.
+  image: ^4.3.0
+  flutter_launcher_icons: ^0.14.3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -146,3 +150,18 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# App icon generation. The masters are composed by tool/generate_app_icon.dart
+# from assets/icon/source/mantle_logo.png (white "m" on Mantle indigo). Run:
+#   fvm dart run tool/generate_app_icon.dart   # (re)build the masters
+#   fvm dart run flutter_launcher_icons        # fan out to iOS + Android
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/app_icon.png"
+  # iOS forbids alpha; the master is already opaque, but flatten to be safe.
+  remove_alpha_ios: true
+  background_color_ios: "#6366F1"
+  # Android adaptive icon: white "m" foreground over the brand indigo.
+  adaptive_icon_background: "#6366F1"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
