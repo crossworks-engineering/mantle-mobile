@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/services.dart' show TextInputAction;
+import 'package:flutter/services.dart' show TextInputAction, TextSelection;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -49,6 +49,9 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   int _attachmentBytes = 0;
   bool _sending = false;
   String? _error;
+
+  /// Non-null while a send is in flight; the stop button cancels it.
+  CancelToken? _cancelToken;
 
   _VoiceState _voice = _VoiceState.idle;
   Duration _elapsed = Duration.zero;
@@ -180,19 +183,43 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   Future<void> _send() async {
     final text = _input.text;
     final attachment = _attachment;
+    final attachmentBytes = _attachmentBytes;
     if (text.trim().isEmpty && attachment == null) return;
+    final cancelToken = CancelToken();
     _input.clear();
     setState(() {
       _attachment = null;
       _sending = true;
       _error = null;
+      _cancelToken = cancelToken;
     });
+    var outcome = SendOutcome.failed;
     try {
-      await _notifier.send(text, attachment: attachment);
+      outcome = await _notifier.send(
+        text,
+        attachment: attachment,
+        cancelToken: cancelToken,
+      );
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _cancelToken = null;
+          // Stop pressed → put the message back so the user can fix and resend.
+          if (outcome == SendOutcome.cancelled) {
+            _input.text = text;
+            _input.selection =
+                TextSelection.collapsed(offset: text.length);
+            _attachment = attachment;
+            _attachmentBytes = attachmentBytes;
+          }
+        });
+      }
     }
   }
+
+  /// Abort the in-flight send; [_send] then restores the text for editing.
+  void _stop() => _cancelToken?.cancel('stopped by user');
 
   // ── Voice ────────────────────────────────────────────────────────────────
 
@@ -314,37 +341,49 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     );
   }
 
+  /// Two-row composer: the text field gets its own full-width row, with the
+  /// attach/mic actions and the send (or stop, while sending) button below.
   Widget _inputRow(ShadThemeData theme) {
     final muted = theme.colorScheme.mutedForeground;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _circleIcon(LucideIcons.paperclip, muted,
-            onPressed: _sending ? null : _openAttachMenu),
-        _circleIcon(LucideIcons.mic, muted,
-            onPressed: _sending ? null : _startRecording),
-        const SizedBox(width: 4),
-        Expanded(
-          child: ShadInput(
-            controller: _input,
-            // ShadInput defaults to the `muted` token (smallest scale); promote
-            // the input to body size so typed messages aren't cramped. Keep the
-            // placeholder the same size but subdued.
-            style: theme.textTheme.p,
-            placeholderStyle: theme.textTheme.p.copyWith(color: muted),
-            placeholder: Text(
-              _attachment != null ? 'Add a caption…' : 'Message Mantle…',
-            ),
-            maxLines: 5,
-            minLines: 1,
-            textInputAction: TextInputAction.send,
-            onSubmitted: (_) => _send(),
+        ShadInput(
+          controller: _input,
+          // ShadInput defaults to the `muted` token (smallest scale); promote
+          // the input to body size so typed messages aren't cramped. Keep the
+          // placeholder the same size but subdued.
+          style: theme.textTheme.p,
+          placeholderStyle: theme.textTheme.p.copyWith(color: muted),
+          placeholder: Text(
+            _attachment != null ? 'Add a caption…' : 'Message Mantle…',
           ),
+          maxLines: 6,
+          minLines: 1,
+          textInputAction: TextInputAction.send,
+          onSubmitted: (_) => _send(),
         ),
-        const SizedBox(width: 8),
-        ShadButton(
-          onPressed: _sending ? null : _send,
-          child: const Icon(LucideIcons.arrowUp, size: 18),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            _circleIcon(LucideIcons.paperclip, muted,
+                onPressed: _sending ? null : _openAttachMenu),
+            _circleIcon(LucideIcons.mic, muted,
+                onPressed: _sending ? null : _startRecording),
+            const Spacer(),
+            if (_sending) ...[
+              Text('Sending…', style: theme.textTheme.muted),
+              const SizedBox(width: 8),
+              ShadButton.destructive(
+                onPressed: _stop,
+                child: const Icon(LucideIcons.square, size: 16),
+              ),
+            ] else
+              ShadButton(
+                onPressed: _send,
+                child: const Icon(LucideIcons.arrowUp, size: 18),
+              ),
+          ],
         ),
       ],
     );

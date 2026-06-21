@@ -1,6 +1,7 @@
 // ChatController (per-agent family): history load, scroll-up paging, optimistic
 // send — with a mocked repository.
 
+import 'package:dio/dio.dart' show DioException, DioExceptionType, RequestOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantle_companion/data/chat/chat_api.dart';
@@ -159,6 +160,26 @@ void main() {
     final list = c.read(chatControllerProvider(_slug)).value!.messages;
     expect(list, hasLength(1));
     expect(list[0].status, MessageStatus.failed);
+  });
+
+  test('send drops the bubble and returns cancelled when the request is aborted',
+      () async {
+    stubHistory(<ChatMessage>[]);
+    when(() => repo.send(any(), agentSlug: any(named: 'agentSlug'))).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/api/assistant/turn'),
+        type: DioExceptionType.cancel,
+      ),
+    );
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final outcome =
+        await c.read(chatControllerProvider(_slug).notifier).send('oops');
+
+    expect(outcome, SendOutcome.cancelled);
+    // The optimistic bubble is removed (not left as a failed message).
+    expect(c.read(chatControllerProvider(_slug)).value!.messages, isEmpty);
   });
 
   test('send ignores blank input', () async {

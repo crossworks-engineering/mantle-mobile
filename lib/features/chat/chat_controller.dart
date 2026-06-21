@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken, DioException, DioExceptionType;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/chat/chat_attachment.dart';
@@ -7,6 +8,11 @@ import '../../data/chat/conversation_stream.dart';
 import '../conversations/conversations_controller.dart';
 
 part 'chat_controller.g.dart';
+
+/// The result of [ChatController.send] — lets the composer react: clear on
+/// [sent], leave the failed bubble on [failed], or restore the text for editing
+/// on [cancelled] (the user hit stop).
+enum SendOutcome { sent, failed, cancelled }
 
 /// The chat thread plus its paging state. [messages] is oldest-first (the screen
 /// reverses it for display). [hasMore] is true while older pages may still
@@ -123,9 +129,20 @@ class ChatController extends _$ChatController {
   /// Send a turn. [attachment] (optional) is an image or document picked
   /// locally; the user's bubble shows it immediately (from disk) and the turn
   /// posts it as multipart. Either [text] or [attachment] must be non-empty.
-  Future<void> send(String text, {OutgoingAttachment? attachment}) async {
+  ///
+  /// Pass a [cancelToken] to allow the composer's stop button to abort the
+  /// in-flight request: on cancel the optimistic bubble is removed (not marked
+  /// failed) and [SendOutcome.cancelled] is returned so the composer can restore
+  /// the text for editing. Note this only aborts the client request — the server
+  /// may already have processed the turn (no server cancel endpoint yet), in
+  /// which case it resurfaces on the next refresh/live event.
+  Future<SendOutcome> send(
+    String text, {
+    OutgoingAttachment? attachment,
+    CancelToken? cancelToken,
+  }) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty && attachment == null) return;
+    if (trimmed.isEmpty && attachment == null) return SendOutcome.sent;
 
     final base =
         state.value ?? const ChatState(messages: [], hasMore: false);
@@ -146,9 +163,12 @@ class ChatController extends _$ChatController {
     state = AsyncData(base.copyWith(messages: [...base.messages, pending]));
 
     try {
-      final result = await ref
-          .read(chatRepositoryProvider)
-          .send(trimmed, agentSlug: agentSlug, attachment: attachment);
+      final result = await ref.read(chatRepositoryProvider).send(
+            trimmed,
+            agentSlug: agentSlug,
+            attachment: attachment,
+            cancelToken: cancelToken,
+          );
       final current = state.value ?? base;
       final landed = localAttachments.isEmpty
           ? result.inbound
@@ -161,19 +181,23 @@ class ChatController extends _$ChatController {
       state = AsyncData(current.copyWith(messages: replaced));
       // Refresh the inbox so this thread's preview + unread reflect the turn.
       ref.invalidate(conversationsControllerProvider);
-    } catch (_) {
+      return SendOutcome.sent;
+    } catch (e) {
       final current = state.value ?? base;
-      state = AsyncData(
-        current.copyWith(
-          messages: [
-            for (final m in current.messages)
-              if (m.id == tempId)
-                m.copyWith(status: MessageStatus.failed)
-              else
-                m,
-          ],
-        ),
-      );
+      final cancelled =
+          e is DioException && e.type == DioExceptionType.cancel;
+      // On cancel, drop the optimistic bubble entirely (the composer restores
+      // the text); on a real failure, keep it and mark it failed.
+      final messages = <ChatMessage>[];
+      for (final m in current.messages) {
+        if (m.id != tempId) {
+          messages.add(m);
+        } else if (!cancelled) {
+          messages.add(m.copyWith(status: MessageStatus.failed));
+        }
+      }
+      state = AsyncData(current.copyWith(messages: messages));
+      return cancelled ? SendOutcome.cancelled : SendOutcome.failed;
     }
   }
 

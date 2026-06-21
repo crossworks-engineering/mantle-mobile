@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'chat_api.dart';
@@ -27,8 +28,14 @@ class ChatRepository {
     String text, {
     String? agentSlug,
     OutgoingAttachment? attachment,
+    CancelToken? cancelToken,
   }) =>
-      _api.sendTurn(text, agentSlug: agentSlug, attachment: attachment);
+      _api.sendTurn(
+        text,
+        agentSlug: agentSlug,
+        attachment: attachment,
+        cancelToken: cancelToken,
+      );
 
   /// Transcribe a recorded voice note to text (used by the composer's mic).
   Future<String> transcribe(String audioPath) => _api.transcribe(audioPath);

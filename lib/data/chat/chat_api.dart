@@ -59,6 +59,7 @@ class ChatApi {
     String text, {
     String? agentSlug,
     OutgoingAttachment? attachment,
+    CancelToken? cancelToken,
   }) async {
     final options = Options(receiveTimeout: const Duration(seconds: 120));
     final Response<Map<String, dynamic>> res;
@@ -77,12 +78,14 @@ class ChatApi {
         '/api/assistant/turn',
         data: form,
         options: options,
+        cancelToken: cancelToken,
       );
     } else {
       res = await _dio.post<Map<String, dynamic>>(
         '/api/assistant/turn',
         data: {'text': text, 'agentSlug': ?agentSlug},
         options: options,
+        cancelToken: cancelToken,
       );
     }
     final data = res.data ?? const {};
