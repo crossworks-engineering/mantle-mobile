@@ -69,10 +69,14 @@ lib/
     home/            home_screen.dart          — landing dashboard (stats + actions)
     pending/         pending_screen.dart       — approvals (placeholder)
     settings/        theme_mode_controller.dart, settings_repository.dart
-                     settings_screen.dart      — theme select + sign out
+                     color_theme_controller.dart  — selected color theme id
+                     random_theme_controller.dart — shuffle mode + scheduler
+                     settings_screen.dart      — sections → subscreens
+                     appearance_screen.dart    — mode + color picker + shuffle
   widgets/           mantle_header.dart         — shared primary header bar
   routing/           app_router.dart           — go_router + redirect
-  theme/             mantle_theme.dart          — Clean Slate tokens (light/dark)
+  theme/             mantle_theme.dart          — theme builder + MantleColors
+                     mantle_themes.g.dart       — generated: all 42 color themes
   main.dart          ShadApp.router root
 ```
 
@@ -204,9 +208,10 @@ the bubble colour drive it). User messages stay plain `Text`. Built in phases:
 ### Attachments & voice
 
 The composer ([`features/chat/chat_composer.dart`](../lib/features/chat/chat_composer.dart))
-adds an attach button (photo library / camera via **image_picker**, document
-via **file_picker**) and a mic. Both reuse Mantle's existing endpoints — no new
-server work:
+is a two-row layout — the text field on top (grows to 6 lines), with the attach
+button (photo library / camera via **image_picker**, document via
+**file_picker**), the mic, and the send/stop button on the row below. Both
+attach and voice reuse Mantle's existing endpoints — no new server work:
 
 - **Send.** A picked file rides on the turn as multipart
   (`POST /api/assistant/turn`, field `image` for pictures / `file` for the
@@ -214,6 +219,14 @@ server work:
   turns stay JSON. The user's bubble shows the picked file immediately (from
   disk); the server strips image bytes from the reply, so we keep rendering the
   local preview after the turn lands.
+- **Stop & edit.** A turn is one atomic `POST` (the reply isn't streamed), so
+  while it's in flight the send button becomes a red ■. Tapping it cancels the
+  request via a Dio `CancelToken` (threaded `ChatApi.sendTurn` → repository →
+  `ChatController.send`), drops the optimistic bubble, and restores the text +
+  attachment to the field for editing. `send` returns a `SendOutcome`
+  (`sent`/`failed`/`cancelled`) so the composer knows when to restore. This
+  aborts the **client** request only — Mantle has no cancel endpoint yet, so a
+  turn already processed server-side can resurface on the next refresh.
 - **Voice.** Tap the mic to record (**record** → `.m4a`/aac to a temp file, with
   a live timer + cancel); tap send to stop → `POST /api/assistant/transcribe`
   (Mantle's default STT worker) → the transcript is sent as a normal turn. A
@@ -237,8 +250,45 @@ server work:
   bytes are live-only (not persisted for web turns), so a voice reply doesn't
   survive a history reload — same as the web `/assistant`.
 - **Native permissions**: iOS `NSMicrophoneUsageDescription` /
-  `NSPhotoLibraryUsageDescription` / `NSCameraUsageDescription`; Android
+  `NSPhotoLibraryUsageDescription` / `NSCameraUsageDescription` /
+  `NSLocationWhenInUseUsageDescription` (the last for the planned
+  message-attached location feature — see Theming/roadmap; the string is also
+  required to clear App Store validation 90683 from a linked SDK); Android
   `RECORD_AUDIO` (the pickers use the system UIs, so no storage permission).
+
+## Theming (color themes)
+
+The app ships all **42 of Mantle web's color themes** (Clean Slate, Claude,
+Cosmic Night, …), each with light + dark variants, plus the existing
+light/dark/system **mode** toggle. Two independent axes: *mode* (when to be
+dark) and *color theme* (which palette).
+
+- **Generated registry.** [`tool/generate_themes.dart`](../tool/generate_themes.dart)
+  reads the web repo (`apps/web/lib/themes.ts` + `app/globals.css`), converts
+  every token from oklch/hex/hsl → sRGB, and emits
+  [`theme/mantle_themes.g.dart`](../lib/theme/mantle_themes.g.dart): a const
+  `kMantleThemes` list of `MantleThemeDef` (id, label, radius, picker swatches,
+  light/dark `ShadColorScheme`, chart ramps). Re-run it when web themes change —
+  it is **not** part of `build_runner`. Output is committed.
+- **Building a theme.** `MantleTheme.light(id)` / `.dark(id)` look the def up and
+  build a `ShadThemeData` (shared text scale + per-theme radius). `MantleColors`
+  is an `InheritedWidget` placed above `ShadApp` that exposes the active theme's
+  `chart-1..5` ramp to the markdown renderer (charts have no shadcn home).
+- **Selection + persistence.** `ColorThemeController` (mirrors
+  `ThemeModeController`) holds the selected id, persisted by `SettingsRepository`
+  (`color_theme` key, falls back to default if a stored id was removed from web).
+- **Random rotation.** `RandomThemeController` owns the on/off + cadence
+  (hour…week); `RandomThemeScheduler` (keepAlive, watched once from the app root)
+  reshuffles on the interval and catches up on resume using a persisted
+  `last-random-at` timestamp — only while foregrounded (a timer is pointless when
+  suspended). A manual pick turns rotation off. UI:
+  [`features/settings/appearance_screen.dart`](../lib/features/settings/appearance_screen.dart).
+
+App icon is likewise generated, not hand-cut:
+[`tool/generate_app_icon.dart`](../tool/generate_app_icon.dart) composes the
+masters from the brand logo (white "m" on Mantle indigo) and
+**flutter_launcher_icons** fans them out (no-alpha iOS marketing icon + Android
+adaptive icon). See Build & codegen.
 
 ## Mantle integration contract
 
@@ -272,6 +322,14 @@ fvm dart run build_runner build      # after provider/model/Drift changes
 
 Generated `*.g.dart` are **committed** (repo builds on clone without a codegen
 step). Re-evaluate (gitignore + CI-generate) when CI lands.
+
+Two standalone generators (not `build_runner`, run by hand, output committed):
+
+```bash
+fvm dart run tool/generate_themes.dart      # color themes ← web globals.css
+fvm dart run tool/generate_app_icon.dart    # icon masters ← assets/icon/source
+fvm dart run flutter_launcher_icons         # then fan the icon out to platforms
+```
 
 ## Local dev
 

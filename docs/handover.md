@@ -1,6 +1,6 @@
 # Mantle Companion — Handover
 
-_Last updated: 2026-06-19._
+_Last updated: 2026-06-20._
 
 A checkpoint for picking the work back up. For the system map read
 [architecture.md](architecture.md); for UI rules read
@@ -14,7 +14,40 @@ A cross-platform (iOS + Android) Flutter companion for the self-hosted **Mantle*
 assistant. Connects to a user's own Mantle server over an authenticated REST API
 (per-device bearer token). Open source, MIT.
 
-## Latest checkpoint (2026-06-19) — iOS push ENROLLMENT device-verified; next = TestFlight delivery
+## Latest checkpoint (2026-06-20) — themes + app icon + composer shipped; TestFlight build for push test
+
+A feature + polish session on top of the working push pipeline. Everything below is committed and
+pushed to `origin/main`. Version is now **1.1.0+5** (bumped twice: feature minor + a build number
+for the location-fix re-upload).
+
+### Shipped this session
+1. **All 42 web color themes** ported with a picker, persistence, and random rotation. A generator
+   (`tool/generate_themes.dart`) reads `~/Projects/mantle/apps/web/{lib/themes.ts,app/globals.css}`,
+   converts oklch/hex/hsl → sRGB, and emits `lib/theme/mantle_themes.g.dart`. New: `MantleColors`
+   inherited widget (theme-aware chart ramp), `ColorThemeController`, `RandomThemeController` +
+   `RandomThemeScheduler`, and `features/settings/appearance_screen.dart` (Settings → "Theme &
+   appearance"). See architecture.md → Theming. Verified: generated Clean Slate == old hand-written.
+2. **App icon** for iOS + Android — white "m" on Mantle indigo (#6366F1). `tool/generate_app_icon.dart`
+   composes the masters from `assets/icon/source/mantle_logo.png`; **flutter_launcher_icons** fans
+   them out (no-alpha iOS marketing icon ✓, Android adaptive icon). Shows in the **next** IPA build.
+3. **Composer rework** — two rows (text field on top, actions below) + **stop & edit**: cancel an
+   in-flight send (Dio `CancelToken`), drop the optimistic bubble, restore text for editing.
+   `ChatController.send` now returns `SendOutcome`. Caveat: client-side abort only (no server cancel
+   endpoint), so a turn already processed can resurface on refresh.
+4. **App Store validation fix** — added `NSLocationWhenInUseUsageDescription` (Transporter 90683).
+   Location is an intended feature (geo context for the assistant, reverse-geocoded server-side);
+   not yet implemented in code. When built: when-in-use scope; Android will then need
+   `ACCESS_FINE/COARSE_LOCATION`.
+5. **Tooling** — `check_push_env.sh` reports a build's effective `aps-environment` (sandbox vs
+   production); accepts `.ipa`/`.xcarchive`/`.app`. Composer input text bumped `muted` → body size.
+
+### ➡️ NEXT STEP — start here
+Confirm a **delivered + decrypted** push on **TestFlight** (the carry-over goal below). For the
+build: bump the build number, `fvm flutter build ipa`, then
+`./check_push_env.sh build/ios/ipa/mantle_companion.ipa` should report **production** for the app
+*and* the NotificationService extension before uploading via Transporter.
+
+## Previous checkpoint (2026-06-19) — iOS push ENROLLMENT device-verified; next = TestFlight delivery
 
 **The iOS build → archive → TestFlight pipeline works, AND Mantle Push now enrolls on a real
 device, end to end.** The full spine — Settings → Notifications → Connect → Mantle `/connect` →
