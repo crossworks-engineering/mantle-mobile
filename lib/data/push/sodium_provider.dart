@@ -1,5 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:sodium_libs/sodium_libs.dart';
+import 'package:sodium/sodium.dart';
 
 part 'sodium_provider.g.dart';
 
@@ -9,4 +9,6 @@ part 'sodium_provider.g.dart';
 /// never here. Using real libsodium guarantees the key format is byte-compatible
 /// with both ends.
 @Riverpod(keepAlive: true)
-Future<Sodium> sodium(Ref ref) => SodiumInit.init();
+// sodium_libs 4.x: SodiumInit.init() now returns FutureOr<Sodium> (native
+// assets can initialise synchronously), so await it to keep a Future<Sodium>.
+Future<Sodium> sodium(Ref ref) async => SodiumInit.init();

@@ -38,8 +38,13 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _connect() async {
     setState(() => _busyLabel = 'Connecting…');
-    // Mutually exclusive with the direct connection — only one transport at a time.
-    await ref.read(directPushControllerProvider.notifier).disable();
+    // Mutually exclusive with the direct connection — only one transport at a
+    // time. The direct connection is an Android-only transport; on iOS its
+    // provider isn't watched here, so touching it would auto-dispose mid-async
+    // and throw, aborting the whole Connect flow. Only stop it where it exists.
+    if (Platform.isAndroid) {
+      await ref.read(directPushControllerProvider.notifier).disable();
+    }
     await ref.read(pushControllerProvider.notifier).connect();
     if (mounted) setState(() => _busyLabel = null);
   }

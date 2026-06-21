@@ -43,7 +43,7 @@ final class DirectPushControllerProvider
 }
 
 String _$directPushControllerHash() =>
-    r'ab753a8d19235cd53e4c56b69075d1d23ee8f9ba';
+    r'f57a60dc87daf2a92d3a76e1c50295413bac2ac5';
 
 /// The direct-connection push transport (no-Google Android). State is whether
 /// the foreground service is running; [enable]/[disable] start/stop it. Android

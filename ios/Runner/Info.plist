@@ -2,31 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- iOS uses raw APNs + the Notification Service Extension, NOT Firebase.
-	     firebase_messaging's pod ships on iOS too (it's a cross-platform plugin),
-	     so disable its app-delegate swizzling to keep our manual APNs handling in
-	     AppDelegate.swift authoritative. Firebase is never initialized on iOS. -->
-	<key>FirebaseAppDelegateProxyEnabled</key>
-	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<!-- Chat composer: record a voice note (transcribed by Mantle), and attach
-	     photos / documents to a message. -->
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Mantle Companion records voice notes that your assistant transcribes.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Mantle Companion lets you attach photos to a message for your assistant.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Mantle Companion lets you take a photo to attach to a message for your assistant.</string>
-	<!-- Dev convenience: allow cleartext HTTP to local/unqualified hosts (e.g.
-	     http://localhost:3000) so the app can reach a Mantle dev server. This
-	     only relaxes ATS for local networking, not arbitrary public HTTP;
-	     production Mantle is served over HTTPS. -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -47,8 +24,23 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<false/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Mantle Companion lets you take a photo to attach to a message for your assistant.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Mantle Companion records voice notes that your assistant transcribes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Mantle Companion lets you attach photos to a message for your assistant.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -79,15 +71,13 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
 </dict>
 </plist>

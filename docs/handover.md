@@ -1,6 +1,6 @@
 # Mantle Companion — Handover
 
-_Last updated: 2026-06-15._
+_Last updated: 2026-06-19._
 
 A checkpoint for picking the work back up. For the system map read
 [architecture.md](architecture.md); for UI rules read
@@ -14,7 +14,108 @@ A cross-platform (iOS + Android) Flutter companion for the self-hosted **Mantle*
 assistant. Connects to a user's own Mantle server over an authenticated REST API
 (per-device bearer token). Open source, MIT.
 
-## State at this checkpoint
+## Latest checkpoint (2026-06-19) — iOS push ENROLLMENT device-verified; next = TestFlight delivery
+
+**The iOS build → archive → TestFlight pipeline works, AND Mantle Push now enrolls on a real
+device, end to end.** The full spine — Settings → Notifications → Connect → Mantle `/connect` →
+relay `/enroll` → `/subscribe`, with the libsodium keypair — is proven on hardware, not just in
+code. The two on-device blockers that stood in the way were found and fixed this session (see
+"Resolved" below). What's left is a real *delivered + decrypted* push, which needs a **TestFlight**
+build (debug registers with the APNs **sandbox**; the relay key is **production-only**).
+
+### ➡️ NEXT STEP — start here
+1. **Bump the build number** in `pubspec.yaml` (match the NSE `CURRENT_PROJECT_VERSION`), then
+   archive → **TestFlight** (`mantle/docs/update-prod.md` for the relay/Mantle side is already live).
+2. Trigger an assistant message and confirm the **decrypted** banner lands on the lock screen —
+   real title/body via the NSE, not the generic "You have a new message." fallback (which means the
+   NSE couldn't open the sealed box → check the shared keychain access group / entitlements).
+3. Sanity-check the server side actually enrolled: prod `push_instance` / `push_subscriptions` and
+   relay `devices` should now be **1** (were 0).
+Then: M4 Android (Play-services device) and M6 (Play-less device) on-device verification remain.
+
+### Resolved this session — the two on-device blockers
+1. **Launch SIGABRT** `Library not loaded: @rpath/Sodium.framework/Sodium`. The swift-sodium
+   `Sodium` CocoaPod (NSE) builds a **dynamic `Sodium.framework`** that case-collides with the Dart
+   `sodium` 4.x **native-asset** `sodium.framework` on case-insensitive macOS; Runner links the
+   capital name, which is absent on the case-sensitive device → crash at launch. **Fix:**
+   **static-link** the pod — `use_frameworks! :linkage => :static` in the NSE Podfile target (emits
+   no dynamic framework, so nothing collides; `import Sodium` unchanged). Verifiable on a *simulator*
+   build (the bad name resolution happens at link time on the Mac). Considered but rejected as
+   heavier: a `Clibsodium` C-only podspec. Memory: `mantle-companion-ios-sodium-framework-collision`.
+2. **"Connecting…" forever.** `_connect()` called `disable()` on the **Android-only**
+   `directPushControllerProvider`, which on iOS is never watched → it auto-disposed mid-`await` →
+   the post-await `state =` threw "Cannot use Ref after disposed", aborting `_connect` **before** it
+   reached the network (so the per-step timeouts in `connect()` never even ran, and prod showed 0
+   connects). **Fix:** only stop the direct connection on Android, and harden `enable`/`disable`
+   with `if (ref.mounted)`. Regression test: `test/features/direct_push_controller_test.dart`
+   (deterministically reproduces the crash on the old code).
+
+### Also this session — discontinued-package swap + a known-benign warning
+- **`sqlite3_flutter_libs` (EOL, `0.6.0+eol`) → `sqlite3` 3.x** as a direct dep. sqlite3 was already
+  bundled via Dart native assets and the EOL package was a no-op; no Dart changes (drift's
+  `NativeDatabase`). (`sodium` also bumped `4.0.2 → 4.0.2+1`.)
+- **Known/benign:** on iOS, FirebaseCore logs *"Could not locate configuration file:
+  'GoogleService-Info.plist'."* iOS uses **raw APNs** and never calls `Firebase.initializeApp()`
+  (Android-only, gated in `main.dart`); the `firebase_messaging` iOS pod is compiled in but inert.
+  Cosmetic — **left as-is**. (Adding a real iOS plist would only silence the log, not fix anything.)
+
+> **Commit state:** uncommitted on `main`. Logical commits: the sqlite3 swap, the sodium
+> static-linkage fix (Podfile/Podfile.lock), and the Connect-hang fix + test — plus a build-number bump.
+
+### iOS pipeline — solved this session (don't re-derive)
+- **App Store Connect:** app record created (`crossworks.engineering.mantle`); App ID already had Push
+  enabled; **Program License Agreement accepted** (it re-prompts periodically — re-accept at
+  developer.apple.com/account if "PLA Update available" / "No iOS Distribution certificate" shows up).
+- **NotificationService extension target** created in Xcode 26; the wizard clobbered the repo's real
+  `NotificationService.swift` + `Info.plist` (restored from git); wired
+  `CODE_SIGN_ENTITLEMENTS = NotificationService/NotificationService.entitlements`; NSE deployment target
+  15.0; it's a `PBXFileSystemSynchronizedRootGroup` so its files auto-include.
+- **`objectVersion` 70 → 77** in `project.pbxproj` (CocoaPods' xcodeproj 1.27 has no mapping for 70 → `pod install` fails).
+- **Build-phase cycle fix:** in the Runner target, **"Embed Foundation Extensions" must run before "Thin Binary"**.
+- **dSYM collision fix:** native-assets emits duplicate dSYMs (`sodium`/`objective_c`/`sqlite3`) and the
+  `Sodium` CocoaPod's dSYM collides during archive → set **`DEBUG_INFORMATION_FORMAT = dwarf`** (no dSYMs)
+  in the Runner project **and** the Podfile `post_install`. Cost: no crash symbolication (fine for testing).
+- **`aps-environment`:** the local archive shows `development` but `flutter build ipa` re-signs the exported
+  IPA to **production** (App Store profile) — verified correct, not a problem.
+- **Versioning:** `CFBundleShortVersionString = $(FLUTTER_BUILD_NAME)` from pubspec — **bump the version in
+  `pubspec.yaml`, never Xcode**, and **match the NSE `CURRENT_PROJECT_VERSION` to the build number** or ASC
+  rejects the upload. Currently **1.0.2+3** everywhere. (Jason's rule: bump the build number every commit.)
+- **`refresh.sh`** (new, repo root) re-syncs after any pubspec change: pub get → build_runner →
+  `flutter build ios --config-only` (regens `Generated.xcconfig` + `pod install`) → arm64e strip. UTF-8 LANG.
+
+### libsodium / sodium journey
+- Began on `sodium_libs 3.4.6+4` (libsodium as a prebuilt **SPM xcframework**) → TestFlight rejected its
+  **arm64e slice** (built with an old SDK; Apple now requires iOS 26 SDK for arm64e). Strip is automated in `refresh.sh`.
+- Migrated to **`sodium 4.0.2`** (`sodium_libs` is discontinued — literally `export 'package:sodium/sodium.dart'`).
+  4.x uses **Dart native assets**: kills arm64e at the root, but caused two follow-on issues, both now fixed —
+  the dSYM collision (→ `DEBUG_INFORMATION_FORMAT = dwarf`) and the `sodium.framework` vs swift-sodium
+  `Sodium.framework` **case-collision** that crashed the app at launch on device (→ static-link the NSE's
+  `Sodium` pod; see this session's "Resolved" notes above). The Connect hang was **unrelated** to sodium — it
+  was a Riverpod auto-dispose bug (also fixed above).
+- Compile fixes from the bumps: `sodium_provider` made `async`; `file_picker 11.x` → `FilePicker.pickFiles(...)` (static).
+
+### Backend test work this session (uncommitted, both repos)
+- **`~/Projects/mantle-push`:** `node:test` units for the security-critical primitives —
+  `src/lib/{ticket,tokens,ratelimit}.test.ts` (36 tests), `"test": "node --test"` added. `pnpm test` + `typecheck` green.
+- **`~/Projects/mantle` (`apps/web`):** vitest for the push send path — `lib/push/notify.test.ts` (gating + delivery, 18),
+  extracted `lib/push/preferences-sanitize.ts` + `.test.ts` (10), `lib/push/{tokens,ticket}.test.ts` (wire-compat).
+  Full repo suite 1507 green; web typecheck clean.
+
+### Pending decision (not started) — dev workflow
+Jason (remote, 8 GB M2) wants to **drop Colima** and run **local `next dev` against the prod DB**. Agreed
+guardrails: workers stay prod-only (local = web/API only, or duplicate notifications); migrations deliberate +
+`scripts/db-dump.sh` first; keep a prod dump; reach prod Postgres via SSH tunnel → local `.env DATABASE_URL`.
+Phone app must point at **prod** (`https://jason.crossworks.network`), never localhost.
+
+### Environment & prod
+- **macOS 26 (Tahoe) + Xcode 26 (iOS 26 SDK)** — now required for App Store upload. Disk freed to ~51 GB.
+- Relay **live + credentialed** at `push.crossworks.network` (APNs prod + FCM both authenticate;
+  `scripts/smoke-live.ts`). Baseline **0 instances / 0 devices** — clean, ready for the real device. Mantle **v0.26.0** live.
+- Relevant memories (auto-load): `mantle-companion-ios-versioning`, `mantle-companion-ios-libsodium-arm64e`, `xcode-mcp`.
+
+---
+
+## State at this checkpoint (prior session — 2026-06-15)
 
 > **Latest session (2026-06-15) — the ENTIRE push project (M1–M6) was built; the
 > whole server side is deployed and live in prod.** This was a long session that

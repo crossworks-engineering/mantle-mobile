@@ -2,11 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Same shared group as Runner, so the extension can read the device
-	     secret key written by flutter_secure_storage. -->
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)crossworks.engineering.mantle.pushkeys</string>
+		<string>$(AppIdentifierPrefix)crossworks.engineering.mantle.NotificationService</string>
 	</array>
 </dict>
 </plist>

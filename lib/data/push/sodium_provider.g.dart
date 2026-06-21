@@ -56,4 +56,4 @@ final class SodiumProvider
   }
 }
 
-String _$sodiumHash() => r'71610681b1ae3ba4271bd0f567523b9231e197e3';
+String _$sodiumHash() => r'a8b555c0cbe81fbca1321baf27e9b41167c5d769';

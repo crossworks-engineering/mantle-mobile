@@ -148,7 +148,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: _docExtensions,
       );
@@ -327,6 +327,11 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         Expanded(
           child: ShadInput(
             controller: _input,
+            // ShadInput defaults to the `muted` token (smallest scale); promote
+            // the input to body size so typed messages aren't cramped. Keep the
+            // placeholder the same size but subdued.
+            style: theme.textTheme.p,
+            placeholderStyle: theme.textTheme.p.copyWith(color: muted),
             placeholder: Text(
               _attachment != null ? 'Add a caption…' : 'Message Mantle…',
             ),

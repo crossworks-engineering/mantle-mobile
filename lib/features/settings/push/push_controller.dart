@@ -56,16 +56,28 @@ class PushController extends _$PushController {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final api = ref.read(pushApiProvider);
-      final keyStore = await ref.read(pushKeyStoreProvider.future);
+      // Each step has a timeout so a silent native stall surfaces as a labelled
+      // error instead of an endless "Connecting…" spinner (which steps blocks).
+      final keyStore = await ref.read(pushKeyStoreProvider.future).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => throw const PushException('Timed out initialising libsodium.'),
+          );
 
-      final pushToken = await ref.read(pushTokenServiceProvider).requestToken();
+      final pushToken = await ref.read(pushTokenServiceProvider).requestToken().timeout(
+            const Duration(seconds: 20),
+            onTimeout: () =>
+                throw const PushException('Timed out requesting notification permission / APNs token.'),
+          );
       if (pushToken == null || pushToken.token.isEmpty) {
         throw const PushException('Notification permission was declined.');
       }
       final platform = pushToken.platform;
       final token = pushToken.token;
 
-      final publicKey = await keyStore.ensureDeviceKeyPair();
+      final publicKey = await keyStore.ensureDeviceKeyPair().timeout(
+            const Duration(seconds: 15),
+            onTimeout: () => throw const PushException('Timed out generating/saving the device key.'),
+          );
 
       final conn = await api.connect(platform: platform, osPushToken: token, publicKey: publicKey);
       final enrolled = await api.enroll(

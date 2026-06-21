@@ -17,7 +17,7 @@ class DirectPushController extends _$DirectPushController {
 
   Future<void> enable() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final next = await AsyncValue.guard(() async {
       final direct = const DirectPush();
       await direct.requestPermissions();
       final baseUrl = ref.read(serverConfigProvider).value ?? '';
@@ -28,13 +28,17 @@ class DirectPushController extends _$DirectPushController {
       await direct.start(baseUrl: baseUrl, token: token);
       return true;
     });
+    // This is an auto-dispose provider; if it was disposed during the await
+    // (e.g. the caller isn't watching it), writing state would throw.
+    if (ref.mounted) state = next;
   }
 
   Future<void> disable() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final next = await AsyncValue.guard(() async {
       await const DirectPush().stop();
       return false;
     });
+    if (ref.mounted) state = next;
   }
 }
