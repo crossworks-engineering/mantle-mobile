@@ -41,6 +41,8 @@
 	<string>Mantle Companion records voice notes that your assistant transcribes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Mantle Companion lets you attach photos to a message for your assistant.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Mantle Companion attaches your location to a message so your assistant has context about where a request is coming from. Location is only used while you are using the app.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
