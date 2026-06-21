@@ -37,6 +37,9 @@ class ChatRepository {
         cancelToken: cancelToken,
       );
 
+  /// The responder's current stage label (or null), for the typing indicator.
+  Future<String?> turnStage() => _api.turnStage();
+
   /// Transcribe a recorded voice note to text (used by the composer's mic).
   Future<String> transcribe(String audioPath) => _api.transcribe(audioPath);
 }

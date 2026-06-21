@@ -38,7 +38,10 @@ for the location-fix re-upload).
    Location is an intended feature (geo context for the assistant, reverse-geocoded server-side);
    not yet implemented in code. When built: when-in-use scope; Android will then need
    `ACCESS_FINE/COARSE_LOCATION`.
-5. **Tooling** — `check_push_env.sh` reports a build's effective `aps-environment` (sandbox vs
+5. **Typing indicator** — an assistant "typing" bubble (animated dots + the responder's stage
+   label: "Thinking…", "Searching the web…") ported from web. `turnStageProvider` polls
+   `GET /api/assistant/turn/stage` (~900ms) only while a send is in flight; no backend changes.
+6. **Tooling** — `check_push_env.sh` reports a build's effective `aps-environment` (sandbox vs
    production); accepts `.ipa`/`.xcarchive`/`.app`. Composer input text bumped `muted` → body size.
 
 ### ➡️ NEXT STEP — start here

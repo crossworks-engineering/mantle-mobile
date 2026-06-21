@@ -13,6 +13,7 @@ import 'attachment_view.dart';
 import 'chat_composer.dart';
 import 'chat_controller.dart';
 import 'markdown/mantle_markdown.dart';
+import 'turn_stage_controller.dart';
 
 /// One agent's conversation: history on top, a composer at the bottom.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -112,6 +113,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   // A loader rides above the oldest message while paging older
                   // history — the highest index, since the list is reversed.
                   final showLoader = chat.loadingMore;
+                  // A typing bubble rides below the newest message (index 0,
+                  // reversed) while a reply is being produced.
+                  final typing = chat.messages
+                          .any((m) => m.status == MessageStatus.sending)
+                      ? 1
+                      : 0;
                   return ListView.builder(
                     controller: _scroll,
                     reverse: true,
@@ -119,9 +126,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       horizontal: 16,
                       vertical: 12,
                     ),
-                    itemCount: list.length + (showLoader ? 1 : 0),
+                    itemCount: list.length + typing + (showLoader ? 1 : 0),
                     itemBuilder: (context, i) {
-                      if (showLoader && i == list.length) {
+                      if (typing == 1 && i == 0) {
+                        return _TypingBubble(
+                          theme: theme,
+                          agentSlug: widget.agentSlug,
+                        );
+                      }
+                      final adjusted = i - typing;
+                      if (showLoader && adjusted == list.length) {
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           child: Center(
@@ -133,7 +147,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         );
                       }
                       // reverse:true → newest at the bottom.
-                      final message = list[list.length - 1 - i];
+                      final message = list[list.length - 1 - adjusted];
                       return _Bubble(theme: theme, message: message);
                     },
                   );
@@ -292,6 +306,101 @@ class _Bubble extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// The assistant "typing" bubble shown while a reply is being produced: animated
+/// dots plus the responder's current stage label ("Thinking…", "Searching the
+/// web…") from [turnStageProvider]. The label is null between mapped steps, in
+/// which case only the dots show.
+class _TypingBubble extends ConsumerWidget {
+  const _TypingBubble({required this.theme, required this.agentSlug});
+
+  final ShadThemeData theme;
+  final String agentSlug;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = theme.colorScheme;
+    final label = ref.watch(turnStageProvider(agentSlug)).value;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: scheme.muted,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TypingDots(color: scheme.mutedForeground),
+              if (label != null) ...[
+                const SizedBox(width: 10),
+                Text(label, style: theme.textTheme.muted),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Three dots pulsing in sequence — the wait animation for [_TypingBubble].
+class _TypingDots extends StatefulWidget {
+  const _TypingDots({required this.color});
+
+  final Color color;
+
+  @override
+  State<_TypingDots> createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            // Each dot's pulse is phase-shifted, giving a left-to-right wave.
+            final t = (_controller.value + i * 0.2) % 1.0;
+            final pulse = (0.5 - (t - 0.5).abs()) * 2; // 0 → 1 → 0 triangle
+            return Padding(
+              padding: EdgeInsets.only(right: i < 2 ? 4 : 0),
+              child: Opacity(
+                opacity: (0.3 + 0.7 * pulse).clamp(0.3, 1.0),
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

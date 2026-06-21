@@ -227,6 +227,13 @@ attach and voice reuse Mantle's existing endpoints — no new server work:
   (`sent`/`failed`/`cancelled`) so the composer knows when to restore. This
   aborts the **client** request only — Mantle has no cancel endpoint yet, so a
   turn already processed server-side can resurface on the next refresh.
+- **Typing indicator.** While a turn is in flight, an assistant "typing" bubble
+  ([`chat_screen.dart`](../lib/features/chat/chat_screen.dart) `_TypingBubble`)
+  shows animated dots plus the responder's coarse **stage label** ("Thinking…",
+  "Searching the web…", …). `turnStageProvider` polls `GET
+  /api/assistant/turn/stage` every ~900ms (mirroring the web — it's a poll, not a
+  stream) only while the optimistic `sending` message exists, and stops the
+  moment the turn lands. Label is null between mapped steps → dots only.
 - **Voice.** Tap the mic to record (**record** → `.m4a`/aac to a temp file, with
   a live timer + cancel); tap send to stop → `POST /api/assistant/transcribe`
   (Mantle's default STT worker) → the transcript is sent as a normal turn. A
@@ -297,7 +304,9 @@ adaptive icon). See Build & codegen.
 - **Endpoints used**: `/api/version` (probe), `/api/auth/mobile-login`,
   `/api/auth/mobile-logout`, `/api/agents` (agent list),
   `/api/assistant/messages`, `/api/assistant/turn` (JSON or multipart upload),
-  `/api/assistant/transcribe` (voice → text), `/api/files/files/{id}?raw=1`
+  `/api/assistant/turn/stage` (responder stage label, polled for the typing
+  indicator), `/api/assistant/transcribe` (voice → text),
+  `/api/files/files/{id}?raw=1`
   (attachment image bytes), `/api/dashboard/summary` (landing stats — **added to
   Mantle**), `/api/health` (system vitals), `/api/assistant/conversations`
   (inbox — **added**), `/api/assistant/read` (read cursor — **added**),

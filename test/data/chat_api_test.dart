@@ -76,6 +76,20 @@ void main() {
     expect(messages[1].model, 'claude-opus');
   });
 
+  test('turnStage returns the label, and null when empty/absent', () async {
+    when(() => dio.get<Map<String, dynamic>>(any()))
+        .thenAnswer((_) async => _resp({'label': 'Thinking…'}));
+    expect(await api.turnStage(), 'Thinking…');
+
+    when(() => dio.get<Map<String, dynamic>>(any()))
+        .thenAnswer((_) async => _resp({'label': null}));
+    expect(await api.turnStage(), isNull);
+
+    when(() => dio.get<Map<String, dynamic>>(any()))
+        .thenAnswer((_) async => _resp(<String, dynamic>{}));
+    expect(await api.turnStage(), isNull);
+  });
+
   test('sendTurn returns the inbound message and the assistant reply', () async {
     when(() => dio.post<Map<String, dynamic>>(
           any(),

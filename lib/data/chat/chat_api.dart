@@ -47,6 +47,18 @@ class ChatApi {
         .toList();
   }
 
+  /// `GET /api/assistant/turn/stage` — the coarse label for the responder's
+  /// currently-running step (e.g. "Thinking…", "Searching the web…"), or null
+  /// between mapped steps / when no turn is running. Polled while a send is in
+  /// flight to animate the wait. Mirrors the web's stage indicator.
+  Future<String?> turnStage() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/api/assistant/turn/stage',
+    );
+    final label = res.data?['label'];
+    return label is String && label.isNotEmpty ? label : null;
+  }
+
   /// `POST /api/assistant/turn` — send [text] (and optionally an [attachment]),
   /// get back the saved inbound message and the assistant's outbound reply.
   ///
