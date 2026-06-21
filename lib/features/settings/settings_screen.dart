@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../widgets/mantle_header.dart';
 import '../auth/session_controller.dart';
+import 'location_controller.dart';
 
 /// Settings: appearance (theme), notifications, and account. Profile/account
 /// management beyond sign-out is a TODO.
@@ -56,6 +57,10 @@ class SettingsScreen extends ConsumerWidget {
                     label: 'Push notifications',
                     onTap: () => context.push('/settings/notifications'),
                   ),
+                  const SizedBox(height: 24),
+                  Text('Privacy', style: theme.textTheme.small),
+                  const SizedBox(height: 8),
+                  _LocationToggle(theme: theme),
                   const SizedBox(height: 24),
                   Text('Account', style: theme.textTheme.small),
                   const SizedBox(height: 8),
@@ -119,6 +124,63 @@ class _NavRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Opt-in toggle for attaching device location to messages. Enabling it prompts
+/// for the OS permission; a refusal shows an inline message and leaves it off.
+class _LocationToggle extends ConsumerWidget {
+  const _LocationToggle({required this.theme});
+
+  final ShadThemeData theme;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = theme.colorScheme;
+    final state = ref.watch(locationControllerProvider);
+    final on = state.value ?? false;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ShadCard(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Icon(LucideIcons.mapPin, size: 18, color: scheme.mutedForeground),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Share location with messages',
+                      style: theme.textTheme.p),
+                ),
+                ShadSwitch(
+                  value: on,
+                  onChanged: state.isLoading
+                      ? null
+                      : (v) => ref
+                          .read(locationControllerProvider.notifier)
+                          .setEnabled(v),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8, left: 4, right: 4),
+          child: Text(
+            state.hasError
+                ? state.error.toString()
+                : 'Attaches your location to each message so your assistant '
+                    'knows where a request is coming from. When-in-use only; '
+                    'turn off any time.',
+            style: theme.textTheme.muted.copyWith(
+              color: state.hasError ? scheme.destructive : null,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

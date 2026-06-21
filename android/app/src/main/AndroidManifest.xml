@@ -8,6 +8,10 @@
     <!-- Direct-connection push (no-Google path): a foreground service holds the
          SSE stream open. dataSync type required on Android 14+. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- Optional, opt-in: attach device location to messages (when-in-use).
+         Requested at runtime via geolocator when the user enables sharing. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="mantle_companion"
         android:name="${applicationName}"

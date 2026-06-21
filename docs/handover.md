@@ -1,6 +1,6 @@
 # Mantle Companion — Handover
 
-_Last updated: 2026-06-20._
+_Last updated: 2026-06-21._
 
 A checkpoint for picking the work back up. For the system map read
 [architecture.md](architecture.md); for UI rules read
@@ -14,7 +14,29 @@ A cross-platform (iOS + Android) Flutter companion for the self-hosted **Mantle*
 assistant. Connects to a user's own Mantle server over an authenticated REST API
 (per-device bearer token). Open source, MIT.
 
-## Latest checkpoint (2026-06-20) — themes + app icon + composer shipped; TestFlight build for push test
+## Latest checkpoint (2026-06-21) — message-attached location implemented (companion side)
+
+Implemented the **companion half of message-attached location** (backend shipped in Mantle
+**v0.27.0**; contract: [`mantle/docs/handover-companion-location.md`](../../mantle/docs/handover-companion-location.md)).
+Committed + pushed to `origin/main`.
+
+- Added `geolocator` + `battery_plus`. `data/location/location_ping.dart` (wire model),
+  `location_service.dart` (read-only `currentPing()`: short `getCurrentPosition` → last-known
+  fallback + battery; null if not permitted). iOS plist string was already there; added Android
+  `ACCESS_FINE/COARSE_LOCATION`. Ran `./refresh.sh` (pods synced).
+- Opt-in: `LocationController` + **Settings → Privacy → "Share location with messages"** (default
+  off; enabling prompts when-in-use permission, only persists if granted).
+- `ChatController.send` attaches a ping **only when opted in**; rides on the existing
+  `/api/assistant/turn` as a `location` body key (JSON) or form field (multipart) — no new endpoint.
+- Tests: `LocationPing.toJson`, and `ChatApi.sendTurn` location in JSON body + multipart field.
+  Full suite green (75).
+
+➡️ **To verify end-to-end:** set a `mapbox` API key on the server (Settings → API keys → `mapbox`),
+build a device IPA, toggle the Privacy switch on (grant permission), send "where am I?" → the reply
+should name the address; the inbound `assistant_messages` row gets `data.location`. Without the
+Mapbox key the agent knows raw coords but won't resolve an address.
+
+## Previous checkpoint (2026-06-20) — themes + app icon + composer shipped; TestFlight build for push test
 
 A feature + polish session on top of the working push pipeline. Everything below is committed and
 pushed to `origin/main`. Version is now **1.1.0+5** (bumped twice: feature minor + a build number
@@ -52,7 +74,7 @@ build: bump the build number, `fvm flutter build ipa`, then
 `./check_push_env.sh build/ios/ipa/mantle_companion.ipa` should report **production** for the app
 *and* the NotificationService extension before uploading via Transporter.
 
-## Previous checkpoint (2026-06-19) — iOS push ENROLLMENT device-verified; next = TestFlight delivery
+## Earlier checkpoint (2026-06-19) — iOS push ENROLLMENT device-verified; next = TestFlight delivery
 
 **The iOS build → archive → TestFlight pipeline works, AND Mantle Push now enrolls on a real
 device, end to end.** The full spine — Settings → Notifications → Connect → Mantle `/connect` →

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart' show CancelToken;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../location/location_ping.dart';
 import 'chat_api.dart';
 import 'chat_attachment.dart';
 import 'chat_message.dart';
@@ -30,6 +31,7 @@ class ChatRepository {
     OutgoingAttachment? attachment,
     CancelToken? cancelToken,
     String? idempotencyKey,
+    LocationPing? location,
   }) =>
       _api.sendTurn(
         text,
@@ -37,6 +39,7 @@ class ChatRepository {
         attachment: attachment,
         cancelToken: cancelToken,
         idempotencyKey: idempotencyKey,
+        location: location,
       );
 
   /// The responder's current stage label (or null), for the typing indicator.

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/network/dio_provider.dart';
+import '../location/location_ping.dart';
 import 'chat_attachment.dart';
 import 'chat_message.dart';
 
@@ -73,6 +74,7 @@ class ChatApi {
     OutgoingAttachment? attachment,
     CancelToken? cancelToken,
     String? idempotencyKey,
+    LocationPing? location,
   }) async {
     // `idempotency-key` lets the server replay a cached result instead of
     // re-running the turn if the same request is retried (e.g. a timeout where
@@ -89,6 +91,8 @@ class ChatApi {
       final form = FormData.fromMap({
         if (text.isNotEmpty) 'text': text,
         'agentSlug': ?agentSlug,
+        // Multipart: location rides as one JSON-encoded form field.
+        if (location != null) 'location': jsonEncode(location.toJson()),
         field: await MultipartFile.fromFile(
           attachment.path,
           filename: attachment.filename,
@@ -104,7 +108,11 @@ class ChatApi {
     } else {
       res = await _dio.post<Map<String, dynamic>>(
         '/api/assistant/turn',
-        data: {'text': text, 'agentSlug': ?agentSlug},
+        data: {
+          'text': text,
+          'agentSlug': ?agentSlug,
+          if (location != null) 'location': location.toJson(),
+        },
         options: options,
         cancelToken: cancelToken,
       );

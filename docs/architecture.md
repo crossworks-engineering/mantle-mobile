@@ -300,6 +300,30 @@ masters from the brand logo (white "m" on Mantle indigo) and
 **flutter_launcher_icons** fans them out (no-alpha iOS marketing icon + Android
 adaptive icon). See Build & codegen.
 
+## Location (message-attached, opt-in)
+
+The app can attach a device location fix to each turn so the assistant is
+location-aware (Mantle reverse-geocodes lazily, server-side — backend shipped in
+v0.27.0; contract: `mantle/docs/handover-companion-location.md`).
+
+- **Wire format.** A `LocationPing` ([`data/location/location_ping.dart`](../lib/data/location/location_ping.dart),
+  lat/long required, everything else best-effort) rides *on the existing turn* —
+  no new endpoint. JSON turn: a `location` key on the body; multipart turn: a
+  `location` form field holding `jsonEncode(ping)`. Both handled in
+  `ChatApi.sendTurn`.
+- **Source.** [`data/location/location_service.dart`](../lib/data/location/location_service.dart)
+  wraps **geolocator** + **battery_plus**. `currentPing()` is read-only and
+  time-bounded (a short `getCurrentPosition` then last-known fallback) so a send
+  is never held waiting; it returns null if permission isn't granted.
+- **Opt-in + consent.** Off by default. `LocationController` + the Settings →
+  Privacy toggle request *when-in-use* permission on enable and only persist if
+  granted (`location_sharing` key). `ChatController.send` attaches a ping only
+  when the toggle is on; otherwise the turn is byte-for-byte as before.
+- **Native:** iOS `NSLocationWhenInUseUsageDescription`; Android
+  `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION`.
+- **Retry:** location is metadata on the turn; the idempotency-key path resends
+  the same ping (a retried send re-fetches, but the server dedups the turn).
+
 ## Mantle integration contract
 
 - **Base URL**: user-entered, stored locally.

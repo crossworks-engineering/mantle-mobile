@@ -7,7 +7,9 @@ import '../../data/chat/chat_attachment.dart';
 import '../../data/chat/chat_message.dart';
 import '../../data/chat/chat_repository.dart';
 import '../../data/chat/conversation_stream.dart';
+import '../../data/location/location_service.dart';
 import '../conversations/conversations_controller.dart';
+import '../settings/settings_repository.dart';
 
 part 'chat_controller.g.dart';
 
@@ -174,6 +176,14 @@ class ChatController extends _$ChatController {
     );
     state = AsyncData(base.copyWith(messages: [...base.messages, pending]));
 
+    // Best-effort location: only when the user has opted in. Fetched after the
+    // optimistic bubble shows (so the UI stays snappy) and time-bounded by the
+    // service, so it doesn't hold the turn waiting for a perfect fix.
+    final location =
+        await ref.read(settingsRepositoryProvider).locationSharing()
+            ? await ref.read(locationServiceProvider).currentPing()
+            : null;
+
     try {
       final result = await ref.read(chatRepositoryProvider).send(
             trimmed,
@@ -181,6 +191,7 @@ class ChatController extends _$ChatController {
             attachment: attachment,
             cancelToken: cancelToken,
             idempotencyKey: _newIdempotencyKey(),
+            location: location,
           );
       final current = state.value ?? base;
       final landed = localAttachments.isEmpty

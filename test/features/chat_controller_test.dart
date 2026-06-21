@@ -9,9 +9,12 @@ import 'package:mantle_companion/data/chat/chat_message.dart';
 import 'package:mantle_companion/data/chat/chat_repository.dart';
 import 'package:mantle_companion/data/chat/conversation_stream.dart';
 import 'package:mantle_companion/features/chat/chat_controller.dart';
+import 'package:mantle_companion/features/settings/settings_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockChatRepository extends Mock implements ChatRepository {}
+
+class MockSettingsRepository extends Mock implements SettingsRepository {}
 
 const _slug = 'saskia';
 
@@ -30,12 +33,19 @@ void main() {
   setUpAll(() => registerFallbackValue(DateTime(2000)));
 
   late MockChatRepository repo;
-  setUp(() => repo = MockChatRepository());
+  late MockSettingsRepository settings;
+  setUp(() {
+    repo = MockChatRepository();
+    settings = MockSettingsRepository();
+    // Location sharing off by default — send() reads this and attaches nothing.
+    when(() => settings.locationSharing()).thenAnswer((_) async => false);
+  });
 
   ProviderContainer makeContainer() {
     final c = ProviderContainer(
       overrides: [
         chatRepositoryProvider.overrideWithValue(repo),
+        settingsRepositoryProvider.overrideWithValue(settings),
         // No live SSE in unit tests — an empty stream keeps the listen inert.
         conversationEventsProvider.overrideWith(
           (ref) => const Stream<ConversationEvent>.empty(),

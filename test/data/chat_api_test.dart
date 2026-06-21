@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mantle_companion/data/chat/chat_api.dart';
 import 'package:mantle_companion/data/chat/chat_attachment.dart';
 import 'package:mantle_companion/data/chat/chat_message.dart';
+import 'package:mantle_companion/data/location/location_ping.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -225,6 +226,56 @@ void main() {
     expect(captured, isA<FormData>());
     // A document goes under the 'file' field (images would use 'image').
     expect((captured as FormData).files.single.key, 'file');
+  });
+
+  test('sendTurn attaches location — JSON body and multipart field', () async {
+    when(() => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        )).thenAnswer(
+      (_) async => _resp({
+        'inbound': {'id': 'i1', 'text': 'where am i', 'createdAt': '2026-06-13T10:00:00.000Z'},
+        'outbound': {'id': 'o1', 'text': 'here', 'createdAt': '2026-06-13T10:00:02.000Z'},
+      }),
+    );
+
+    final ping = LocationPing(
+      latitude: -33.9249,
+      longitude: 18.4241,
+      timestamp: DateTime.utc(2026, 6, 21, 14, 30),
+      accuracy: 8,
+    );
+
+    // Text-only turn → location is a key on the JSON body.
+    await api.sendTurn('where am i', location: ping);
+
+    // Multipart turn → location is a JSON-encoded form field.
+    final tmp = await File(
+      '${Directory.systemTemp.path}/loc_${DateTime.now().microsecondsSinceEpoch}.txt',
+    ).create();
+    await tmp.writeAsString('x');
+    addTearDown(() => tmp.delete());
+    await api.sendTurn(
+      'look here',
+      attachment:
+          OutgoingAttachment(path: tmp.path, filename: 'n.txt', mime: 'text/plain'),
+      location: ping,
+    );
+
+    final data = verify(() => dio.post<Map<String, dynamic>>(
+          '/api/assistant/turn',
+          data: captureAny(named: 'data'),
+          options: any(named: 'options'),
+        )).captured;
+
+    final body = data[0] as Map<String, dynamic>;
+    expect(body['location'], isA<Map>());
+    expect((body['location'] as Map)['latitude'], -33.9249);
+
+    final form = data[1] as FormData;
+    final loc = form.fields.firstWhere((e) => e.key == 'location').value;
+    expect(loc, contains('"latitude":-33.9249'));
   });
 
   test('transcribe returns the trimmed transcript', () async {

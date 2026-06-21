@@ -20,6 +20,7 @@ class SettingsRepository {
   static const _randomThemeKey = 'random_theme_enabled';
   static const _randomIntervalKey = 'random_theme_interval_ms';
   static const _randomAtKey = 'random_theme_at_ms';
+  static const _locationSharingKey = 'location_sharing';
 
   /// Default random-rotation cadence (12 hours), mirroring the web app.
   static const Duration defaultRandomInterval = Duration(hours: 12);
@@ -75,6 +76,14 @@ class SettingsRepository {
 
   Future<void> setLastRandomAtMs(int epochMs) =>
       _db.setSetting(_randomAtKey, epochMs.toString());
+
+  /// Whether to attach device location to outgoing messages (default off — the
+  /// user must opt in, and the OS permission must also be granted).
+  Future<bool> locationSharing() async =>
+      await _db.getSetting(_locationSharingKey) == 'true';
+
+  Future<void> setLocationSharing(bool enabled) =>
+      _db.setSetting(_locationSharingKey, enabled.toString());
 }
 
 @Riverpod(keepAlive: true)
