@@ -92,10 +92,13 @@ dev_dependencies:
   mocktail: ^1.0.5
   path_provider_platform_interface: ^2.1.3
   plugin_platform_interface: ^2.1.8
-  # App-icon generation (dev-only). `image` is used by tool/generate_app_icon.dart
-  # to compose the masters; flutter_launcher_icons fans them out to all platforms.
+  # App-icon + splash generation (dev-only). `image` is used by
+  # tool/generate_app_icon.dart and tool/generate_splash.dart to compose the
+  # masters; flutter_launcher_icons / flutter_native_splash fan them out to all
+  # platforms.
   image: ^4.3.0
   flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -166,3 +169,23 @@ flutter_launcher_icons:
   # Android adaptive icon: white "m" foreground over the brand indigo.
   adaptive_icon_background: "#6366F1"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+
+# Launch / splash screen. The white wordmark master is composed by
+# tool/generate_splash.dart from branding/mantle_logo_full.png. Run:
+#   fvm dart run tool/generate_splash.dart          # (re)build the white wordmark
+#   fvm dart run flutter_native_splash:create       # fan out to iOS + Android
+# Indigo (#6366F1) background with a centered white "mantle" wordmark, identical
+# in light and dark so dark-mode launches don't flash white. The Android 12+
+# splash masks its image to a circle, so it reuses the white "m" icon foreground
+# instead of the wide wordmark.
+flutter_native_splash:
+  color: "#6366F1"
+  color_dark: "#6366F1"
+  image: assets/splash/mantle_wordmark_white.png
+  image_dark: assets/splash/mantle_wordmark_white.png
+  ios_content_mode: center
+  android_12:
+    color: "#6366F1"
+    color_dark: "#6366F1"
+    image: assets/icon/app_icon_foreground.png
+    image_dark: assets/icon/app_icon_foreground.png
