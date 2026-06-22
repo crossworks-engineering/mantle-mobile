@@ -13,41 +13,26 @@ class PushDevice {
   final String? label;
 }
 
-/// Per-trigger toggles + quiet hours (mirrors Mantle's push_prefs).
+/// Per-trigger toggles (mirrors Mantle's push_prefs). Quiet hours were removed —
+/// OS-level Do Not Disturb covers night muting (Mantle docs §C).
 class PushPreferences {
   const PushPreferences({
     required this.assistantMessages,
     required this.approvals,
-    required this.quietEnabled,
-    required this.quietStart,
-    required this.quietEnd,
-    required this.timezone,
   });
 
   final bool assistantMessages;
   final bool approvals;
-  final bool quietEnabled;
-  final String quietStart; // HH:MM
-  final String quietEnd; // HH:MM
-  final String timezone; // IANA
 
   factory PushPreferences.fromJson(Map<String, dynamic> j) => PushPreferences(
         assistantMessages: j['assistantMessages'] as bool? ?? true,
         approvals: j['approvals'] as bool? ?? true,
-        quietEnabled: j['quietEnabled'] as bool? ?? false,
-        quietStart: j['quietStart'] as String? ?? '22:00',
-        quietEnd: j['quietEnd'] as String? ?? '07:00',
-        timezone: j['timezone'] as String? ?? 'UTC',
       );
 
   /// Apply a partial patch (the same keys the API accepts) for optimistic UI.
   PushPreferences merge(Map<String, dynamic> patch) => PushPreferences(
         assistantMessages: patch['assistantMessages'] as bool? ?? assistantMessages,
         approvals: patch['approvals'] as bool? ?? approvals,
-        quietEnabled: patch['quietEnabled'] as bool? ?? quietEnabled,
-        quietStart: patch['quietStart'] as String? ?? quietStart,
-        quietEnd: patch['quietEnd'] as String? ?? quietEnd,
-        timezone: patch['timezone'] as String? ?? timezone,
       );
 }
 
@@ -133,7 +118,7 @@ class PushApi {
   /// the relay to drop its row).
   Future<void> unsubscribe(String id) => _dio.delete('/api/push/subscriptions/$id');
 
-  /// `GET /api/push/preferences` — per-trigger toggles + quiet hours.
+  /// `GET /api/push/preferences` — per-trigger toggles.
   Future<PushPreferences> getPreferences() async {
     final res = await _dio.get<Map<String, dynamic>>('/api/push/preferences');
     return PushPreferences.fromJson(res.data ?? const {});

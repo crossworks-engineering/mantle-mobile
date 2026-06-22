@@ -8,24 +8,21 @@ part of 'push_prefs_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Loads + updates push preferences (per-trigger toggles + quiet hours). On
-/// first load it adopts the device's IANA timezone so quiet hours are in local
-/// time. Updates are optimistic (state reflects the change immediately, then
-/// reconciles with the server's response).
+/// Loads + updates push preferences (per-trigger toggles). Updates are optimistic
+/// (state reflects the change immediately, then reconciles with the server's
+/// response).
 
 @ProviderFor(PushPrefsController)
 final pushPrefsControllerProvider = PushPrefsControllerProvider._();
 
-/// Loads + updates push preferences (per-trigger toggles + quiet hours). On
-/// first load it adopts the device's IANA timezone so quiet hours are in local
-/// time. Updates are optimistic (state reflects the change immediately, then
-/// reconciles with the server's response).
+/// Loads + updates push preferences (per-trigger toggles). Updates are optimistic
+/// (state reflects the change immediately, then reconciles with the server's
+/// response).
 final class PushPrefsControllerProvider
     extends $AsyncNotifierProvider<PushPrefsController, PushPreferences> {
-  /// Loads + updates push preferences (per-trigger toggles + quiet hours). On
-  /// first load it adopts the device's IANA timezone so quiet hours are in local
-  /// time. Updates are optimistic (state reflects the change immediately, then
-  /// reconciles with the server's response).
+  /// Loads + updates push preferences (per-trigger toggles). Updates are optimistic
+  /// (state reflects the change immediately, then reconciles with the server's
+  /// response).
   PushPrefsControllerProvider._()
     : super(
         from: null,
@@ -46,12 +43,11 @@ final class PushPrefsControllerProvider
 }
 
 String _$pushPrefsControllerHash() =>
-    r'407e0903e2e704555f73a779d27a1f1c6b86e969';
+    r'0c92218445392dbf4e23ffdf6f716cc5daf1c8df';
 
-/// Loads + updates push preferences (per-trigger toggles + quiet hours). On
-/// first load it adopts the device's IANA timezone so quiet hours are in local
-/// time. Updates are optimistic (state reflects the change immediately, then
-/// reconciles with the server's response).
+/// Loads + updates push preferences (per-trigger toggles). Updates are optimistic
+/// (state reflects the change immediately, then reconciles with the server's
+/// response).
 
 abstract class _$PushPrefsController extends $AsyncNotifier<PushPreferences> {
   FutureOr<PushPreferences> build();

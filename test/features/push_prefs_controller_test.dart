@@ -6,16 +6,7 @@ import 'package:mocktail/mocktail.dart';
 
 class MockPushApi extends Mock implements PushApi {}
 
-// A non-UTC timezone so build() skips device-timezone detection (no platform
-// channel in unit tests).
-const _loaded = PushPreferences(
-  assistantMessages: true,
-  approvals: true,
-  quietEnabled: false,
-  quietStart: '22:00',
-  quietEnd: '07:00',
-  timezone: 'Africa/Johannesburg',
-);
+const _loaded = PushPreferences(assistantMessages: true, approvals: true);
 
 void main() {
   late MockPushApi api;
@@ -27,14 +18,7 @@ void main() {
 
   test('save applies the patch optimistically and calls the API', () async {
     when(() => api.updatePreferences({'approvals': false})).thenAnswer(
-      (_) async => const PushPreferences(
-        assistantMessages: true,
-        approvals: false,
-        quietEnabled: false,
-        quietStart: '22:00',
-        quietEnd: '07:00',
-        timezone: 'Africa/Johannesburg',
-      ),
+      (_) async => const PushPreferences(assistantMessages: true, approvals: false),
     );
 
     final container = ProviderContainer(overrides: [pushApiProvider.overrideWithValue(api)]);

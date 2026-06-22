@@ -10,12 +10,12 @@ import '../../../widgets/mantle_header.dart';
 import 'direct_push_controller.dart';
 import 'push_controller.dart';
 import 'push_prefs_controller.dart';
-
-final _hhmm = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
+import 'reminder_channel_controller.dart';
 
 /// Settings → Notifications. One-tap Connect enrolls this device for end-to-end
-/// encrypted push (Mantle Push). When connected: per-trigger toggles, quiet
-/// hours, the enrolled device list (with unpair), and reset.
+/// encrypted push (Mantle Push). When connected: per-trigger toggles, the
+/// enrolled device list (with unpair), and reset. The reminder-delivery choice
+/// (Telegram vs this app) shows regardless of connection.
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
 
@@ -25,16 +25,6 @@ class NotificationsScreen extends ConsumerStatefulWidget {
 
 class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   String? _busyLabel;
-  final _startCtrl = TextEditingController();
-  final _endCtrl = TextEditingController();
-  bool _seededTimes = false;
-
-  @override
-  void dispose() {
-    _startCtrl.dispose();
-    _endCtrl.dispose();
-    super.dispose();
-  }
 
   Future<void> _connect() async {
     setState(() => _busyLabel = 'Connecting…');
@@ -97,12 +87,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     if (mounted) setState(() => _busyLabel = null);
   }
 
-  void _saveTime({required bool isStart, required String value}) {
-    final v = value.trim();
-    if (!_hhmm.hasMatch(v)) return; // ignore invalid; field reverts on next build
-    ref.read(pushPrefsControllerProvider.notifier).save({isStart ? 'quietStart' : 'quietEnd': v});
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
@@ -111,16 +95,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     final connected = state.value?.isConnected ?? false;
     final busy = _busyLabel != null;
     final error = state.hasError ? _messageFor(state.error) : null;
-
-    // Seed the quiet-hours time fields once, when prefs first load.
-    ref.listen(pushPrefsControllerProvider, (_, next) {
-      final p = next.value;
-      if (p != null && !_seededTimes) {
-        _startCtrl.text = p.quietStart;
-        _endCtrl.text = p.quietEnd;
-        _seededTimes = true;
-      }
-    });
 
     return Container(
       color: scheme.background,
@@ -142,6 +116,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 padding: const EdgeInsets.all(24),
                 children: [
                   _statusCard(theme, connected: connected, busy: busy, error: error),
+                  const SizedBox(height: 24),
+                  _reminderDeliveryCard(theme),
                   if (Platform.isAndroid) ...[
                     const SizedBox(height: 24),
                     _directCard(theme, busy: busy),
@@ -149,8 +125,6 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   if (connected) ...[
                     const SizedBox(height: 24),
                     _triggersCard(theme),
-                    const SizedBox(height: 24),
-                    _quietHoursCard(theme),
                     if ((state.value?.devices ?? const []).isNotEmpty) ...[
                       const SizedBox(height: 24),
                       _devicesCard(theme, state.value!.devices),
@@ -289,55 +263,42 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     );
   }
 
-  Widget _quietHoursCard(ShadThemeData theme) {
-    final prefs = ref.watch(pushPrefsControllerProvider).value;
-    final notifier = ref.read(pushPrefsControllerProvider.notifier);
-    final enabled = prefs?.quietEnabled ?? false;
+  Widget _reminderDeliveryCard(ShadThemeData theme) {
+    final selected = ref.watch(reminderChannelControllerProvider).value;
+    final notifier = ref.read(reminderChannelControllerProvider.notifier);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Quiet hours', style: theme.textTheme.small),
+        Text('Event reminders', style: theme.textTheme.small),
         const SizedBox(height: 8),
         ShadCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SwitchRow(
+              _ReminderOption(
                 theme: theme,
-                label: 'Pause notifications',
-                value: enabled,
-                onChanged: prefs == null ? null : (v) => notifier.save({'quietEnabled': v}),
+                icon: LucideIcons.send,
+                label: 'Telegram',
+                selected: selected == 'telegram',
+                // Disabled until the current value loads, so a tap can't race it.
+                onTap: selected == null ? null : () => notifier.select('telegram'),
               ),
-              if (enabled) ...[
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Expanded(child: _timeField(theme, label: 'From', controller: _startCtrl, isStart: true)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _timeField(theme, label: 'To', controller: _endCtrl, isStart: false)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text('Times are in ${prefs?.timezone ?? 'UTC'}.', style: theme.textTheme.muted),
-              ],
+              _ReminderOption(
+                theme: theme,
+                icon: LucideIcons.smartphone,
+                label: 'This app',
+                selected: selected == 'mobile',
+                onTap: selected == null ? null : () => notifier.select('mobile'),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Where event reminders are delivered. Follows whichever you last '
+                'messaged from; pick one to keep it there. Reminders to this app '
+                'need notifications connected above to alert you.',
+                style: theme.textTheme.muted,
+              ),
             ],
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _timeField(ShadThemeData theme, {required String label, required TextEditingController controller, required bool isStart}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: theme.textTheme.muted),
-        const SizedBox(height: 4),
-        ShadInput(
-          controller: controller,
-          placeholder: const Text('22:00'),
-          keyboardType: TextInputType.datetime,
-          onSubmitted: (v) => _saveTime(isStart: isStart, value: v),
         ),
       ],
     );
@@ -361,6 +322,42 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   String _messageFor(Object? error) {
     if (error is PushException) return error.message;
     return 'Something went wrong setting up notifications. Please try again.';
+  }
+}
+
+class _ReminderOption extends StatelessWidget {
+  const _ReminderOption({
+    required this.theme,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ShadThemeData theme;
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = theme.colorScheme;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: scheme.mutedForeground),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: theme.textTheme.p)),
+            if (selected) Icon(LucideIcons.check, size: 18, color: scheme.primary),
+          ],
+        ),
+      ),
+    );
   }
 }
 
