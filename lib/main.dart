@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'core/lifecycle/app_lifecycle.dart';
+import 'data/push/deep_link.dart';
 import 'data/push/push_notifier.dart';
 import 'features/settings/color_theme_controller.dart';
 import 'features/settings/random_theme_controller.dart';
@@ -22,6 +23,9 @@ Future<void> main() async {
   if (Platform.isAndroid) {
     await setupAndroidPush();
   }
+  // Listen for notification-tap deep links (iOS over the mantle/push channel;
+  // Android via push_notifier). The root widget routes on each link.
+  await DeepLinkRouter.instance.start();
   runApp(const ProviderScope(child: MantleCompanionApp()));
 }
 
@@ -45,12 +49,28 @@ class _MantleCompanionAppState extends ConsumerState<MantleCompanionApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    DeepLinkRouter.instance.pending.addListener(_onDeepLink);
+    // A cold-launch tap may have queued a link before this listener attached.
+    _onDeepLink();
   }
 
   @override
   void dispose() {
+    DeepLinkRouter.instance.pending.removeListener(_onDeepLink);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Navigate to a tapped notification's deep link, then clear it. The router's
+  /// auth redirect handles the not-logged-in case (it bounces to /login).
+  void _onDeepLink() {
+    final link = DeepLinkRouter.instance.pending.value;
+    if (link == null) return;
+    DeepLinkRouter.instance.pending.value = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(goRouterProvider).go(link);
+    });
   }
 
   @override

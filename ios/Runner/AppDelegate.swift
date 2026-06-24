@@ -9,6 +9,9 @@ import UserNotifications
   // failure/denial). See lib/data/push/apns_bridge.dart.
   private var pendingTokenResult: FlutterResult?
   private var pushChannel: FlutterMethodChannel?
+  // A notification tapped before Dart attached its handler (cold launch). Held
+  // until Dart pulls it via the `getInitialDeepLink` MethodChannel call.
+  private var pendingLaunchDeepLink: String?
 
   override func application(
     _ application: UIApplication,
@@ -45,6 +48,11 @@ import UserNotifications
           result(ok)
         }
       }
+    case "getInitialDeepLink":
+      // Cold-launch tap: hand over (and clear) the stored deep link, if any.
+      let link = pendingLaunchDeepLink
+      pendingLaunchDeepLink = nil
+      result(link)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -93,5 +101,21 @@ extension AppDelegate {
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
     completionHandler([.banner, .sound, .badge])
+  }
+
+  // A tapped notification: route to its deep link (set by the NSE in userInfo).
+  // We both invoke the channel (app already running) and stash it for
+  // `getInitialDeepLink` (cold launch, before Dart's handler is attached) — the
+  // stash is consumed at most once, so there's no double navigation.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    if let deepLink = response.notification.request.content.userInfo["deepLink"] as? String {
+      pendingLaunchDeepLink = deepLink
+      pushChannel?.invokeMethod("deepLink", arguments: deepLink)
+    }
+    completionHandler()
   }
 }
