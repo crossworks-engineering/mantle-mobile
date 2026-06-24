@@ -1,5 +1,7 @@
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/lifecycle/app_lifecycle.dart';
 import '../../data/chat/conversation_stream.dart';
 import '../../data/conversations/conversation_models.dart';
 import '../../data/conversations/conversations_api.dart';
@@ -17,6 +19,14 @@ class ConversationsController extends _$ConversationsController {
   Future<List<AgentConversation>> build() {
     ref.listen(conversationEventsProvider, (_, next) {
       if (next is AsyncData<ConversationEvent>) _reloadSilently();
+    });
+    // The SSE pauses while backgrounded, so anything that arrived meanwhile was
+    // missed. Refetch on return to the foreground so previews + unread catch up.
+    ref.listen(appLifecycleProvider, (prev, next) {
+      if (next == AppLifecycleState.resumed &&
+          prev != AppLifecycleState.resumed) {
+        _reloadSilently();
+      }
     });
     return ref.read(conversationsApiProvider).list();
   }

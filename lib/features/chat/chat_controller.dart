@@ -1,8 +1,10 @@
 import 'dart:math';
 
 import 'package:dio/dio.dart' show CancelToken, DioException, DioExceptionType;
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/lifecycle/app_lifecycle.dart';
 import '../../data/chat/chat_attachment.dart';
 import '../../data/chat/chat_message.dart';
 import '../../data/chat/chat_repository.dart';
@@ -69,6 +71,17 @@ class ChatController extends _$ChatController {
     ref.listen(conversationEventsProvider, (_, next) {
       if (next is AsyncData<ConversationEvent> &&
           next.value.agentSlug == agentSlug) {
+        _onRemoteTurn();
+      }
+    });
+
+    // The SSE stream is paused while the app is backgrounded, so a turn that
+    // landed meanwhile — e.g. the one a tapped notification is about — was
+    // never streamed to us. Pull the latest when the app returns to the
+    // foreground so the open thread catches up without a manual back-and-forth.
+    ref.listen(appLifecycleProvider, (prev, next) {
+      if (next == AppLifecycleState.resumed &&
+          prev != AppLifecycleState.resumed) {
         _onRemoteTurn();
       }
     });
