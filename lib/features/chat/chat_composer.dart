@@ -50,9 +50,6 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   bool _sending = false;
   String? _error;
 
-  /// Non-null while a send is in flight; the stop button cancels it.
-  CancelToken? _cancelToken;
-
   _VoiceState _voice = _VoiceState.idle;
   Duration _elapsed = Duration.zero;
   Timer? _ticker;
@@ -185,26 +182,19 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     final attachment = _attachment;
     final attachmentBytes = _attachmentBytes;
     if (text.trim().isEmpty && attachment == null) return;
-    final cancelToken = CancelToken();
     _input.clear();
     setState(() {
       _attachment = null;
       _sending = true;
       _error = null;
-      _cancelToken = cancelToken;
     });
     var outcome = SendOutcome.failed;
     try {
-      outcome = await _notifier.send(
-        text,
-        attachment: attachment,
-        cancelToken: cancelToken,
-      );
+      outcome = await _notifier.send(text, attachment: attachment);
     } finally {
       if (mounted) {
         setState(() {
           _sending = false;
-          _cancelToken = null;
           // Stop pressed → put the message back so the user can fix and resend.
           if (outcome == SendOutcome.cancelled) {
             _input.text = text;
@@ -218,8 +208,10 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     }
   }
 
-  /// Abort the in-flight send; [_send] then restores the text for editing.
-  void _stop() => _cancelToken?.cancel('stopped by user');
+  /// Stop the in-flight turn (a streamed turn aborts server-side, keeping the
+  /// partial; a legacy turn cancels the request). [_send] then restores the text
+  /// for editing when it returns [SendOutcome.cancelled].
+  void _stop() => _notifier.stopTurn();
 
   // ── Voice ────────────────────────────────────────────────────────────────
 

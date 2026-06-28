@@ -12,6 +12,12 @@ part of 'chat_controller.dart';
 /// build, pages older history on demand ([loadMore]), and sends messages
 /// optimistically: the user's message shows immediately as `sending`, then flips
 /// to `sent` (with the assistant's reply appended) or `failed`.
+///
+/// When live streaming is on the reply types out token by token: `send` returns
+/// **202**, this controller subscribes to the turn's SSE bus and accumulates the
+/// reply into [ChatState.active], then reconciles to the durable row on `done`.
+/// When it's off the server returns the finished rows and we swap them in. Both
+/// shapes are handled, so the app degrades gracefully either way.
 
 @ProviderFor(ChatController)
 final chatControllerProvider = ChatControllerFamily._();
@@ -20,12 +26,24 @@ final chatControllerProvider = ChatControllerFamily._();
 /// build, pages older history on demand ([loadMore]), and sends messages
 /// optimistically: the user's message shows immediately as `sending`, then flips
 /// to `sent` (with the assistant's reply appended) or `failed`.
+///
+/// When live streaming is on the reply types out token by token: `send` returns
+/// **202**, this controller subscribes to the turn's SSE bus and accumulates the
+/// reply into [ChatState.active], then reconciles to the durable row on `done`.
+/// When it's off the server returns the finished rows and we swap them in. Both
+/// shapes are handled, so the app degrades gracefully either way.
 final class ChatControllerProvider
     extends $AsyncNotifierProvider<ChatController, ChatState> {
   /// Owns one agent's thread (keyed by [agentSlug]). Loads the latest page on
   /// build, pages older history on demand ([loadMore]), and sends messages
   /// optimistically: the user's message shows immediately as `sending`, then flips
   /// to `sent` (with the assistant's reply appended) or `failed`.
+  ///
+  /// When live streaming is on the reply types out token by token: `send` returns
+  /// **202**, this controller subscribes to the turn's SSE bus and accumulates the
+  /// reply into [ChatState.active], then reconciles to the durable row on `done`.
+  /// When it's off the server returns the finished rows and we swap them in. Both
+  /// shapes are handled, so the app degrades gracefully either way.
   ChatControllerProvider._({
     required ChatControllerFamily super.from,
     required String super.argument,
@@ -62,12 +80,18 @@ final class ChatControllerProvider
   }
 }
 
-String _$chatControllerHash() => r'67081f7ed8d804c525beff856486fecfcc54d6ec';
+String _$chatControllerHash() => r'0594e95eacaa5ea91443b7f0d2a9358b3280edad';
 
 /// Owns one agent's thread (keyed by [agentSlug]). Loads the latest page on
 /// build, pages older history on demand ([loadMore]), and sends messages
 /// optimistically: the user's message shows immediately as `sending`, then flips
 /// to `sent` (with the assistant's reply appended) or `failed`.
+///
+/// When live streaming is on the reply types out token by token: `send` returns
+/// **202**, this controller subscribes to the turn's SSE bus and accumulates the
+/// reply into [ChatState.active], then reconciles to the durable row on `done`.
+/// When it's off the server returns the finished rows and we swap them in. Both
+/// shapes are handled, so the app degrades gracefully either way.
 
 final class ChatControllerFamily extends $Family
     with
@@ -91,6 +115,12 @@ final class ChatControllerFamily extends $Family
   /// build, pages older history on demand ([loadMore]), and sends messages
   /// optimistically: the user's message shows immediately as `sending`, then flips
   /// to `sent` (with the assistant's reply appended) or `failed`.
+  ///
+  /// When live streaming is on the reply types out token by token: `send` returns
+  /// **202**, this controller subscribes to the turn's SSE bus and accumulates the
+  /// reply into [ChatState.active], then reconciles to the durable row on `done`.
+  /// When it's off the server returns the finished rows and we swap them in. Both
+  /// shapes are handled, so the app degrades gracefully either way.
 
   ChatControllerProvider call(String agentSlug) =>
       ChatControllerProvider._(argument: agentSlug, from: this);
@@ -103,6 +133,12 @@ final class ChatControllerFamily extends $Family
 /// build, pages older history on demand ([loadMore]), and sends messages
 /// optimistically: the user's message shows immediately as `sending`, then flips
 /// to `sent` (with the assistant's reply appended) or `failed`.
+///
+/// When live streaming is on the reply types out token by token: `send` returns
+/// **202**, this controller subscribes to the turn's SSE bus and accumulates the
+/// reply into [ChatState.active], then reconciles to the durable row on `done`.
+/// When it's off the server returns the finished rows and we swap them in. Both
+/// shapes are handled, so the app degrades gracefully either way.
 
 abstract class _$ChatController extends $AsyncNotifier<ChatState> {
   late final _$args = ref.$arg as String;

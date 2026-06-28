@@ -114,12 +114,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   // A loader rides above the oldest message while paging older
                   // history — the highest index, since the list is reversed.
                   final showLoader = chat.loadingMore;
-                  // A typing bubble rides below the newest message (index 0,
-                  // reversed) while a reply is being produced.
-                  final typing = chat.messages
-                          .any((m) => m.status == MessageStatus.sending)
-                      ? 1
-                      : 0;
+                  // Below the newest message (index 0, reversed) rides ONE
+                  // overlay while a reply is being produced: the reply itself
+                  // typing out live once tokens arrive, else a typing bubble
+                  // (animated dots + stage label). The legacy blocking path has
+                  // no live tokens, so it shows the typing bubble throughout.
+                  final active = chat.active;
+                  final streamingReply =
+                      active != null && active.reply.trim().isNotEmpty;
+                  final showTyping = !streamingReply &&
+                      (active != null ||
+                          chat.messages
+                              .any((m) => m.status == MessageStatus.sending));
+                  final overlay = (streamingReply || showTyping) ? 1 : 0;
                   return ListView.builder(
                     controller: _scroll,
                     reverse: true,
@@ -127,15 +134,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       horizontal: 16,
                       vertical: 12,
                     ),
-                    itemCount: list.length + typing + (showLoader ? 1 : 0),
+                    itemCount: list.length + overlay + (showLoader ? 1 : 0),
                     itemBuilder: (context, i) {
-                      if (typing == 1 && i == 0) {
-                        return _TypingBubble(
-                          theme: theme,
-                          agentSlug: widget.agentSlug,
-                        );
+                      if (overlay == 1 && i == 0) {
+                        return streamingReply
+                            ? _StreamingBubble(theme: theme, text: active.reply)
+                            : _TypingBubble(
+                                theme: theme,
+                                agentSlug: widget.agentSlug,
+                                label: active?.stageLabel,
+                              );
                       }
-                      final adjusted = i - typing;
+                      final adjusted = i - overlay;
                       if (showLoader && adjusted == list.length) {
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -396,20 +406,70 @@ class _Bubble extends StatelessWidget {
   }
 }
 
-/// The assistant "typing" bubble shown while a reply is being produced: animated
-/// dots plus the responder's current stage label ("Thinking…", "Searching the
-/// web…") from [turnStageProvider]. The label is null between mapped steps, in
-/// which case only the dots show.
+/// The assistant reply typing out live, token by token (streaming path). Same
+/// muted assistant bubble as the final reply (so the swap to the durable
+/// [_Bubble] on `done` is seamless), rendered with our markdown, plus animated
+/// dots to signal it's still generating.
+class _StreamingBubble extends StatelessWidget {
+  const _StreamingBubble({required this.theme, required this.text});
+
+  final ShadThemeData theme;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: scheme.muted,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Selection is off mid-stream (it would fight the per-token
+              // rebuild); the reconciled durable bubble is selectable.
+              MantleMarkdown(text, textColor: scheme.foreground, selectable: false),
+              const SizedBox(height: 6),
+              _TypingDots(color: scheme.mutedForeground),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The assistant "typing" bubble shown while a reply is being produced before
+/// any visible text: animated dots plus the responder's current stage label
+/// ("Thinking…", "Searching the web…"). [label] is the live label from the SSE
+/// bus on a streamed turn; when null (the legacy path) it falls back to polling
+/// [turnStageProvider]. Either way it's null between mapped steps — dots only.
 class _TypingBubble extends ConsumerWidget {
-  const _TypingBubble({required this.theme, required this.agentSlug});
+  const _TypingBubble({
+    required this.theme,
+    required this.agentSlug,
+    this.label,
+  });
 
   final ShadThemeData theme;
   final String agentSlug;
+  final String? label;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = theme.colorScheme;
-    final label = ref.watch(turnStageProvider(agentSlug)).value;
+    // Streamed turns carry their own label; only the legacy path polls.
+    final label = this.label ?? ref.watch(turnStageProvider(agentSlug)).value;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Align(

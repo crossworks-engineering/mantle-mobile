@@ -11,14 +11,14 @@ part of 'turn_stage_controller.dart';
 /// Streams the responder's coarse stage label ("Thinking…", "Searching the
 /// web…", …) while a send is in flight on [agentSlug]'s thread, by polling
 /// `GET /api/assistant/turn/stage` every ~900ms — mirroring the web's stage
-/// indicator. The turn itself is a single atomic POST (no token streaming), so
-/// this just animates the wait.
+/// indicator. This is the FALLBACK for the legacy blocking path; when live
+/// streaming is on the label rides the SSE bus on [ChatState.active] instead, so
+/// this poller stands down (yields null) to avoid redundant requests.
 ///
 /// Emits null between mapped steps (the typing bubble then shows dots only) and
-/// stops polling the moment the optimistic `sending` message resolves. The
-/// `sending` flag is read from [ChatController] via `select`, so this provider
-/// rebuilds — and tears its poll loop down — as soon as the turn lands.
-/// autoDispose: only runs while the thread is on screen.
+/// stops polling the moment the optimistic `sending` message resolves. The state
+/// is read from [ChatController], so this provider rebuilds — and tears its poll
+/// loop down — as soon as the turn lands. autoDispose: only runs on screen.
 
 @ProviderFor(turnStage)
 final turnStageProvider = TurnStageFamily._();
@@ -26,14 +26,14 @@ final turnStageProvider = TurnStageFamily._();
 /// Streams the responder's coarse stage label ("Thinking…", "Searching the
 /// web…", …) while a send is in flight on [agentSlug]'s thread, by polling
 /// `GET /api/assistant/turn/stage` every ~900ms — mirroring the web's stage
-/// indicator. The turn itself is a single atomic POST (no token streaming), so
-/// this just animates the wait.
+/// indicator. This is the FALLBACK for the legacy blocking path; when live
+/// streaming is on the label rides the SSE bus on [ChatState.active] instead, so
+/// this poller stands down (yields null) to avoid redundant requests.
 ///
 /// Emits null between mapped steps (the typing bubble then shows dots only) and
-/// stops polling the moment the optimistic `sending` message resolves. The
-/// `sending` flag is read from [ChatController] via `select`, so this provider
-/// rebuilds — and tears its poll loop down — as soon as the turn lands.
-/// autoDispose: only runs while the thread is on screen.
+/// stops polling the moment the optimistic `sending` message resolves. The state
+/// is read from [ChatController], so this provider rebuilds — and tears its poll
+/// loop down — as soon as the turn lands. autoDispose: only runs on screen.
 
 final class TurnStageProvider
     extends $FunctionalProvider<AsyncValue<String?>, String?, Stream<String?>>
@@ -41,14 +41,14 @@ final class TurnStageProvider
   /// Streams the responder's coarse stage label ("Thinking…", "Searching the
   /// web…", …) while a send is in flight on [agentSlug]'s thread, by polling
   /// `GET /api/assistant/turn/stage` every ~900ms — mirroring the web's stage
-  /// indicator. The turn itself is a single atomic POST (no token streaming), so
-  /// this just animates the wait.
+  /// indicator. This is the FALLBACK for the legacy blocking path; when live
+  /// streaming is on the label rides the SSE bus on [ChatState.active] instead, so
+  /// this poller stands down (yields null) to avoid redundant requests.
   ///
   /// Emits null between mapped steps (the typing bubble then shows dots only) and
-  /// stops polling the moment the optimistic `sending` message resolves. The
-  /// `sending` flag is read from [ChatController] via `select`, so this provider
-  /// rebuilds — and tears its poll loop down — as soon as the turn lands.
-  /// autoDispose: only runs while the thread is on screen.
+  /// stops polling the moment the optimistic `sending` message resolves. The state
+  /// is read from [ChatController], so this provider rebuilds — and tears its poll
+  /// loop down — as soon as the turn lands. autoDispose: only runs on screen.
   TurnStageProvider._({
     required TurnStageFamily super.from,
     required String super.argument,
@@ -92,19 +92,19 @@ final class TurnStageProvider
   }
 }
 
-String _$turnStageHash() => r'82bce3f6cee9af60be4ec5fba6033aa48606af52';
+String _$turnStageHash() => r'1cc6cfe49d62d97ef35d479eef16a77f2ee916bc';
 
 /// Streams the responder's coarse stage label ("Thinking…", "Searching the
 /// web…", …) while a send is in flight on [agentSlug]'s thread, by polling
 /// `GET /api/assistant/turn/stage` every ~900ms — mirroring the web's stage
-/// indicator. The turn itself is a single atomic POST (no token streaming), so
-/// this just animates the wait.
+/// indicator. This is the FALLBACK for the legacy blocking path; when live
+/// streaming is on the label rides the SSE bus on [ChatState.active] instead, so
+/// this poller stands down (yields null) to avoid redundant requests.
 ///
 /// Emits null between mapped steps (the typing bubble then shows dots only) and
-/// stops polling the moment the optimistic `sending` message resolves. The
-/// `sending` flag is read from [ChatController] via `select`, so this provider
-/// rebuilds — and tears its poll loop down — as soon as the turn lands.
-/// autoDispose: only runs while the thread is on screen.
+/// stops polling the moment the optimistic `sending` message resolves. The state
+/// is read from [ChatController], so this provider rebuilds — and tears its poll
+/// loop down — as soon as the turn lands. autoDispose: only runs on screen.
 
 final class TurnStageFamily extends $Family
     with $FunctionalFamilyOverride<Stream<String?>, String> {
@@ -120,14 +120,14 @@ final class TurnStageFamily extends $Family
   /// Streams the responder's coarse stage label ("Thinking…", "Searching the
   /// web…", …) while a send is in flight on [agentSlug]'s thread, by polling
   /// `GET /api/assistant/turn/stage` every ~900ms — mirroring the web's stage
-  /// indicator. The turn itself is a single atomic POST (no token streaming), so
-  /// this just animates the wait.
+  /// indicator. This is the FALLBACK for the legacy blocking path; when live
+  /// streaming is on the label rides the SSE bus on [ChatState.active] instead, so
+  /// this poller stands down (yields null) to avoid redundant requests.
   ///
   /// Emits null between mapped steps (the typing bubble then shows dots only) and
-  /// stops polling the moment the optimistic `sending` message resolves. The
-  /// `sending` flag is read from [ChatController] via `select`, so this provider
-  /// rebuilds — and tears its poll loop down — as soon as the turn lands.
-  /// autoDispose: only runs while the thread is on screen.
+  /// stops polling the moment the optimistic `sending` message resolves. The state
+  /// is read from [ChatController], so this provider rebuilds — and tears its poll
+  /// loop down — as soon as the turn lands. autoDispose: only runs on screen.
 
   TurnStageProvider call(String agentSlug) =>
       TurnStageProvider._(argument: agentSlug, from: this);

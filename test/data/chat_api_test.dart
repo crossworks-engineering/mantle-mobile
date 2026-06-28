@@ -113,12 +113,53 @@ void main() {
       }),
     );
 
-    final result = await api.sendTurn('hey');
+    final result = (await api.sendTurn('hey') as TurnCompleted).result;
 
     expect(result.inbound.text, 'hey');
     expect(result.inbound.direction, MessageDirection.inbound);
     expect(result.outbound.text, 'yo');
     expect(result.outbound.model, 'claude-opus');
+  });
+
+  test('sendTurn returns TurnAccepted on a 202 streaming response', () async {
+    when(() => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+          options: any(named: 'options'),
+        )).thenAnswer(
+      (_) async => Response(
+        requestOptions: RequestOptions(path: '/'),
+        statusCode: 202,
+        data: {'turnId': 'abc123', 'warnings': ['heads up']},
+      ),
+    );
+
+    final resp = await api.sendTurn('hey', idempotencyKey: 'abc123');
+
+    expect(resp, isA<TurnAccepted>());
+    expect((resp as TurnAccepted).turnId, 'abc123');
+    expect(resp.warnings, ['heads up']);
+  });
+
+  test('cancelTurn posts to the cancel endpoint and swallows a 404', () async {
+    when(() => dio.post<Map<String, dynamic>>(any()))
+        .thenAnswer((_) async => _resp({'ok': true}));
+    await api.cancelTurn('abc123');
+    verify(() => dio.post<Map<String, dynamic>>(
+          '/api/assistant/turn/abc123/cancel',
+        )).called(1);
+
+    // A 404 (streaming flag dark) is swallowed, not thrown.
+    when(() => dio.post<Map<String, dynamic>>(any())).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/'),
+          statusCode: 404,
+        ),
+      ),
+    );
+    await expectLater(api.cancelTurn('abc123'), completes);
   });
 
   test('sendTurn forwards the idempotency-key header when given', () async {
@@ -207,14 +248,15 @@ void main() {
       }),
     );
 
-    final result = await api.sendTurn(
+    final result = (await api.sendTurn(
       'see attached',
       attachment: OutgoingAttachment(
         path: tmp.path,
         filename: 'notes.txt',
         mime: 'text/plain',
       ),
-    );
+    ) as TurnCompleted)
+        .result;
 
     expect(result.inbound.text, 'see attached');
     expect(result.outbound.text, 'got it');
@@ -328,7 +370,8 @@ void main() {
       }),
     );
 
-    final result = await api.sendTurn('read that aloud');
+    final result =
+        (await api.sendTurn('read that aloud') as TurnCompleted).result;
 
     expect(result.outbound.attachments, hasLength(1));
     final audio = result.outbound.attachments.single;

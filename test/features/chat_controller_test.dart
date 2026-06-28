@@ -1,13 +1,17 @@
 // ChatController (per-agent family): history load, scroll-up paging, optimistic
-// send — with a mocked repository.
+// send (legacy + live streaming) — with a mocked repository.
 
-import 'package:dio/dio.dart' show DioException, DioExceptionType, RequestOptions;
+import 'dart:async';
+
+import 'package:dio/dio.dart'
+    show CancelToken, DioException, DioExceptionType, RequestOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantle_companion/data/chat/chat_api.dart';
 import 'package:mantle_companion/data/chat/chat_message.dart';
 import 'package:mantle_companion/data/chat/chat_repository.dart';
 import 'package:mantle_companion/data/chat/conversation_stream.dart';
+import 'package:mantle_companion/data/chat/turn_event.dart';
 import 'package:mantle_companion/features/chat/chat_controller.dart';
 import 'package:mantle_companion/features/settings/settings_repository.dart';
 import 'package:mocktail/mocktail.dart';
@@ -21,6 +25,9 @@ const _slug = 'saskia';
 ChatMessage _msg(String id, MessageDirection d, String t, {DateTime? at}) =>
     ChatMessage(id: id, direction: d, text: t, createdAt: at ?? DateTime(2026));
 
+TurnEvent _ev(int seq, String type, Map<String, dynamic> data, {int round = 0}) =>
+    TurnEvent(v: 1, turnId: 'turn-1', seq: seq, round: round, type: type, data: data);
+
 /// A full page of distinct outbound messages, oldest-first, timestamped in
 /// ascending order so paging cursors are meaningful.
 List<ChatMessage> _page(String prefix, int n) => [
@@ -30,7 +37,10 @@ List<ChatMessage> _page(String prefix, int n) => [
     ];
 
 void main() {
-  setUpAll(() => registerFallbackValue(DateTime(2000)));
+  setUpAll(() {
+    registerFallbackValue(DateTime(2000));
+    registerFallbackValue(CancelToken());
+  });
 
   late MockChatRepository repo;
   late MockSettingsRepository settings;
@@ -40,6 +50,30 @@ void main() {
     // Location sharing off by default — send() reads this and attaches nothing.
     when(() => settings.locationSharing()).thenAnswer((_) async => false);
   });
+
+  // The controller now always passes a (real) cancelToken to repo.send, so the
+  // stubs match on it. Helper keeps the matcher noise out of each test.
+  When<Future<SendTurnResponse>> whenSend() => when(() => repo.send(
+        any(),
+        agentSlug: any(named: 'agentSlug'),
+        attachment: any(named: 'attachment'),
+        cancelToken: any(named: 'cancelToken'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+        location: any(named: 'location'),
+      ));
+
+  // Pump real microtasks until [pred] holds (or a cap), for stepping a streamed
+  // turn that's driven through a StreamController.
+  Future<void> pumpUntil(
+    ProviderContainer c,
+    bool Function(ChatState) pred,
+  ) async {
+    for (var i = 0; i < 50; i++) {
+      final s = c.read(chatControllerProvider(_slug)).value;
+      if (s != null && pred(s)) return;
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
 
   ProviderContainer makeContainer() {
     final c = ProviderContainer(
@@ -52,6 +86,10 @@ void main() {
         ),
       ],
     );
+    // Keep the autoDispose provider alive across the test's async gaps (a turn
+    // streamed through pumpUntil yields to the loop, which would otherwise let
+    // the provider dispose mid-flight).
+    c.listen(chatControllerProvider(_slug), (_, __) {});
     addTearDown(c.dispose);
     return c;
   }
@@ -140,13 +178,11 @@ void main() {
 
   test('send appends the user message then the assistant reply', () async {
     stubHistory(<ChatMessage>[]);
-    when(() => repo.send(any(),
-            agentSlug: any(named: 'agentSlug'),
-            idempotencyKey: any(named: 'idempotencyKey'))).thenAnswer(
-      (_) async => TurnResult(
+    whenSend().thenAnswer(
+      (_) async => TurnCompleted(TurnResult(
         inbound: _msg('i1', MessageDirection.inbound, 'hey'),
         outbound: _msg('o1', MessageDirection.outbound, 'reply'),
-      ),
+      )),
     );
 
     final c = makeContainer();
@@ -162,10 +198,7 @@ void main() {
 
   test('send marks the user message failed on error', () async {
     stubHistory(<ChatMessage>[]);
-    when(() => repo.send(any(),
-            agentSlug: any(named: 'agentSlug'),
-            idempotencyKey: any(named: 'idempotencyKey')))
-        .thenThrow(Exception('network down'));
+    whenSend().thenThrow(Exception('network down'));
 
     final c = makeContainer();
     await c.read(chatControllerProvider(_slug).future);
@@ -179,9 +212,7 @@ void main() {
   test('send drops the bubble and returns cancelled when the request is aborted',
       () async {
     stubHistory(<ChatMessage>[]);
-    when(() => repo.send(any(),
-            agentSlug: any(named: 'agentSlug'),
-            idempotencyKey: any(named: 'idempotencyKey'))).thenThrow(
+    whenSend().thenThrow(
       DioException(
         requestOptions: RequestOptions(path: '/api/assistant/turn'),
         type: DioExceptionType.cancel,
@@ -201,9 +232,7 @@ void main() {
   test('retry resends a failed message and replaces it on success', () async {
     stubHistory(<ChatMessage>[]);
     // First attempt fails → one failed bubble.
-    when(() => repo.send(any(),
-        agentSlug: any(named: 'agentSlug'),
-        idempotencyKey: any(named: 'idempotencyKey'))).thenThrow(Exception('offline'));
+    whenSend().thenThrow(Exception('offline'));
 
     final c = makeContainer();
     await c.read(chatControllerProvider(_slug).future);
@@ -214,13 +243,10 @@ void main() {
     expect(failed.status, MessageStatus.failed);
 
     // Connection's back — retry succeeds.
-    when(() => repo.send(any(),
-            agentSlug: any(named: 'agentSlug'),
-            idempotencyKey: any(named: 'idempotencyKey')))
-        .thenAnswer((_) async => TurnResult(
-              inbound: _msg('i1', MessageDirection.inbound, 'hello'),
-              outbound: _msg('o1', MessageDirection.outbound, 'hi'),
-            ));
+    whenSend().thenAnswer((_) async => TurnCompleted(TurnResult(
+          inbound: _msg('i1', MessageDirection.inbound, 'hello'),
+          outbound: _msg('o1', MessageDirection.outbound, 'hi'),
+        )));
 
     final outcome = await notifier.retry(failed);
 
@@ -236,8 +262,102 @@ void main() {
     await c.read(chatControllerProvider(_slug).future);
     await c.read(chatControllerProvider(_slug).notifier).send('   ');
     expect(c.read(chatControllerProvider(_slug)).value!.messages, isEmpty);
-    verifyNever(() => repo.send(any(),
-            agentSlug: any(named: 'agentSlug'),
-            idempotencyKey: any(named: 'idempotencyKey')));
+    verifyNever(() => repo.send(
+          any(),
+          agentSlug: any(named: 'agentSlug'),
+          attachment: any(named: 'attachment'),
+          cancelToken: any(named: 'cancelToken'),
+          idempotencyKey: any(named: 'idempotencyKey'),
+          location: any(named: 'location'),
+        ));
+  });
+
+  test('streaming: send types the reply out and reconciles to the durable rows',
+      () async {
+    // History: empty on build, the canonical rows on the reconcile read.
+    final canonical = [
+      _msg('i1', MessageDirection.inbound, 'hey',
+          at: DateTime(2026, 1, 1, 10)),
+      _msg('o1', MessageDirection.outbound, 'Hello there',
+          at: DateTime(2026, 1, 1, 10, 0, 1)),
+    ];
+    var historyCalls = 0;
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer(
+        (_) async => historyCalls++ == 0 ? <ChatMessage>[] : canonical);
+
+    whenSend().thenAnswer((_) async => const TurnAccepted('turn-1'));
+    when(() => repo.streamTurn(any(), cancelToken: any(named: 'cancelToken')))
+        .thenAnswer((_) => Stream.fromIterable([
+              _ev(0, 'turn-start', {'inboundId': 'i1', 'outboundId': 'o1'}),
+              _ev(1, 'status', {'label': 'Thinking…'}),
+              // Intermediate-round text is discarded when the final round opens.
+              _ev(2, 'text-delta', {'text': 'tool noise'}, round: 0),
+              _ev(3, 'text-delta', {'text': 'Hello '}, round: 1),
+              _ev(4, 'text-delta', {'text': 'there'}, round: 1),
+              _ev(5, 'done', {'status': 'complete'}),
+            ]));
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final outcome =
+        await c.read(chatControllerProvider(_slug).notifier).send('hey');
+
+    expect(outcome, SendOutcome.sent);
+    final state = c.read(chatControllerProvider(_slug)).value!;
+    expect(state.active, isNull); // reconciled — the streaming view is cleared
+    expect(state.messages.map((m) => m.id), ['i1', 'o1']);
+    expect(state.messages.last.text, 'Hello there');
+    verifyNever(() => repo.cancelTurn(any()));
+  });
+
+  test('streaming: stop aborts server-side, keeps the partial, returns cancelled',
+      () async {
+    final canonical = [
+      _msg('i1', MessageDirection.inbound, 'hey',
+          at: DateTime(2026, 1, 1, 10)),
+      _msg('o1', MessageDirection.outbound, 'Par',
+          at: DateTime(2026, 1, 1, 10, 0, 1)),
+    ];
+    var historyCalls = 0;
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer(
+        (_) async => historyCalls++ == 0 ? <ChatMessage>[] : canonical);
+
+    whenSend().thenAnswer((_) async => const TurnAccepted('turn-1'));
+
+    final events = StreamController<TurnEvent>();
+    addTearDown(() => events.close());
+    when(() => repo.streamTurn(any(), cancelToken: any(named: 'cancelToken')))
+        .thenAnswer((_) => events.stream);
+    // The runner aborts and finalizes the partial → emits `done`.
+    when(() => repo.cancelTurn(any())).thenAnswer((_) async {
+      events.add(_ev(3, 'done', {'status': 'complete'}));
+    });
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final notifier = c.read(chatControllerProvider(_slug).notifier);
+
+    final sendFuture = notifier.send('hey');
+    events.add(_ev(0, 'turn-start', {'inboundId': 'i1', 'outboundId': 'o1'}));
+    await pumpUntil(c, (s) => s.active?.outboundId == 'o1');
+    events.add(_ev(1, 'text-delta', {'text': 'Par'}, round: 1));
+    await pumpUntil(c, (s) => s.active?.reply == 'Par');
+
+    await notifier.stopTurn();
+    final outcome = await sendFuture;
+
+    expect(outcome, SendOutcome.cancelled);
+    verify(() => repo.cancelTurn('turn-1')).called(1);
+    final state = c.read(chatControllerProvider(_slug)).value!;
+    expect(state.active, isNull);
+    expect(state.messages.map((m) => m.id), ['i1', 'o1']);
   });
 }

@@ -5,6 +5,7 @@ import '../location/location_ping.dart';
 import 'chat_api.dart';
 import 'chat_attachment.dart';
 import 'chat_message.dart';
+import 'turn_event.dart';
 
 part 'chat_repository.g.dart';
 
@@ -25,7 +26,7 @@ class ChatRepository {
     String? agentSlug,
   }) => _api.fetchHistory(before: before, limit: limit, agentSlug: agentSlug);
 
-  Future<TurnResult> send(
+  Future<SendTurnResponse> send(
     String text, {
     String? agentSlug,
     OutgoingAttachment? attachment,
@@ -41,6 +42,13 @@ class ChatRepository {
         idempotencyKey: idempotencyKey,
         location: location,
       );
+
+  /// Live events for one in-flight streamed turn (ends on `done`/`error`).
+  Stream<TurnEvent> streamTurn(String turnId, {CancelToken? cancelToken}) =>
+      _api.streamTurn(turnId, cancelToken: cancelToken);
+
+  /// Ask the runner to stop an in-flight streamed turn (keeps the partial).
+  Future<void> cancelTurn(String turnId) => _api.cancelTurn(turnId);
 
   /// The responder's current stage label (or null), for the typing indicator.
   Future<String?> turnStage() => _api.turnStage();

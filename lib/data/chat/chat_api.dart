@@ -10,6 +10,7 @@ import '../../core/network/dio_provider.dart';
 import '../location/location_ping.dart';
 import 'chat_attachment.dart';
 import 'chat_message.dart';
+import 'turn_event.dart';
 
 part 'chat_api.g.dart';
 
@@ -20,6 +21,42 @@ class TurnResult {
   final ChatMessage inbound;
   final ChatMessage outbound;
 }
+
+/// What `POST /api/assistant/turn` returned, in either of the server's two modes:
+///
+/// - [TurnAccepted] — live streaming is on: the server replied **202** with just
+///   the turn id and runs the turn durably in apps/api. The caller subscribes to
+///   [ChatApi.streamTurn] and reconciles to the durable row on `done`.
+/// - [TurnCompleted] — the legacy blocking path (streaming flag dark): the server
+///   ran the turn inline and returned the saved inbound + outbound messages.
+///
+/// The two are told apart by the response body shape, so the client degrades
+/// gracefully whichever way the server is configured.
+sealed class SendTurnResponse {
+  const SendTurnResponse();
+}
+
+/// Streaming accepted (202): the turn is running; drive the UI off the stream.
+class TurnAccepted extends SendTurnResponse {
+  const TurnAccepted(this.turnId, {this.warnings = const []});
+
+  /// The turn id (= the idempotency-key we sent) — the live-stream correlation
+  /// id and the durable reconciliation handle.
+  final String turnId;
+
+  /// Non-fatal notes from the server (e.g. an attachment that couldn't be read).
+  final List<String> warnings;
+}
+
+/// Legacy blocking result (200): the inbound + outbound rows are already final.
+class TurnCompleted extends SendTurnResponse {
+  const TurnCompleted(this.result);
+  final TurnResult result;
+}
+
+// Capped exponential backoff for reconnecting a dropped turn stream.
+const Duration _turnStreamInitialBackoff = Duration(seconds: 1);
+const Duration _turnStreamMaxBackoff = Duration(seconds: 15);
 
 /// Talks to Mantle's assistant endpoints over the authenticated [Dio].
 class ChatApi {
@@ -68,7 +105,10 @@ class ChatApi {
   /// base64 bloat — mirroring the web composer. Either text or an attachment
   /// must be present (the server fills a default prompt for attachment-only).
   /// Long receive timeout: the assistant generates inline.
-  Future<TurnResult> sendTurn(
+  ///
+  /// Returns a [TurnAccepted] when streaming is on (202 — drive off
+  /// [streamTurn]) or a [TurnCompleted] for the legacy blocking path.
+  Future<SendTurnResponse> sendTurn(
     String text, {
     String? agentSlug,
     OutgoingAttachment? attachment,
@@ -118,9 +158,19 @@ class ChatApi {
       );
     }
     final data = res.data ?? const {};
+
+    // Streaming on: the server returns 202 with just { turnId } and runs the
+    // turn durably in apps/api. Detect by the body shape (no inbound row) so
+    // it's robust to how Dio surfaces the 202. The caller subscribes to the
+    // live stream and reconciles to the durable row on `done`.
+    final acceptedId = data['turnId'];
+    if (data['inbound'] == null && acceptedId is String && acceptedId.isNotEmpty) {
+      return TurnAccepted(acceptedId, warnings: _warningsOf(data));
+    }
+
     final inbound = data['inbound'] as Map<String, dynamic>;
     final outbound = data['outbound'] as Map<String, dynamic>;
-    return TurnResult(
+    return TurnCompleted(TurnResult(
       inbound: ChatMessage(
         id: inbound['id'] as String,
         direction: MessageDirection.inbound,
@@ -139,7 +189,78 @@ class ChatApi {
         // show them inline. Absent on a plain text reply.
         attachments: await _attachmentsFromArtifacts(data['artifacts'] as List?),
       ),
-    );
+    ));
+  }
+
+  static List<String> _warningsOf(Map<String, dynamic> data) {
+    final raw = data['warnings'];
+    if (raw is! List) return const [];
+    return raw.whereType<String>().toList();
+  }
+
+  /// Subscribe to one turn's live event stream (`GET /api/assistant/turn/:id/
+  /// stream`, Server-Sent Events). Yields each [TurnEvent] as it arrives and
+  /// ENDS on the terminal `done`/`error` event. On a mid-turn socket drop it
+  /// reconnects with capped backoff, sending `Last-Event-ID: <lastSeq>` so the
+  /// server replays from its buffer (gap-free + duplicate-free). A 404 (the
+  /// streaming flag is dark) or 401 (logged out) ends the stream so the caller
+  /// falls back to the POST result / a history reconcile. Pass a [cancelToken]
+  /// to tear it down (e.g. on screen dispose or Stop).
+  Stream<TurnEvent> streamTurn(String turnId, {CancelToken? cancelToken}) async* {
+    var lastSeq = -1;
+    var backoff = _turnStreamInitialBackoff;
+    while (true) {
+      try {
+        final res = await _dio.get<ResponseBody>(
+          '/api/assistant/turn/$turnId/stream',
+          options: Options(
+            responseType: ResponseType.stream,
+            // Resume from where we dropped; absent on the first connect so the
+            // server replays this turn's whole buffer (seq starts at 0).
+            headers: lastSeq >= 0 ? {'Last-Event-ID': '$lastSeq'} : null,
+          ),
+          cancelToken: cancelToken,
+        );
+        backoff = _turnStreamInitialBackoff; // reset after a clean open
+        final lines = res.data!.stream
+            .cast<List<int>>()
+            .transform(utf8.decoder)
+            .transform(const LineSplitter());
+        await for (final line in lines) {
+          final event = parseTurnSseLine(line);
+          if (event == null) continue;
+          lastSeq = event.seq;
+          yield event;
+          if (event.isTerminal) return; // turn finished — stop the stream
+        }
+        // Server closed without a terminal event — reconnect & resume below.
+      } on DioException catch (e) {
+        if (CancelToken.isCancel(e)) return; // torn down by the caller
+        final code = e.response?.statusCode ?? 0;
+        if (code == 404) return; // streaming flag dark → caller uses POST result
+        if (code == 401) return; // interceptor handled logout
+        // otherwise transient — fall through to backoff
+      } catch (_) {
+        /* unexpected — fall through to backoff */
+      }
+      await Future<void>.delayed(backoff);
+      backoff =
+          backoff * 2 > _turnStreamMaxBackoff ? _turnStreamMaxBackoff : backoff * 2;
+    }
+  }
+
+  /// `POST /api/assistant/turn/:id/cancel` — ask the runner to stop an in-flight
+  /// streamed turn. The runner aborts the LLM and finalizes whatever partial
+  /// reply had streamed, so the turn ends with a normal `done` event (the caller
+  /// reconciles as usual). Best-effort: a 404 (streaming flag dark) or any other
+  /// error is swallowed — the caller's local teardown + the `done` reconcile
+  /// cover the rest.
+  Future<void> cancelTurn(String turnId) async {
+    try {
+      await _dio.post<Map<String, dynamic>>('/api/assistant/turn/$turnId/cancel');
+    } catch (_) {
+      /* fire-and-forget — the runner does the real abort */
+    }
   }
 
   /// Turn outbound `artifacts[]` (live base64 audio/image) into attachments by
