@@ -9,7 +9,11 @@ import '../features/auth/session_controller.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/conversations/conversations_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/journal/journal_screen.dart';
+import '../features/pages/page_view_screen.dart';
+import '../features/pages/pages_screen.dart';
 import '../features/pending/pending_screen.dart';
+import '../features/tasks/tasks_screen.dart';
 import '../features/settings/appearance_screen.dart';
 import '../features/settings/push/notifications_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -61,6 +65,14 @@ GoRouter goRouter(Ref ref) {
             ChatScreen(agentSlug: state.pathParameters['slug']!),
       ),
       GoRoute(path: '/pending', builder: (_, _) => const PendingScreen()),
+      GoRoute(path: '/pages', builder: (_, _) => const PagesScreen()),
+      GoRoute(
+        path: '/pages/:id',
+        builder: (context, state) =>
+            PageViewScreen(pageId: state.pathParameters['id']!),
+      ),
+      GoRoute(path: '/tasks', builder: (_, _) => const TasksScreen()),
+      GoRoute(path: '/journal', builder: (_, _) => const JournalScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(
         path: '/settings/appearance',

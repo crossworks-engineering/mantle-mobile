@@ -17,7 +17,13 @@ import 'mantle_syntax.dart';
 /// light/dark and the host bubble colour drive the output (no hardcoded
 /// colours). Images and math are later phases — see docs/architecture.md.
 class MantleMarkdown extends StatelessWidget {
-  const MantleMarkdown(this.data, {super.key, this.textColor, this.selectable = true});
+  const MantleMarkdown(
+    this.data, {
+    super.key,
+    this.textColor,
+    this.selectable = true,
+    this.imageBuilder,
+  });
 
   /// The raw markdown string (the assistant message `text`).
   final String data;
@@ -29,6 +35,12 @@ class MantleMarkdown extends StatelessWidget {
   /// Whether body text is selectable. Top-level replies are selectable; nested
   /// renders inside containers turn this off (no nested selection areas).
   final bool selectable;
+
+  /// Renders `![alt](src)` images. Null (the default, chat bubbles) leaves
+  /// image handling to the markdown package; the page viewer passes a builder
+  /// that fetches Mantle file nodes through the authed client (an `Image`
+  /// widget can't send the bearer header).
+  final Widget Function(Uri uri, String? title, String? alt)? imageBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +62,7 @@ class MantleMarkdown extends StatelessWidget {
       },
       styleSheet: _styleSheet(theme, textColor ?? theme.colorScheme.foreground),
       onTapLink: (_, href, _) => _openLink(href),
+      imageBuilder: imageBuilder,
     );
   }
 }

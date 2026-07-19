@@ -48,6 +48,37 @@ class HomeScreen extends ConsumerWidget {
                       Expanded(
                         child: _ActionTile(
                           theme: theme,
+                          icon: LucideIcons.fileText,
+                          label: 'Pages',
+                          onTap: () => context.push('/pages'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ActionTile(
+                          theme: theme,
+                          icon: LucideIcons.listChecks,
+                          label: 'Tasks',
+                          onTap: () => context.push('/tasks'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ActionTile(
+                          theme: theme,
+                          icon: LucideIcons.notebookPen,
+                          label: 'Journal',
+                          onTap: () => context.push('/journal'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ActionTile(
+                          theme: theme,
                           icon: LucideIcons.inbox,
                           label: 'Pending',
                           badge: pending,
