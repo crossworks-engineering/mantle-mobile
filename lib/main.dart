@@ -10,6 +10,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'core/lifecycle/app_lifecycle.dart';
 import 'data/push/deep_link.dart';
 import 'data/push/push_notifier.dart';
+import 'features/events/events_controller.dart';
 import 'features/settings/color_theme_controller.dart';
 import 'features/settings/random_theme_controller.dart';
 import 'features/settings/theme_mode_controller.dart';
@@ -86,6 +87,9 @@ class _MantleCompanionAppState extends ConsumerState<MantleCompanionApp>
         ref.watch(colorThemeControllerProvider).value ?? MantleTheme.defaultId;
     // Activate random-rotation (side-effect-only provider; ignores the value).
     ref.watch(randomThemeSchedulerProvider);
+    // Keep device event-alarms synced on login + every foreground resume —
+    // an event added from the web or by the assistant still rings here.
+    ref.watch(eventAlarmSyncProvider);
     final router = ref.watch(goRouterProvider);
 
     // MantleColors sits above ShadApp so every route can resolve the active

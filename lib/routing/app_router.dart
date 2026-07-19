@@ -8,6 +8,7 @@ import '../features/auth/server_setup_screen.dart';
 import '../features/auth/session_controller.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/conversations/conversations_screen.dart';
+import '../features/events/events_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/journal/journal_screen.dart';
 import '../features/pages/page_view_screen.dart';
@@ -73,6 +74,7 @@ GoRouter goRouter(Ref ref) {
       ),
       GoRoute(path: '/tasks', builder: (_, _) => const TasksScreen()),
       GoRoute(path: '/journal', builder: (_, _) => const JournalScreen()),
+      GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(
         path: '/settings/appearance',

@@ -27,7 +27,19 @@ class HomeScreen extends ConsumerWidget {
       color: theme.colorScheme.background,
       child: Column(
         children: [
-          const MantleHeader(leading: MantleHeaderTitle('mantle')),
+          MantleHeader(
+            leading: const MantleHeaderTitle('mantle'),
+            trailing: [
+              ShadButton.ghost(
+                onPressed: () => context.push('/settings'),
+                child: Icon(
+                  LucideIcons.settings,
+                  size: 20,
+                  color: theme.colorScheme.primaryForeground,
+                ),
+              ),
+            ],
+          ),
           Expanded(
             child: SafeArea(
               top: false,
@@ -79,19 +91,19 @@ class HomeScreen extends ConsumerWidget {
                       Expanded(
                         child: _ActionTile(
                           theme: theme,
-                          icon: LucideIcons.inbox,
-                          label: 'Pending',
-                          badge: pending,
-                          onTap: () => context.push('/pending'),
+                          icon: LucideIcons.calendarClock,
+                          label: 'Events',
+                          onTap: () => context.push('/events'),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _ActionTile(
                           theme: theme,
-                          icon: LucideIcons.settings,
-                          label: 'Settings',
-                          onTap: () => context.push('/settings'),
+                          icon: LucideIcons.inbox,
+                          label: 'Pending',
+                          badge: pending,
+                          onTap: () => context.push('/pending'),
                         ),
                       ),
                     ],
