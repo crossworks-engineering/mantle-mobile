@@ -9,15 +9,22 @@ A cross-platform (iOS + Android) Flutter app — a mobile companion for the
 **self-hosted Mantle** personal assistant. It connects to a user's own Mantle
 server over an authenticated REST API.
 
-Scope, in order of build:
+Scope, in order of build (all shipped as of **v1.6.0+13**):
 
-1. **Chat** with the assistant (done)
+1. **Chat** with the assistant — rich rendering, attachments, voice, and (v1.3–
+   1.4) live token streaming with a thought trail
 2. **Message-attached location** — coordinates stapled to a message, read
    on-demand at send time (foreground only → "When In Use", never "Always")
 3. **Push notifications** from Mantle
+4. **The brain's knowledge on the phone** (v1.5) — read-only **Pages**, and
+   capture-first **Tasks** + **Journal**
+5. **Events with real device alarms** (v1.6) — OS-scheduled local notifications
+   that ring at the exact start time, offline, phone locked
 
 The client is intentionally thin; Mantle is smart. The app sends raw input and
-renders responses — no reverse-geocoding or POI logic on device.
+renders responses — no reverse-geocoding or POI logic on device. The one
+deliberate exception is **event alarms**, which are mirrored onto the device's
+alarm scheduler so they fire without network (see [Events](#events--device-alarms)).
 
 ## Tech stack
 
@@ -32,13 +39,15 @@ renders responses — no reverse-geocoding or POI logic on device.
 | Nav | **go_router** | Auth-gated redirect |
 | Models | freezed + json_serializable | Available; chat model hand-written for now |
 | Markdown | **flutter_markdown_plus** (+ `markdown` parser) | Renders assistant replies; `url_launcher` opens external links |
-| Tests | flutter_test + **mocktail** + in-memory Drift | ~23 tests |
+| Tests | flutter_test + **mocktail** + in-memory Drift | 95 tests |
 
 ## Project layout
 
 ```
 lib/
-  core/network/      dio_provider.dart      — Dio + bearer/auth-failure interceptor
+  core/
+    network/         dio_provider.dart       — Dio + bearer/auth-failure interceptor
+    lifecycle/       app_lifecycle.dart      — foreground/background provider
   data/
     db/              app_database.dart       — Drift DB (app_settings KV)
                      connection.dart         — native SQLite open
@@ -48,14 +57,29 @@ lib/
                      auth_api.dart            — mobile-login / mobile-logout
                      auth_repository.dart     — login/logout orchestration
     chat/            chat_message.dart        — unified message model
-                     chat_api.dart            — turn + messages endpoints
+                     chat_api.dart            — turn/messages/stream endpoints
                      chat_repository.dart     — seam (future Drift cache/queue)
+                     turn_event.dart          — one SSE turn event (+ v tripwire)
+                     turn_meta.dart           — thought trail / tool-stat shapes
+                     conversation_stream.dart — per-owner /api/assistant/stream
+                     chat_attachment.dart     — attachment model
     agents/          agent.dart               — agent model (slug/name/accent/hasAvatar)
                      agent_api.dart           — GET /api/agents, agent avatar SVG
     conversations/   conversation_models.dart — inbox row (preview + unread)
                      conversations_api.dart   — GET /api/assistant/conversations, POST /read
     dashboard/       dashboard_models.dart    — summary + health models
                      dashboard_api.dart       — GET /api/dashboard/summary, /api/health
+    pages/           pages_api.dart, pages_models.dart      — index/meta/markdown/backlinks
+    tasks/           tasks_api.dart, tasks_models.dart      — CRUD + done flip
+    journal/         journal_api.dart, journal_models.dart  — list + capture
+    events/          events_api.dart, events_models.dart    — CRUD + done tag
+                     event_alarms.dart        — OS alarm mirror (zonedSchedule + sync)
+    location/        location_ping.dart, location_service.dart
+    pending/         pending_api.dart, pending_models.dart  — approvals
+    profile/         profile_api.dart
+    push/            push_api.dart, push_notifier.dart, push_keys.dart, …
+                     local_notifications.dart — ONE shared plugin init + tap handler
+                     deep_link.dart           — notification payload → route
   features/
     auth/            session_controller.dart  — AuthStatus gate
                      server_setup_screen.dart
@@ -65,12 +89,21 @@ lib/
     conversations/   conversations_controller.dart, conversations_screen.dart (inbox)
     chat/            chat_controller.dart      — per-agent thread (family by slug)
                      chat_screen.dart          — agent header, marks read on open
+                     turn_trail.dart           — thought-trail rendering (kind→icon)
+                     turn_stage_controller.dart, chat_composer.dart, …
     dashboard/       dashboard_controller.dart — summary + best-effort health
     home/            home_screen.dart          — landing dashboard (stats + actions)
-    pending/         pending_screen.dart       — approvals (placeholder)
+    pages/           pages_controller.dart, pages_screen.dart (tree),
+                     page_view_screen.dart     — markdown + authed images + links
+    tasks/           tasks_controller.dart, tasks_screen.dart
+    journal/         journal_controller.dart, journal_screen.dart (mic capture)
+    events/          events_controller.dart, events_screen.dart (+ add sheet)
+    pending/         pending_controller.dart, pending_screen.dart — approvals
     settings/        theme_mode_controller.dart, settings_repository.dart
                      color_theme_controller.dart  — selected color theme id
                      random_theme_controller.dart — shuffle mode + scheduler
+                     location_controller.dart     — location sharing opt-in
+                     push/                        — push enrollment screens
                      settings_screen.dart      — sections → subscreens
                      appearance_screen.dart    — mode + color picker + shuffle
   widgets/           mantle_header.dart         — shared primary header bar
@@ -145,13 +178,52 @@ revokes by `jti`.
 
 - `ChatApi` — `GET /api/assistant/messages?before=&limit=&agent=` (history,
   oldest-first page) and `POST /api/assistant/turn` `{text, agentSlug?}` →
-  `{inbound, outbound, reply}` (120s timeout; the assistant generates inline).
-- `ChatController` — exposes `ChatState { messages, hasMore, loadingMore }`.
+  `{inbound, outbound, reply}` (120s timeout).
+- `ChatController` — exposes `ChatState { messages, hasMore, loadingMore, active }`.
   Loads the latest page on build (`chatPageSize` = **30**), **pages older history**
   via `loadMore()` (cursor = oldest loaded `createdAt`; prepends, de-dupes by id;
   `hasMore` = last page was full). The screen's reversed `ListView` fires
   `loadMore()` when scrolled near the older end. **Optimistic send** (user message
   shows as `sending`, then `sent` + reply appended, or `failed`).
+
+### Live turn streaming (v1.3) + the thought trail (v1.4)
+
+A sent turn no longer waits for one atomic response — the reply **types out
+token by token**, mirroring the web's `TurnStream`:
+
+- **Wire.** The turn id *is* the client-minted idempotency-key, so the client
+  can open `GET /api/assistant/turn/:id/stream` (SSE) immediately after the
+  `POST` and correlate. Events are `TurnEvent {v, turnId, seq, round, type,
+  data}` ([`data/chat/turn_event.dart`](../lib/data/chat/turn_event.dart)) —
+  `turn-start | status | reasoning-delta | text-delta | tool-start | tool-end |
+  done | error`. `seq` doubles as the `Last-Event-ID` **resume cursor**; a new
+  `round` resets the visible reply so only the final answer types out.
+  **Schema tripwire:** `kTurnEventSchemaVersion` — an event with a higher `v`
+  than the client understands ends the stream (falls back to refetch) rather
+  than mis-parsing; a test pins it against drift.
+- **`ActiveTurn`** accumulates the live state: `reply`, `reasoning`, the
+  **thought trail** (`steps` — `status` events upserted by `stepId`, so a
+  grounded line upgrades to its narrated version in place instead of
+  duplicating), a **tool tally** (`toolsStarted/Done/Failed`), and a token
+  count (streamed **estimate** that swaps for the provider-reported exact
+  `tokensOut` on `done`).
+- **UI** ([`turn_trail.dart`](../lib/features/chat/turn_trail.dart)): each step
+  renders with a Lucide icon mapped from its coarse `kind` (`web`, `compute`,
+  `file`, `person`, … — open-ended set, wrench default) + elapsed time; the
+  reasoning trace is a collapsible "Thinking" block; the tally and token count
+  sit under the streaming bubble.
+- **Persistence.** When the brain has trail-persistence on, a landed outbound
+  row carries `thoughts` / `toolStats`
+  ([`turn_meta.dart`](../lib/data/chat/turn_meta.dart)) so the trail survives a
+  reload — same shapes as live, minus the `stepId`.
+- **Stop & resume.** Stop cancels the POST *and* the stream
+  (`POST /api/assistant/turn/:id/cancel` exists server-side). A mid-turn app
+  reload shows pending/failed bubbles from history and the persisted
+  thought-process record; a foreground resume refetches (bounded ~2 min).
+- **Inbox live-ness.** `conversation_stream.dart` subscribes the per-owner
+  `GET /api/assistant/stream` (SSE ping per turn on any channel) — the inbox
+  and open thread refetch on ping; the old `/api/assistant/turn/stage` poll
+  remains only as the coarse label fallback.
 ### Conversations (two-tier chat)
 
 Mantle keeps **one forever-thread per (owner, agent)**, so the chat is a
@@ -222,14 +294,13 @@ attach and voice reuse Mantle's existing endpoints — no new server work:
   header (128-bit, `ChatController._newIdempotencyKey`) so a retried/replayed
   POST that already completed server-side replays the cached turn instead of
   creating a duplicate.
-- **Stop & edit.** A turn is one atomic `POST` (the reply isn't streamed), so
-  while it's in flight the send button becomes a red ■. Tapping it cancels the
-  request via a Dio `CancelToken` (threaded `ChatApi.sendTurn` → repository →
-  `ChatController.send`), drops the optimistic bubble, and restores the text +
-  attachment to the field for editing. `send` returns a `SendOutcome`
-  (`sent`/`failed`/`cancelled`) so the composer knows when to restore. This
-  aborts the **client** request only — Mantle has no cancel endpoint yet, so a
-  turn already processed server-side can resurface on the next refresh.
+- **Stop & edit.** While a turn is in flight the send button becomes a red ■.
+  Tapping it cancels the POST via a Dio `CancelToken` *and* the SSE turn stream,
+  drops the optimistic bubble, and restores the text + attachment to the field
+  for editing. `send` returns a `SendOutcome` (`sent`/`failed`/`cancelled`) so
+  the composer knows when to restore. Server-side, `POST
+  /api/assistant/turn/:id/cancel` stops the responder; a turn that already
+  completed can still resurface on the next refresh.
 - **Typing indicator.** While a turn is in flight, an assistant "typing" bubble
   ([`chat_screen.dart`](../lib/features/chat/chat_screen.dart) `_TypingBubble`)
   shows animated dots plus the responder's coarse **stage label** ("Thinking…",
@@ -328,6 +399,66 @@ v0.27.0; contract: `mantle/docs/handover-companion-location.md`).
 - **Retry:** location is metadata on the turn; the idempotency-key path resends
   the same ping (a retried send re-fetches, but the server dedups the turn).
 
+## The brain's knowledge on the phone (v1.5)
+
+Three read/capture surfaces over Mantle's existing owner-gated JSON routes — no
+new backend was needed. All follow the same layering (Api → controller →
+screen) and live under `/pages`, `/tasks`, `/journal`.
+
+- **Pages** (read-only). `PagesApi.list` (`GET /api/pages`) returns the whole
+  hierarchy as flat rows (`mode:'tree'`) — the client builds the tree from
+  `parentId`; a search/tag filter switches the server to `mode:'list'`.
+  Content: **`GET /api/export/{id}?format=md`** — the HTTP twin of the MCP
+  `export_node` tool — so the client renders markdown with the same
+  `MantleMarkdown` the chat uses and needs **no ProseMirror renderer**.
+  In-content images resolve via the authed files route (Bearer header, same as
+  chat attachments); links open externally via `url_launcher` (the Android
+  `<queries>` manifest entries make `canLaunchUrl` truthful on Android 11+).
+  Backlinks come from `GET /api/pages/{id}/backlinks`.
+- **Tasks** (capture-first). `GET/POST /api/tasks`, `PATCH /api/tasks/{id}`
+  (`status: open|done`), `DELETE`. Server orders open → done, due-date asc,
+  then recency; the list renders in server order. Quick-add field on top,
+  check-off toggles, long-press → delete.
+- **Journal** (capture-first). `GET/POST /api/journal` — entries are plain
+  text; the server derives a title when none is given. The capture field
+  reuses the chat's mic flow: record → `POST /api/assistant/transcribe` →
+  transcript fills the field → save.
+
+## Events & device alarms (v1.6)
+
+Events (`/events`) are the headline v1.6 surface: CRUD over `GET/POST
+/api/events`, `PATCH/DELETE /api/events/{id}`, plus **real OS alarms** so an
+event rings at its exact start time — offline, app killed, phone locked.
+
+- **"Done" is a tag.** The server has no event status field; the client
+  persists the reserved `done` tag via `PATCH {tags}` (`kEventDoneTag`). A
+  first-class status field is a flagged backend follow-up.
+- **Alarms mirror the server, never replace it.**
+  [`data/events/event_alarms.dart`](../lib/data/events/event_alarms.dart)
+  `zonedSchedule`s a local notification at `startsAt` plus a heads-up at
+  `remindAt` — the same fields the server's events-reminders worker pings on —
+  via the **shared** flutter_local_notifications plugin
+  ([`local_notifications.dart`](../lib/data/push/local_notifications.dart):
+  ONE `initialize`, one tap handler for push display AND alarms; payload
+  `event-alarm:<id>:<ms>:<kind>` deep-links to `/events`).
+- **Reconcile, don't accumulate.** `EventAlarms.sync` diffs the OS's pending
+  schedule against the latest upcoming events by payload after every
+  fetch/mutation — a moved event produces a new payload (new alarm + stale
+  cancel), a done/deleted event's alarm is cancelled. `eventAlarmSyncProvider`
+  (keepAlive, watched from the app root) re-syncs on login and foreground
+  resume, so events created on the web or by the assistant also ring on the
+  phone. Recurring events carry only their next occurrence (the server rolls
+  the row forward); each sync re-arms the following one.
+- **Platform specifics.** Android: exact alarms (`SCHEDULE_EXACT_ALARM`,
+  runtime grant on 12+, silent inexact fallback when declined),
+  `POST_NOTIFICATIONS` on 13+ (requested even when push was never set up),
+  boot-persistent receivers (`RECEIVE_BOOT_COMPLETED`). iOS:
+  `InterruptionLevel.timeSensitive` + the **Time Sensitive Notifications**
+  entitlement, so alarms break through Focus.
+- Alarm bookkeeping is deliberately **best-effort** (never throws into the
+  caller) — the durable reminder is the server worker's push; the local alarm
+  is decoration that also works offline.
+
 ## Mantle integration contract
 
 - **Base URL**: user-entered, stored locally.
@@ -335,13 +466,20 @@ v0.27.0; contract: `mantle/docs/handover-companion-location.md`).
 - **Endpoints used**: `/api/version` (probe), `/api/auth/mobile-login`,
   `/api/auth/mobile-logout`, `/api/agents` (agent list),
   `/api/assistant/messages`, `/api/assistant/turn` (JSON or multipart upload),
-  `/api/assistant/turn/stage` (responder stage label, polled for the typing
-  indicator), `/api/assistant/transcribe` (voice → text),
-  `/api/files/files/{id}?raw=1`
-  (attachment image bytes), `/api/dashboard/summary` (landing stats — **added to
-  Mantle**), `/api/health` (system vitals), `/api/assistant/conversations`
-  (inbox — **added**), `/api/assistant/read` (read cursor — **added**),
-  `/api/agents/{slug}/avatar` (avatar SVG — **added**).
+  `/api/assistant/turn/{id}/stream` (SSE token stream),
+  `/api/assistant/turn/{id}/cancel` (stop),
+  `/api/assistant/stream` (per-owner SSE ping → refetch),
+  `/api/assistant/turn/stage` (coarse stage label, fallback),
+  `/api/assistant/transcribe` (voice → text), `/api/files/files/{id}?raw=1`
+  (attachment/page image bytes), `/api/dashboard/summary` (landing stats —
+  **added to Mantle**), `/api/health` (system vitals),
+  `/api/assistant/conversations` (inbox — **added**), `/api/assistant/read`
+  (read cursor — **added**), `/api/agents/{slug}/avatar` (avatar SVG —
+  **added**), `/api/pages` + `/api/pages/{id}` + `/api/pages/{id}/backlinks` +
+  `/api/export/{id}?format=md` (Pages), `/api/tasks` + `/api/tasks/{id}`
+  (Tasks), `/api/journal` (Journal), `/api/events` + `/api/events/{id}`
+  (Events), `/api/push/*` (enrollment/preferences — see
+  [push-notifications.md](push-notifications.md)).
 - **Auth-failure contract**: treat **401 OR 3xx→/login** as "session invalid →
   clear token → re-login".
 
@@ -400,11 +538,15 @@ cleartext to local hosts. Production Mantle is HTTPS.
 
 ## Roadmap
 
-- **Rich reply rendering** — Phases 1–3 (GFM text + Mantle custom blocks/inline
-  + images/attachments & voice) done; Phase 4 (math/highlighting) outlined under
-  [Chat](#rendering-assistant-replies)
+Shipped through v1.6.0: chat (rich rendering, attachments, voice, streaming +
+thought trail), location, push, pages/tasks/journal, events + device alarms.
+Still open:
+
+- **Math & syntax highlighting** in markdown (Phase 4 under
+  [Chat](#rendering-assistant-replies))
 - Drift message **cache + offline send-queue** (the `ChatRepository` seam exists)
-- **Message-attached location** (geolocator, When-In-Use)
-- **Push notifications** (FCM/APNs — needs new Mantle infra + a device-token
-  registration endpoint)
-- Persist the selected agent across restarts (picker + switching: done)
+- **Events: first-class server status field** (today "done" is the reserved
+  `done` tag — flagged as a backend follow-up)
+- **Write surfaces for Pages** (currently read-only)
+- Migrate Android to **AGP built-in Kotlin** so the `file_picker` 8.x pin can
+  lift (see `android/gradle.properties`)
