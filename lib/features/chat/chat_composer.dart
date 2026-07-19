@@ -148,7 +148,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: _docExtensions,
       );

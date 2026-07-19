@@ -59,7 +59,10 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_svg: ^2.3.0
   image_picker: ^1.2.2
-  file_picker: ^11.0.2
+# Pinned to 8.x: 11.x relies on AGP 9 built-in Kotlin, which this app doesn't
+# enable yet (android/gradle.properties) — on-device result is a jar with no
+# plugin classes and a registrant compile error.
+  file_picker: ^8.3.7
   record: ^7.1.0
   mime: ^2.0.0
   just_audio: ^0.10.5
