@@ -9,6 +9,8 @@ import '../features/auth/session_controller.dart';
 import '../features/chat/chat_screen.dart';
 import '../features/conversations/conversations_screen.dart';
 import '../features/events/events_screen.dart';
+import '../features/files/file_image_screen.dart';
+import '../features/files/files_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/journal/journal_screen.dart';
 import '../features/notes/note_view_screen.dart';
@@ -76,6 +78,19 @@ GoRouter goRouter(Ref ref) {
             PageViewScreen(pageId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+      GoRoute(
+        path: '/files',
+        builder: (context, state) => FilesScreen(
+          path: state.uri.queryParameters['path'] ?? 'files',
+        ),
+      ),
+      GoRoute(
+        path: '/files/image/:id',
+        builder: (context, state) => FileImageScreen(
+          fileId: state.pathParameters['id']!,
+          name: state.uri.queryParameters['name'],
+        ),
+      ),
       GoRoute(path: '/notes', builder: (_, _) => const NotesScreen()),
       GoRoute(
         path: '/notes/:id',

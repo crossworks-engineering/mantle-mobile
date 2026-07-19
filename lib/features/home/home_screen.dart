@@ -137,7 +137,14 @@ class HomeScreen extends ConsumerWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Expanded(child: SizedBox()),
+                      Expanded(
+                        child: _ActionTile(
+                          theme: theme,
+                          icon: LucideIcons.folder,
+                          label: 'Files',
+                          onTap: () => context.push('/files'),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
