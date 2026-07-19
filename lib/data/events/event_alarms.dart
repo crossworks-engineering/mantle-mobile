@@ -4,7 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../push/deep_link.dart';
+import '../push/local_notifications.dart';
 import 'events_models.dart';
 
 const _channelId = 'mantle_events';
@@ -26,54 +26,40 @@ const _channelName = 'Event alarms';
 class EventAlarms {
   EventAlarms._();
 
-  static final _plugin = FlutterLocalNotificationsPlugin();
-  static bool _inited = false;
+  /// The app-wide shared plugin (see local_notifications.dart — one init, one
+  /// tap handler for push display AND alarms).
+  static FlutterLocalNotificationsPlugin get _plugin =>
+      localNotificationsPlugin;
+  static bool _channelReady = false;
   static bool _exactAllowed = false;
 
-  /// Prefix for this service's notification payloads — how [sync] tells its
-  /// own scheduled alarms apart from other notifications when reconciling.
-  static const _payloadPrefix = 'event-alarm:';
+  static const _payloadPrefix = kEventAlarmPayloadPrefix;
 
   static Future<void> _ensureInit() async {
-    if (_inited) return;
+    await ensureLocalNotificationsInit();
+    if (_channelReady) return;
     tzdata.initializeTimeZones();
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const darwin = DarwinInitializationSettings(
-      requestAlertPermission: false,
-      requestBadgePermission: false,
-      requestSoundPermission: false,
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _channelId,
+        _channelName,
+        description: 'Alarms for your Mantle events',
+        importance: Importance.max,
+      ),
     );
-    await _plugin.initialize(
-      settings:
-          const InitializationSettings(android: android, iOS: darwin),
-      // Same tap contract as push: the payload's suffix is a deep link.
-      onDidReceiveNotificationResponse: (response) {
-        final payload = response.payload;
-        if (payload != null && payload.startsWith(_payloadPrefix)) {
-          DeepLinkRouter.instance.offer('/events');
-        } else {
-          DeepLinkRouter.instance.offer(payload);
-        }
-      },
-    );
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(
-          const AndroidNotificationChannel(
-            _channelId,
-            _channelName,
-            description: 'Alarms for your Mantle events',
-            importance: Importance.max,
-          ),
-        );
-    _inited = true;
+    // Prompt-free capability check — the background sync (app root) may run
+    // before the events screen ever requests the exact-alarm grant.
+    _exactAllowed = await android?.canScheduleExactNotifications() ?? false;
+    _channelReady = true;
   }
 
-  /// Ask for what alarms need: notification permission on iOS (idempotent —
-  /// the push setup usually granted it already) and the exact-alarm special
-  /// permission on Android 12+ (falls back to inexact when declined). Call
-  /// when the events screen first opens.
+  /// Ask for what alarms need. iOS: notification permission (idempotent —
+  /// push setup usually granted it). Android: POST_NOTIFICATIONS (13+ — may
+  /// never have been granted if push was skipped or the no-Google path is in
+  /// use) AND the exact-alarm special permission (12+; falls back to inexact
+  /// when declined). Call when the events screen first opens.
   static Future<void> requestPermissions() async {
     await _ensureInit();
     if (Platform.isIOS) {
@@ -85,6 +71,7 @@ class EventAlarms {
     if (Platform.isAndroid) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
+      await android?.requestNotificationsPermission();
       _exactAllowed =
           await android?.canScheduleExactNotifications() ?? false;
       if (!_exactAllowed) {

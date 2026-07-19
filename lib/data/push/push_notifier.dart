@@ -2,7 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-import 'deep_link.dart';
+import 'local_notifications.dart';
 import 'push_decryptor.dart';
 
 const _channelId = 'mantle_messages';
@@ -11,41 +11,33 @@ const _channelName = 'Messages';
 /// Android push display. Decrypts an FCM **data** message's sealed `ct` and
 /// posts a local notification (data messages don't auto-display). Shared by the
 /// foreground listener and the background isolate handler.
+///
+/// Uses the app-wide shared plugin (local_notifications.dart) — one init and
+/// one tap handler for push display AND event alarms, so neither feature's
+/// `initialize` clobbers the other's callback.
 class PushNotifier {
   PushNotifier._();
 
-  static final _plugin = FlutterLocalNotificationsPlugin();
-  static bool _inited = false;
+  static FlutterLocalNotificationsPlugin get _plugin =>
+      localNotificationsPlugin;
+  static bool _channelReady = false;
 
   static Future<void> _ensureInit() async {
-    if (_inited) return;
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await _plugin.initialize(
-      settings: const InitializationSettings(android: android),
-      onDidReceiveNotificationResponse: _onTap,
-    );
+    await ensureLocalNotificationsInit();
+    if (_channelReady) return;
     await _plugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(
           const AndroidNotificationChannel(_channelId, _channelName, importance: Importance.high),
         );
-    _inited = true;
+    _channelReady = true;
   }
 
-  /// A tapped notification's payload is its deep link (set in [showPlain]).
-  /// Route to it via the shared [DeepLinkRouter].
-  static void _onTap(NotificationResponse response) {
-    DeepLinkRouter.instance.offer(response.payload);
-  }
-
-  /// If the app was cold-launched by tapping a notification, surface that
-  /// notification's deep link. Call once at startup (Android).
+  /// If the app was cold-launched by tapping a notification (a push OR an
+  /// event alarm), surface its deep link. Call once at startup (Android).
   static Future<void> consumeLaunchDeepLink() async {
     await _ensureInit();
-    final details = await _plugin.getNotificationAppLaunchDetails();
-    if (details?.didNotificationLaunchApp ?? false) {
-      DeepLinkRouter.instance.offer(details?.notificationResponse?.payload);
-    }
+    await consumeLocalNotificationLaunchDeepLink();
   }
 
   /// Decrypt an FCM data payload's sealed `ct` and show it. No-ops if there's no

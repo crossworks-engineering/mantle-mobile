@@ -9,8 +9,9 @@ import 'package:flutter/services.dart';
 ///     AppDelegate invokes `deepLink` with the tapped link, and a cold-launch
 ///     tap is fetched once via `getInitialDeepLink` (the tap fires before Dart
 ///     attaches its handler).
-///   - Android: the flutter_local_notifications tap callback + app-launch
-///     details feed [offer] directly (see push_notifier.dart).
+///   - Android: the SHARED flutter_local_notifications tap callback + app-
+///     launch details feed [offer], with payload→route translation for event
+///     alarms (see local_notifications.dart).
 ///
 /// The root widget listens to [pending] and routes via go_router, then clears
 /// it. Singleton so the platform channel handler and the Android notifier share
