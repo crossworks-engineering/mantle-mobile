@@ -48,4 +48,4 @@ final class TasksApiProvider
   }
 }
 
-String _$tasksApiHash() => r'0000000000000000000000000000000000000000';
+String _$tasksApiHash() => r'992221cc80fac3612b535ead563736087ebf6787';

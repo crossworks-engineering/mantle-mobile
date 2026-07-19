@@ -10,6 +10,10 @@
 	<!-- First entry is the app's default group (keeps the existing bearer token,
 	     written without a group, readable). Second is shared with the
 	     NotificationService extension so it can read the device secret key. -->
+	<!-- Event alarms fire with InterruptionLevel.timeSensitive so they break
+	     through Focus/scheduled-summary delivery at the exact start time. -->
+	<key>com.apple.developer.usernotifications.time-sensitive</key>
+	<true/>
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)crossworks.engineering.mantle</string>

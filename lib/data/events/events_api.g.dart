@@ -48,4 +48,4 @@ final class EventsApiProvider
   }
 }
 
-String _$eventsApiHash() => r'0000000000000000000000000000000000000000';
+String _$eventsApiHash() => r'5dd50d7857cc9b16556fa95268a44a2f901a8d16';

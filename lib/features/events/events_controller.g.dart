@@ -8,12 +8,33 @@ part of 'events_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// Owns the upcoming-events list. Every successful load or mutation also
+/// re-syncs the device's LOCAL alarms ([EventAlarms.sync]) so what's on the
+/// screen and what will ring are never out of step.
+///
+/// "Done" is the [kEventDoneTag] tag (the server has no event status field):
+/// marking done persists the tag via PATCH, keeps the row's history, and
+/// cancels its alarms on the next sync.
 
 @ProviderFor(EventsController)
 final eventsControllerProvider = EventsControllerProvider._();
 
+/// Owns the upcoming-events list. Every successful load or mutation also
+/// re-syncs the device's LOCAL alarms ([EventAlarms.sync]) so what's on the
+/// screen and what will ring are never out of step.
+///
+/// "Done" is the [kEventDoneTag] tag (the server has no event status field):
+/// marking done persists the tag via PATCH, keeps the row's history, and
+/// cancels its alarms on the next sync.
 final class EventsControllerProvider
     extends $AsyncNotifierProvider<EventsController, List<EventRow>> {
+  /// Owns the upcoming-events list. Every successful load or mutation also
+  /// re-syncs the device's LOCAL alarms ([EventAlarms.sync]) so what's on the
+  /// screen and what will ring are never out of step.
+  ///
+  /// "Done" is the [kEventDoneTag] tag (the server has no event status field):
+  /// marking done persists the tag via PATCH, keeps the row's history, and
+  /// cancels its alarms on the next sync.
   EventsControllerProvider._()
     : super(
         from: null,
@@ -33,7 +54,15 @@ final class EventsControllerProvider
   EventsController create() => EventsController();
 }
 
-String _$eventsControllerHash() => r'0000000000000000000000000000000000000000';
+String _$eventsControllerHash() => r'1fa349f16e9cccde96145d6d513b406397a6959e';
+
+/// Owns the upcoming-events list. Every successful load or mutation also
+/// re-syncs the device's LOCAL alarms ([EventAlarms.sync]) so what's on the
+/// screen and what will ring are never out of step.
+///
+/// "Done" is the [kEventDoneTag] tag (the server has no event status field):
+/// marking done persists the tag via PATCH, keeps the row's history, and
+/// cancels its alarms on the next sync.
 
 abstract class _$EventsController extends $AsyncNotifier<List<EventRow>> {
   FutureOr<List<EventRow>> build();
@@ -53,11 +82,27 @@ abstract class _$EventsController extends $AsyncNotifier<List<EventRow>> {
   }
 }
 
+/// Keeps device alarms fresh WITHOUT the events screen ever being opened:
+/// on login and on every foreground resume it pulls the upcoming window and
+/// reconciles the local schedule (an event added from the web or by the
+/// assistant still rings on the phone). keepAlive + watched once from the app
+/// root, like the theme scheduler — nothing reads its (void) value.
+
 @ProviderFor(EventAlarmSync)
 final eventAlarmSyncProvider = EventAlarmSyncProvider._();
 
+/// Keeps device alarms fresh WITHOUT the events screen ever being opened:
+/// on login and on every foreground resume it pulls the upcoming window and
+/// reconciles the local schedule (an event added from the web or by the
+/// assistant still rings on the phone). keepAlive + watched once from the app
+/// root, like the theme scheduler — nothing reads its (void) value.
 final class EventAlarmSyncProvider
     extends $NotifierProvider<EventAlarmSync, void> {
+  /// Keeps device alarms fresh WITHOUT the events screen ever being opened:
+  /// on login and on every foreground resume it pulls the upcoming window and
+  /// reconciles the local schedule (an event added from the web or by the
+  /// assistant still rings on the phone). keepAlive + watched once from the app
+  /// root, like the theme scheduler — nothing reads its (void) value.
   EventAlarmSyncProvider._()
     : super(
         from: null,
@@ -85,7 +130,13 @@ final class EventAlarmSyncProvider
   }
 }
 
-String _$eventAlarmSyncHash() => r'0000000000000000000000000000000000000000';
+String _$eventAlarmSyncHash() => r'e628d504335a0140e66989f15cdf7cb1d2e33601';
+
+/// Keeps device alarms fresh WITHOUT the events screen ever being opened:
+/// on login and on every foreground resume it pulls the upcoming window and
+/// reconciles the local schedule (an event added from the web or by the
+/// assistant still rings on the phone). keepAlive + watched once from the app
+/// root, like the theme scheduler — nothing reads its (void) value.
 
 abstract class _$EventAlarmSync extends $Notifier<void> {
   void build();

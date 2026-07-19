@@ -8,12 +8,24 @@ part of 'pages_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
+/// flat rows — the screen builds the tree); [search] swaps in the server's
+/// filtered flat list (`q` matches title, content text, and summary) and an
+/// empty query restores the tree.
 
 @ProviderFor(PagesController)
 final pagesControllerProvider = PagesControllerProvider._();
 
+/// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
+/// flat rows — the screen builds the tree); [search] swaps in the server's
+/// filtered flat list (`q` matches title, content text, and summary) and an
+/// empty query restores the tree.
 final class PagesControllerProvider
     extends $AsyncNotifierProvider<PagesController, PagesIndex> {
+  /// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
+  /// flat rows — the screen builds the tree); [search] swaps in the server's
+  /// filtered flat list (`q` matches title, content text, and summary) and an
+  /// empty query restores the tree.
   PagesControllerProvider._()
     : super(
         from: null,
@@ -33,7 +45,12 @@ final class PagesControllerProvider
   PagesController create() => PagesController();
 }
 
-String _$pagesControllerHash() => r'0000000000000000000000000000000000000000';
+String _$pagesControllerHash() => r'9058e012a5be4e830b71d76a8d523c0cfa4604bf';
+
+/// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
+/// flat rows — the screen builds the tree); [search] swaps in the server's
+/// filtered flat list (`q` matches title, content text, and summary) and an
+/// empty query restores the tree.
 
 abstract class _$PagesController extends $AsyncNotifier<PagesIndex> {
   FutureOr<PagesIndex> build();
@@ -53,8 +70,16 @@ abstract class _$PagesController extends $AsyncNotifier<PagesIndex> {
   }
 }
 
+/// Everything the viewer needs for one page, fetched concurrently: metadata,
+/// the markdown export, and backlinks. Backlinks are best-effort (a failure
+/// yields an empty list rather than sinking the page).
+
 @ProviderFor(pageContent)
 final pageContentProvider = PageContentFamily._();
+
+/// Everything the viewer needs for one page, fetched concurrently: metadata,
+/// the markdown export, and backlinks. Backlinks are best-effort (a failure
+/// yields an empty list rather than sinking the page).
 
 final class PageContentProvider
     extends
@@ -64,6 +89,9 @@ final class PageContentProvider
           FutureOr<PageContent>
         >
     with $FutureModifier<PageContent>, $FutureProvider<PageContent> {
+  /// Everything the viewer needs for one page, fetched concurrently: metadata,
+  /// the markdown export, and backlinks. Backlinks are best-effort (a failure
+  /// yields an empty list rather than sinking the page).
   PageContentProvider._({
     required PageContentFamily super.from,
     required String super.argument,
@@ -87,8 +115,9 @@ final class PageContentProvider
 
   @$internal
   @override
-  $FutureProviderElement<PageContent> $createElement($ProviderPointer pointer) =>
-      $FutureProviderElement(pointer);
+  $FutureProviderElement<PageContent> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
 
   @override
   FutureOr<PageContent> create(Ref ref) {
@@ -107,7 +136,11 @@ final class PageContentProvider
   }
 }
 
-String _$pageContentHash() => r'0000000000000000000000000000000000000000';
+String _$pageContentHash() => r'39af72e426b4e485fb4bd1df73a5075526698716';
+
+/// Everything the viewer needs for one page, fetched concurrently: metadata,
+/// the markdown export, and backlinks. Backlinks are best-effort (a failure
+/// yields an empty list rather than sinking the page).
 
 final class PageContentFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<PageContent>, String> {
@@ -119,6 +152,10 @@ final class PageContentFamily extends $Family
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
+
+  /// Everything the viewer needs for one page, fetched concurrently: metadata,
+  /// the markdown export, and backlinks. Backlinks are best-effort (a failure
+  /// yields an empty list rather than sinking the page).
 
   PageContentProvider call(String pageId) =>
       PageContentProvider._(argument: pageId, from: this);

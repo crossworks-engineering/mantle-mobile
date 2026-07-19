@@ -8,12 +8,24 @@ part of 'tasks_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
+/// Owns the task list (first page, server-sorted: open before done, due date
+/// asc, then recency). Check-off and quick-add are optimistic — the list
+/// updates immediately, the server persists, and a failure reloads so the
+/// screen never lies for long.
 
 @ProviderFor(TasksController)
 final tasksControllerProvider = TasksControllerProvider._();
 
+/// Owns the task list (first page, server-sorted: open before done, due date
+/// asc, then recency). Check-off and quick-add are optimistic — the list
+/// updates immediately, the server persists, and a failure reloads so the
+/// screen never lies for long.
 final class TasksControllerProvider
     extends $AsyncNotifierProvider<TasksController, List<TaskRow>> {
+  /// Owns the task list (first page, server-sorted: open before done, due date
+  /// asc, then recency). Check-off and quick-add are optimistic — the list
+  /// updates immediately, the server persists, and a failure reloads so the
+  /// screen never lies for long.
   TasksControllerProvider._()
     : super(
         from: null,
@@ -33,7 +45,12 @@ final class TasksControllerProvider
   TasksController create() => TasksController();
 }
 
-String _$tasksControllerHash() => r'0000000000000000000000000000000000000000';
+String _$tasksControllerHash() => r'd9655004333b8c2254dbc56ef9add22dcee90f92';
+
+/// Owns the task list (first page, server-sorted: open before done, due date
+/// asc, then recency). Check-off and quick-add are optimistic — the list
+/// updates immediately, the server persists, and a failure reloads so the
+/// screen never lies for long.
 
 abstract class _$TasksController extends $AsyncNotifier<List<TaskRow>> {
   FutureOr<List<TaskRow>> build();

@@ -140,7 +140,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     itemBuilder: (context, i) {
                       if (overlay == 1 && i == 0) {
                         return streamingReply
-                            ? _StreamingBubble(theme: theme, active: active!)
+                            ? _StreamingBubble(theme: theme, active: active)
                             : _TypingBubble(
                                 theme: theme,
                                 agentSlug: widget.agentSlug,

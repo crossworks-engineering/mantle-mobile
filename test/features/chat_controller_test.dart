@@ -89,7 +89,7 @@ void main() {
     // Keep the autoDispose provider alive across the test's async gaps (a turn
     // streamed through pumpUntil yields to the loop, which would otherwise let
     // the provider dispose mid-flight).
-    c.listen(chatControllerProvider(_slug), (_, __) {});
+    c.listen(chatControllerProvider(_slug), (_, _) {});
     addTearDown(c.dispose);
     return c;
   }

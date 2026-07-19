@@ -48,4 +48,4 @@ final class JournalApiProvider
   }
 }
 
-String _$journalApiHash() => r'0000000000000000000000000000000000000000';
+String _$journalApiHash() => r'60a0148586d93c31b761fa08bc1dc7aac91306f4';
