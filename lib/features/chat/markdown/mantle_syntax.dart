@@ -19,6 +19,8 @@ const String kAsideTag = 'mantleAside';
 const String kColumnsTag = 'mantleColumns';
 const String kColumnTag = 'mantleColumn';
 const String kSpanTag = 'mantleSpan';
+const String kMathTag = 'mantleMath';
+const String kMathBlockTag = 'mantleMathBlock';
 
 const Set<String> _calloutVariants = {'info', 'success', 'warning', 'danger'};
 
@@ -107,6 +109,75 @@ const Set<String> _chartTokens = {
   'chart-4',
   'chart-5',
 };
+
+/// Inline `$…$` TeX. Guards against currency: the opening `$` must not be
+/// followed by whitespace or another `$`, the closing `$` must not be
+/// preceded by whitespace or followed by a digit ("$5 and $6" never
+/// matches), and digits-plus-punctuation-only content ("$5,000$"-shaped
+/// accidents) falls through to plain text. The TeX rides in the `tex`
+/// attribute RAW — never re-parsed as markdown.
+class MathInlineSyntax extends md.InlineSyntax {
+  MathInlineSyntax() : super(r'\$(?![\s$])((?:\\[\s\S]|[^$\n])+?)(?<!\s)\$(?!\d)');
+
+  static final RegExp _currencyish = RegExp(r'^[\d.,\s]+$');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final tex = match[1]!;
+    if (_currencyish.hasMatch(tex)) {
+      // Digits-and-punctuation only — treat as currency, NOT math. Emit the
+      // matched text verbatim and return true so the parser consumes it:
+      // returning false here would match-without-consuming and loop the
+      // inline parser forever (see ColorSpanInlineSyntax's warning above).
+      parser.addNode(md.Text(match[0]!));
+      return true;
+    }
+    parser.addNode(md.Element.empty(kMathTag)..attributes['tex'] = tex);
+    return true;
+  }
+}
+
+/// Block `$$ … $$` TeX — either one line (`$$E=mc^2$$`) or a fenced block
+/// closed by a line ending in `$$`. Unclosed blocks consume to the end of
+/// input (same forgiving behaviour as the container fences).
+class MathBlockSyntax extends md.BlockSyntax {
+  const MathBlockSyntax();
+
+  static final RegExp _open = RegExp(r'^\s*\$\$(.*)$');
+
+  @override
+  RegExp get pattern => _open;
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final first = _open.firstMatch(parser.current.content)!.group(1)!.trim();
+    parser.advance();
+
+    final lines = <String>[];
+    if (first.isNotEmpty) {
+      if (first.endsWith(r'$$')) {
+        // Single-line form: `$$E=mc^2$$`.
+        return md.Element.empty(kMathBlockTag)
+          ..attributes['tex'] =
+              first.substring(0, first.length - 2).trim();
+      }
+      lines.add(first);
+    }
+    while (!parser.isDone) {
+      final line = parser.current.content;
+      final trimmed = line.trim();
+      parser.advance();
+      if (trimmed == r'$$') break;
+      if (trimmed.endsWith(r'$$')) {
+        lines.add(trimmed.substring(0, trimmed.length - 2).trimRight());
+        break;
+      }
+      lines.add(line);
+    }
+    return md.Element.empty(kMathBlockTag)
+      ..attributes['tex'] = lines.join('\n').trim();
+  }
+}
 
 /// `==text==` → a `mantleSpan` with `highlight=default`. Inner markdown is
 /// parsed recursively (so emphasis inside still resolves at the AST level).

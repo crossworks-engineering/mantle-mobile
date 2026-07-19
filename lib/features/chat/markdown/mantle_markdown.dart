@@ -1,10 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../theme/mantle_theme.dart';
+import 'code_highlight.dart';
 import 'mantle_syntax.dart';
 
 /// Renders an assistant reply (Mantle's GFM-superset markdown) into themed
@@ -52,13 +54,20 @@ class MantleMarkdown extends StatelessWidget {
       // GitHub-flavored base (tables, strikethrough, task lists, autolinks).
       extensionSet: md.ExtensionSet.gitHubFlavored,
       // Mantle's custom dialect on top.
-      blockSyntaxes: const [MantleFenceSyntax()],
-      inlineSyntaxes: [HighlightInlineSyntax(), ColorSpanInlineSyntax()],
+      blockSyntaxes: const [MantleFenceSyntax(), MathBlockSyntax()],
+      inlineSyntaxes: [
+        HighlightInlineSyntax(),
+        ColorSpanInlineSyntax(),
+        MathInlineSyntax(),
+      ],
       builders: {
         kCalloutTag: _CalloutBuilder(),
         kAsideTag: _AsideBuilder(),
         kColumnsTag: _ColumnsBuilder(),
         kSpanTag: _SpanBuilder(),
+        kMathTag: _MathBuilder(block: false),
+        kMathBlockTag: _MathBuilder(block: true),
+        'code': _CodeBuilder(),
       },
       styleSheet: _styleSheet(theme, textColor ?? theme.colorScheme.foreground),
       onTapLink: (_, href, _) => _openLink(href),
@@ -82,6 +91,85 @@ Future<void> _openLink(String? href) async {
 
 int _chartIndex(String? token) =>
     int.tryParse((token ?? 'chart-1').split('-').last) ?? 1;
+
+// ── Math + code builders ───────────────────────────────────────────────────
+
+/// `$…$` / `$$…$$` TeX via flutter_math_fork. Inline math rides in the text
+/// line; block math centres on its own line and scrolls horizontally when
+/// wider than the bubble. A TeX parse error falls back to the raw source in
+/// monospace — never a crash, never silently dropped content.
+class _MathBuilder extends MarkdownElementBuilder {
+  _MathBuilder({required this.block});
+
+  final bool block;
+
+  @override
+  bool isBlockElement() => block;
+
+  @override
+  Widget visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final theme = ShadTheme.of(context);
+    final style = (preferredStyle ?? parentStyle ?? theme.textTheme.p)
+        .copyWith(color: parentStyle?.color ?? theme.colorScheme.foreground);
+    final tex = element.attributes['tex'] ?? '';
+    final math = Math.tex(
+      tex,
+      mathStyle: block ? MathStyle.display : MathStyle.text,
+      textStyle: style,
+      onErrorFallback: (_) => Text(
+        block ? '\$\$$tex\$\$' : '\$$tex\$',
+        style: style.copyWith(
+          fontFamily: 'monospace',
+          fontFamilyFallback: const ['Menlo', 'Courier New', 'monospace'],
+        ),
+      ),
+    );
+    if (!block) return math;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Center(child: math),
+      ),
+    );
+  }
+}
+
+/// Fenced code blocks with a ```language get themed syntax highlighting
+/// (see code_highlight.dart). Inline code and unknown languages return null
+/// so the package's default stylesheet rendering applies unchanged.
+class _CodeBuilder extends MarkdownElementBuilder {
+  @override
+  Widget? visitElementAfterWithContext(
+    BuildContext context,
+    md.Element element,
+    TextStyle? preferredStyle,
+    TextStyle? parentStyle,
+  ) {
+    final classAttr = element.attributes['class'] ?? '';
+    if (!classAttr.startsWith('language-')) return null; // inline code
+    final language = classAttr.substring('language-'.length);
+    final source = element.textContent.endsWith('\n')
+        ? element.textContent.substring(0, element.textContent.length - 1)
+        : element.textContent;
+    final base = (preferredStyle ?? parentStyle ?? const TextStyle()).copyWith(
+      fontFamily: 'monospace',
+      fontFamilyFallback: const ['Menlo', 'Courier New', 'monospace'],
+    );
+    final span = highlightedCode(context, source, language, baseStyle: base);
+    if (span == null) return null; // unknown language → default rendering
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Text.rich(span),
+    );
+  }
+}
 
 // ── Block builders ─────────────────────────────────────────────────────────
 
