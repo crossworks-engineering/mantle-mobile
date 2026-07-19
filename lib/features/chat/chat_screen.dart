@@ -129,7 +129,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           chat.messages
                               .any((m) => m.status == MessageStatus.sending));
                   final overlay = (streamingReply || showTyping) ? 1 : 0;
-                  return ListView.builder(
+                  final listView = ListView.builder(
                     controller: _scroll,
                     reverse: true,
                     padding: const EdgeInsets.symmetric(
@@ -169,6 +169,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             : null,
                       );
                     },
+                  );
+                  if (!chat.offline) return listView;
+                  // Serving from the on-device cache — say so, and offer a
+                  // manual reconnect.
+                  return Column(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        color: theme.colorScheme.secondary,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        child: Row(
+                          children: [
+                            Icon(LucideIcons.wifiOff,
+                                size: 14,
+                                color: theme.colorScheme.secondaryForeground),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Offline — showing saved messages',
+                                style: theme.textTheme.small.copyWith(
+                                  color:
+                                      theme.colorScheme.secondaryForeground,
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () =>
+                                  ref.read(_provider.notifier).refresh(),
+                              child: Text(
+                                'Retry',
+                                style: theme.textTheme.small.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(child: listView),
+                    ],
                   );
                 },
               ),
@@ -316,6 +357,7 @@ class _Bubble extends StatelessWidget {
     final fromUser = message.isFromUser;
     final failed = message.status == MessageStatus.failed;
     final sending = message.status == MessageStatus.sending;
+    final queued = message.status == MessageStatus.queued;
     // A reply whose turn is still running elsewhere (server `pending` — e.g.
     // the thread was opened mid-turn started from web/Telegram). Renders as a
     // working bubble; the controller polls until the row resolves.
@@ -381,7 +423,7 @@ class _Bubble extends StatelessWidget {
         children: [
           GestureDetector(
             onLongPress: () => _showActions(context),
-            child: Opacity(opacity: sending ? 0.6 : 1, child: bubble),
+            child: Opacity(opacity: sending || queued ? 0.6 : 1, child: bubble),
           ),
           // A failed USER send gets the retry affordance; a failed ASSISTANT
           // turn shows the server's failure reason instead (nothing to retry —
@@ -430,6 +472,23 @@ class _Bubble extends StatelessWidget {
                     : 'The turn failed.',
                 style:
                     theme.textTheme.small.copyWith(color: scheme.destructive),
+              ),
+            ),
+          if (queued)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.clock,
+                      size: 13, color: scheme.mutedForeground),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Queued — sends when back online',
+                    style: theme.textTheme.small
+                        .copyWith(color: scheme.mutedForeground),
+                  ),
+                ],
               ),
             ),
           // The turn's persisted record: the thought trail (collapsed behind a

@@ -12,7 +12,9 @@ enum MessageDirection { inbound, outbound }
 /// execution `status` (migration 0105): an outbound row is `pending` while the
 /// durable runner works — so a reload mid-turn renders a live "thinking"
 /// bubble — and `failed` when the turn errored (with [ChatMessage.error]).
-enum MessageStatus { sending, sent, pending, failed }
+/// [queued] is a LOCAL state: the send hit a dead network and sits in the
+/// offline outbox — it will replay (same idempotency key) on the next flush.
+enum MessageStatus { sending, sent, pending, failed, queued }
 
 /// A single assistant-thread message. Unified shape over the two Mantle
 /// payloads (history rows and turn inbound/outbound) — see [ChatApi].

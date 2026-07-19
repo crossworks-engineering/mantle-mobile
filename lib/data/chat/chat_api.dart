@@ -72,6 +72,22 @@ class ChatApi {
     int limit = 100,
     String? agentSlug,
   }) async {
+    final rows = await fetchHistoryRaw(
+      before: before,
+      limit: limit,
+      agentSlug: agentSlug,
+    );
+    return rows.map(messageFromHistory).toList();
+  }
+
+  /// The same page as [fetchHistory] but as the RAW server rows — the chat
+  /// repository caches these verbatim so offline reads re-parse through
+  /// [messageFromHistory] (cache and wire can never drift).
+  Future<List<Map<String, dynamic>>> fetchHistoryRaw({
+    DateTime? before,
+    int limit = 100,
+    String? agentSlug,
+  }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/api/assistant/messages',
       queryParameters: {
@@ -81,9 +97,7 @@ class ChatApi {
       },
     );
     final list = (res.data?['messages'] as List?) ?? const [];
-    return list
-        .map((e) => _messageFromHistory(e as Map<String, dynamic>))
-        .toList();
+    return [for (final e in list) (e as Map).cast<String, dynamic>()];
   }
 
   /// `GET /api/assistant/turn/stage` — the coarse label for the responder's
@@ -380,7 +394,9 @@ class ChatApi {
     return (res.data?['text'] as String?)?.trim() ?? '';
   }
 
-  ChatMessage _messageFromHistory(Map<String, dynamic> j) {
+  /// Parse one raw `/api/assistant/messages` row. Public because the offline
+  /// cache stores raw rows and re-parses them through this exact path.
+  ChatMessage messageFromHistory(Map<String, dynamic> j) {
     final attachments = ((j['attachments'] as List?) ?? const [])
         .map((e) => ChatAttachment.fromHistoryJson(e as Map<String, dynamic>))
         .whereType<ChatAttachment>()

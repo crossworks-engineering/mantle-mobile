@@ -48,4 +48,4 @@ final class ChatRepositoryProvider
   }
 }
 
-String _$chatRepositoryHash() => r'48717d6b89b40efbf72c6286fa1778423e4189f7';
+String _$chatRepositoryHash() => r'9919e0644868b97919b8d9a2d57117bfa1ecc61e';

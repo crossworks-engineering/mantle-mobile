@@ -43,4 +43,20 @@ class LocationPing {
         if (source != null) 'source': source,
         if (isMock != null) 'isMock': isMock,
       };
+
+  /// Inverse of [toJson] — used by the offline send-queue, which persists the
+  /// ping captured at compose time and replays it when the turn flushes.
+  static LocationPing fromJson(Map<String, dynamic> j) => LocationPing(
+        latitude: (j['latitude'] as num).toDouble(),
+        longitude: (j['longitude'] as num).toDouble(),
+        timestamp: DateTime.parse(j['timestamp'] as String),
+        accuracy: (j['accuracy'] as num?)?.toDouble(),
+        altitude: (j['altitude'] as num?)?.toDouble(),
+        altitudeAccuracy: (j['altitudeAccuracy'] as num?)?.toDouble(),
+        speed: (j['speed'] as num?)?.toDouble(),
+        heading: (j['heading'] as num?)?.toDouble(),
+        batteryPercent: (j['battery'] as num?)?.toInt(),
+        source: j['source'] as String?,
+        isMock: j['isMock'] as bool?,
+      );
 }

@@ -49,6 +49,10 @@ void main() {
     settings = MockSettingsRepository();
     // Location sharing off by default — send() reads this and attaches nothing.
     when(() => settings.locationSharing()).thenAnswer((_) async => false);
+    // Offline machinery: empty outbox and nothing to flush unless a test
+    // stubs otherwise.
+    when(() => repo.queuedTurns(any())).thenAnswer((_) async => const []);
+    when(() => repo.flushOutbox(any())).thenAnswer((_) async => 0);
   });
 
   // The controller now always passes a (real) cancelToken to repo.send, so the
@@ -100,8 +104,9 @@ void main() {
           before: any(named: 'before'),
           limit: any(named: 'limit'),
           agentSlug: any(named: 'agentSlug'),
-        )).thenAnswer((inv) async =>
-        inv.namedArguments[#before] == null ? latest : (older ?? latest));
+        )).thenAnswer((inv) async => HistoryPage(
+        messages:
+            inv.namedArguments[#before] == null ? latest : (older ?? latest)));
   }
 
   test('build loads the latest page; hasMore when a full page returns', () async {
@@ -287,7 +292,8 @@ void main() {
           limit: any(named: 'limit'),
           agentSlug: any(named: 'agentSlug'),
         )).thenAnswer(
-        (_) async => historyCalls++ == 0 ? <ChatMessage>[] : canonical);
+        (_) async => HistoryPage(
+            messages: historyCalls++ == 0 ? <ChatMessage>[] : canonical));
 
     whenSend().thenAnswer((_) async => const TurnAccepted('turn-1'));
     when(() => repo.streamTurn(any(), cancelToken: any(named: 'cancelToken')))
@@ -329,7 +335,8 @@ void main() {
           limit: any(named: 'limit'),
           agentSlug: any(named: 'agentSlug'),
         )).thenAnswer(
-        (_) async => historyCalls++ == 0 ? <ChatMessage>[] : canonical);
+        (_) async => HistoryPage(
+            messages: historyCalls++ == 0 ? <ChatMessage>[] : canonical));
 
     whenSend().thenAnswer((_) async => const TurnAccepted('turn-1'));
 
@@ -409,7 +416,8 @@ void main() {
           limit: any(named: 'limit'),
           agentSlug: any(named: 'agentSlug'),
         )).thenAnswer(
-        (_) async => historyCalls++ == 0 ? <ChatMessage>[] : canonical);
+        (_) async => HistoryPage(
+            messages: historyCalls++ == 0 ? <ChatMessage>[] : canonical));
 
     whenSend().thenAnswer((_) async => const TurnAccepted('turn-1'));
 

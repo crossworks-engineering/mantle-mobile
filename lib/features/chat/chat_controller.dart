@@ -22,7 +22,7 @@ part 'chat_controller.g.dart';
 /// The result of [ChatController.send] — lets the composer react: clear on
 /// [sent], leave the failed bubble on [failed], or restore the text for editing
 /// on [cancelled] (the user hit stop).
-enum SendOutcome { sent, failed, cancelled }
+enum SendOutcome { sent, failed, cancelled, queued }
 
 /// Where a streamed turn is in its lifecycle, driven by the terminal bus events.
 enum TurnPhase { streaming, done, error }
@@ -159,6 +159,7 @@ class ChatState {
     required this.hasMore,
     this.loadingMore = false,
     this.active,
+    this.offline = false,
   });
 
   final List<ChatMessage> messages;
@@ -166,18 +167,25 @@ class ChatState {
   final bool loadingMore;
   final ActiveTurn? active;
 
+  /// True when [messages] came from the on-device cache because the network
+  /// was unreachable — the screen shows an offline banner and the next
+  /// successful refetch clears it.
+  final bool offline;
+
   ChatState copyWith({
     List<ChatMessage>? messages,
     bool? hasMore,
     bool? loadingMore,
     ActiveTurn? active,
     bool clearActive = false,
+    bool? offline,
   }) {
     return ChatState(
       messages: messages ?? this.messages,
       hasMore: hasMore ?? this.hasMore,
       loadingMore: loadingMore ?? this.loadingMore,
       active: clearActive ? null : (active ?? this.active),
+      offline: offline ?? this.offline,
     );
   }
 }
@@ -243,18 +251,73 @@ class ChatController extends _$ChatController {
       if (next == AppLifecycleState.resumed &&
           prev != AppLifecycleState.resumed) {
         _onRemoteTurn();
+        unawaited(_flushQueuedTurns());
       }
     });
 
-    final page = await ref
-        .read(chatRepositoryProvider)
-        .history(limit: chatPageSize, agentSlug: agentSlug);
+    final repo = ref.read(chatRepositoryProvider);
+    final page = await repo.history(limit: chatPageSize, agentSlug: agentSlug);
+    final queued = await _queuedBubbles();
     // A reply may be mid-turn from another surface (its row is `pending`) —
-    // start the resolution poll once this state lands.
+    // start the resolution poll once this state lands. If anything sits in
+    // the offline outbox, try to flush it now too.
     Future.microtask(() {
-      if (ref.mounted) _watchPendingRows();
+      if (!ref.mounted) return;
+      _watchPendingRows();
+      if (queued.isNotEmpty) unawaited(_flushQueuedTurns());
     });
-    return ChatState(messages: page, hasMore: page.length >= chatPageSize);
+    return ChatState(
+      messages: [...page.messages, ...queued],
+      hasMore: page.messages.length >= chatPageSize,
+      offline: page.fromCache,
+    );
+  }
+
+  /// The offline outbox rendered as trailing `queued` bubbles (oldest-first,
+  /// after all server history — they haven't reached the server yet).
+  Future<List<ChatMessage>> _queuedBubbles() async {
+    final rows =
+        await ref.read(chatRepositoryProvider).queuedTurns(agentSlug);
+    return [
+      for (final t in rows)
+        ChatMessage(
+          id: 'queued-${t.id}',
+          direction: MessageDirection.inbound,
+          text: t.body,
+          createdAt: t.createdAt,
+          status: MessageStatus.queued,
+        ),
+    ];
+  }
+
+  /// Replay the offline outbox, then refetch so delivered turns (and their
+  /// replies) land as real history rows and the queued bubbles disappear.
+  Future<void> _flushQueuedTurns() async {
+    final repo = ref.read(chatRepositoryProvider);
+    final delivered = await repo.flushOutbox(agentSlug);
+    if (!ref.mounted || delivered == 0) return;
+    try {
+      final latest =
+          await repo.history(limit: chatPageSize, agentSlug: agentSlug);
+      final queued = await _queuedBubbles();
+      if (!ref.mounted) return;
+      final now = state.value;
+      if (now == null) return;
+      final history = [
+        for (final m in now.messages)
+          if (m.status != MessageStatus.queued) m,
+      ];
+      state = AsyncData(now.copyWith(
+        messages: [
+          ..._mergeLatest(now.copyWith(messages: history), latest.messages),
+          ...queued,
+        ],
+        offline: latest.fromCache,
+      ));
+      ref.invalidate(conversationsControllerProvider);
+    } catch (_) {
+      /* delivered turns will surface on the next refetch */
+    }
   }
 
   /// A turn landed on this thread elsewhere — pull the latest page and merge it
@@ -268,13 +331,16 @@ class ChatController extends _$ChatController {
     if (current.active != null) return; // a streamed turn reconciles itself
     if (current.messages.any((m) => m.status == MessageStatus.sending)) return;
     try {
-      final latest = await ref
-          .read(chatRepositoryProvider)
-          .history(limit: chatPageSize, agentSlug: agentSlug);
+      final latest = (await ref
+              .read(chatRepositoryProvider)
+              .history(limit: chatPageSize, agentSlug: agentSlug))
+          .messages;
       if (!ref.mounted) return;
       final now = state.value;
       if (now == null) return;
-      state = AsyncData(now.copyWith(messages: _mergeLatest(now, latest)));
+      state = AsyncData(
+        now.copyWith(messages: _mergeLatest(now, latest), offline: false),
+      );
       _watchPendingRows();
     } catch (_) {
       /* keep what we have; the next event or refresh reconciles */
@@ -318,9 +384,10 @@ class ChatController extends _$ChatController {
             return; // resolved
           }
           try {
-            final latest = await ref
-                .read(chatRepositoryProvider)
-                .history(limit: chatPageSize, agentSlug: agentSlug);
+            final latest = (await ref
+                    .read(chatRepositoryProvider)
+                    .history(limit: chatPageSize, agentSlug: agentSlug))
+                .messages;
             if (!ref.mounted) return;
             final now = state.value;
             if (now == null) return;
@@ -349,9 +416,10 @@ class ChatController extends _$ChatController {
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final oldest = current.messages.first.createdAt;
-      final older = await ref
-          .read(chatRepositoryProvider)
-          .history(before: oldest, limit: chatPageSize, agentSlug: agentSlug);
+      final older = (await ref
+              .read(chatRepositoryProvider)
+              .history(before: oldest, limit: chatPageSize, agentSlug: agentSlug))
+          .messages;
 
       final knownIds = current.messages.map((m) => m.id).toSet();
       final merged = [
@@ -363,6 +431,7 @@ class ChatController extends _$ChatController {
           messages: merged,
           hasMore: older.length >= chatPageSize,
           active: current.active,
+          offline: current.offline,
         ),
       );
     } catch (_) {
@@ -414,6 +483,28 @@ class ChatController extends _$ChatController {
             ? await ref.read(locationServiceProvider).currentPing()
             : null;
 
+    // Anything still queued from an offline spell goes first, so the
+    // conversation lands in the order it was written. If the network is
+    // still down this fails fast and the new turn will queue behind it.
+    try {
+      await ref.read(chatRepositoryProvider).flushOutbox(agentSlug);
+      // Rebuild queued bubbles from what actually remains, keeping them
+      // ahead of the new sending bubble (they're older).
+      final remaining = await _queuedBubbles();
+      final afterFlush = state.value;
+      if (afterFlush != null) {
+        state = AsyncData(afterFlush.copyWith(messages: [
+          for (final m in afterFlush.messages)
+            if (m.status != MessageStatus.queued && m.id != tempId) m,
+          ...remaining,
+          for (final m in afterFlush.messages)
+            if (m.id == tempId) m,
+        ]));
+      }
+    } catch (_) {
+      /* flush is best-effort here */
+    }
+
     final turnId = _newIdempotencyKey();
     _stopRequested = false;
     _replyRound = -1;
@@ -455,6 +546,21 @@ class ChatController extends _$ChatController {
       final current = state.value ?? base;
       final cancelled =
           e is DioException && e.type == DioExceptionType.cancel;
+      // Queued offline: the repository stored the turn (same idempotency
+      // key) — swap the optimistic bubble for a `queued` one that survives
+      // until a flush delivers it.
+      if (e is TurnQueuedOffline) {
+        final messages = [
+          for (final m in current.messages)
+            if (m.id == tempId)
+              m.copyWith(id: 'queued-${e.turnId}', status: MessageStatus.queued)
+            else
+              m,
+        ];
+        state =
+            AsyncData(current.copyWith(messages: messages, clearActive: true));
+        return SendOutcome.queued;
+      }
       // On cancel, drop the optimistic bubble entirely (the composer restores
       // the text); on a real failure, keep it and mark it failed.
       final messages = <ChatMessage>[];
@@ -639,9 +745,10 @@ class ChatController extends _$ChatController {
     List<ChatAttachment> localAttachments,
   ) async {
     try {
-      final latest = await ref
-          .read(chatRepositoryProvider)
-          .history(limit: chatPageSize, agentSlug: agentSlug);
+      final latest = (await ref
+              .read(chatRepositoryProvider)
+              .history(limit: chatPageSize, agentSlug: agentSlug))
+          .messages;
       final current = state.value;
       if (current == null || !ref.mounted) return;
       final inboundId = current.active?.inboundId;
@@ -747,7 +854,12 @@ class ChatController extends _$ChatController {
       final page = await ref
           .read(chatRepositoryProvider)
           .history(limit: chatPageSize, agentSlug: agentSlug);
-      return ChatState(messages: page, hasMore: page.length >= chatPageSize);
+      final queued = await _queuedBubbles();
+      return ChatState(
+        messages: [...page.messages, ...queued],
+        hasMore: page.messages.length >= chatPageSize,
+        offline: page.fromCache,
+      );
     });
   }
 }
