@@ -1,5 +1,12 @@
 import 'dart:convert';
 
+/// The highest `TurnEvent` schema version this client understands. The server
+/// bumps `v` (`TURN_EVENT_SCHEMA_VERSION` in `@mantle/client-types`) ONLY on a
+/// breaking change to an existing event's shape — additive fields and new
+/// types don't bump it — so an event with a higher `v` cannot be trusted to
+/// parse correctly and the stream should end (see `ChatApi.streamTurn`).
+const int kTurnEventSchemaVersion = 1;
+
 /// One live event for a streaming turn, delivered over
 /// `GET /api/assistant/turn/:id/stream` (Server-Sent Events). Mirrors
 /// `TurnEvent` in `@mantle/client-types` — the same shape the web client
@@ -49,6 +56,28 @@ class TurnEvent {
   /// `status`: the coarse "what it's doing now" line for the typing indicator.
   String? get label => data['label'] as String?;
 
+  /// `status`: stable id for the step this status describes — two events
+  /// sharing a stepId are the same step (grounded → narrated), so the trail
+  /// upserts by it instead of appending a duplicate line.
+  String? get stepId => data['stepId'] as String?;
+
+  /// `status`: coarse bucket for the icon/theme (web | compute | file | …).
+  String? get kind => data['kind'] as String?;
+
+  /// `tool-start` / `tool-end`: the tool's name.
+  String? get toolName => data['name'] as String?;
+
+  /// `tool-start`: optional one-line, secret-free preview of the call.
+  String? get toolSummary => data['summary'] as String?;
+
+  /// `tool-end`: whether the call succeeded (`false` = it errored — the turn
+  /// may still recover). Null on other event types.
+  bool? get toolOk => data['ok'] as bool?;
+
+  /// `done`: real output-token total for the whole turn, when the provider
+  /// reported usage. The client swaps its streamed estimate for this.
+  int? get tokensOut => (data['tokensOut'] as num?)?.toInt();
+
   /// `turn-start`: durable `assistant_messages` id of the reply row — the
   /// reconciliation handle for the finished turn.
   String? get outboundId => data['outboundId'] as String?;
@@ -70,6 +99,12 @@ class TurnEvent {
 
   /// Terminal events end the stream — the client reconciles to the durable row.
   bool get isTerminal => type == kTurnDone || type == kTurnError;
+
+  /// True when the server emits a newer, breaking schema than this client
+  /// speaks ([kTurnEventSchemaVersion]) — the event's payloads can't be
+  /// trusted, so the consumer must stop streaming and fall back to the
+  /// history reconcile (the same path as when streaming is dark).
+  bool get isUnsupportedSchema => v > kTurnEventSchemaVersion;
 
   /// Build from the decoded `data:` JSON. Returns null when the minimal frame
   /// (a string `type` + `turnId` + a numeric `seq`) is missing or malformed.
@@ -99,6 +134,8 @@ class TurnEvent {
 // Event `type` discriminators (mirrors `TurnEventType`).
 const String kTurnStart = 'turn-start';
 const String kTurnStatus = 'status';
+const String kTurnToolStart = 'tool-start';
+const String kTurnToolEnd = 'tool-end';
 const String kTurnReasoningDelta = 'reasoning-delta';
 const String kTurnTextDelta = 'text-delta';
 const String kTurnDone = 'done';

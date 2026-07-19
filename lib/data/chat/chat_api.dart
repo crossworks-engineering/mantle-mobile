@@ -11,6 +11,7 @@ import '../location/location_ping.dart';
 import 'chat_attachment.dart';
 import 'chat_message.dart';
 import 'turn_event.dart';
+import 'turn_meta.dart';
 
 part 'chat_api.g.dart';
 
@@ -229,6 +230,24 @@ class ChatApi {
         await for (final line in lines) {
           final event = parseTurnSseLine(line);
           if (event == null) continue;
+          if (event.isUnsupportedSchema) {
+            // The brain speaks a newer, breaking stream schema (`v` bumps only
+            // on breaking changes) — don't risk misrendering its payloads.
+            // Surface one status line saying why live streaming is off, then
+            // end the stream; the caller falls back to the history reconcile,
+            // exactly as when the streaming flag is dark.
+            yield TurnEvent(
+              v: kTurnEventSchemaVersion,
+              turnId: turnId,
+              seq: event.seq,
+              round: 0,
+              type: kTurnStatus,
+              data: const {
+                'label': 'Update the app to watch replies stream live',
+              },
+            );
+            return;
+          }
           lastSeq = event.seq;
           yield event;
           if (event.isTerminal) return; // turn finished — stop the stream
@@ -366,6 +385,14 @@ class ChatApi {
         .map((e) => ChatAttachment.fromHistoryJson(e as Map<String, dynamic>))
         .whereType<ChatAttachment>()
         .toList();
+    // Server execution status (migration 0105): 'pending' while the durable
+    // runner works, 'failed' when the turn errored, else complete. Missing on
+    // older brains → sent.
+    final status = switch (j['status']) {
+      'pending' => MessageStatus.pending,
+      'failed' => MessageStatus.failed,
+      _ => MessageStatus.sent,
+    };
     return ChatMessage(
       id: j['id'] as String,
       direction: j['direction'] == 'inbound'
@@ -374,7 +401,11 @@ class ChatApi {
       text: (j['text'] as String?) ?? '',
       createdAt: DateTime.parse(j['createdAt'] as String),
       model: j['model'] as String?,
+      status: status,
+      error: j['error'] as String?,
       attachments: attachments,
+      thoughts: ThoughtStep.listFrom(j['thoughts']),
+      toolStats: ToolStats.tryParse(j['toolStats']),
     );
   }
 }

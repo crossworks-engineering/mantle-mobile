@@ -72,6 +72,45 @@ void main() {
       expect(err.message, 'boom');
     });
 
+    test('reads status stepId/kind, tool name/ok, and done tokensOut', () {
+      final status = TurnEvent.tryParse({
+        'turnId': 't',
+        'seq': 1,
+        'type': 'status',
+        'data': {'label': 'Searching…', 'stepId': 's1', 'kind': 'web'},
+      });
+      expect(status!.stepId, 's1');
+      expect(status.kind, 'web');
+
+      final toolStart = TurnEvent.tryParse({
+        'turnId': 't',
+        'seq': 2,
+        'type': 'tool-start',
+        'data': {'name': 'web_search', 'summary': 'cars'},
+      });
+      expect(toolStart!.type, kTurnToolStart);
+      expect(toolStart.toolName, 'web_search');
+      expect(toolStart.toolSummary, 'cars');
+
+      final toolEnd = TurnEvent.tryParse({
+        'turnId': 't',
+        'seq': 3,
+        'type': 'tool-end',
+        'data': {'name': 'web_search', 'ok': false},
+      });
+      expect(toolEnd!.type, kTurnToolEnd);
+      expect(toolEnd.toolOk, isFalse);
+      expect(toolEnd.isTerminal, isFalse);
+
+      final done = TurnEvent.tryParse({
+        'turnId': 't',
+        'seq': 9,
+        'type': 'done',
+        'data': {'status': 'complete', 'tokensOut': 42},
+      });
+      expect(done!.tokensOut, 42);
+    });
+
     test('text-delta is not terminal', () {
       final e = TurnEvent.tryParse(
         {'turnId': 't', 'seq': 1, 'type': 'text-delta', 'data': {'text': 'hi'}},
@@ -85,6 +124,31 @@ void main() {
       expect(e!.v, 1);
       expect(e.round, 0);
       expect(e.data, isEmpty);
+    });
+
+    test('flags a newer breaking schema version as unsupported', () {
+      final current = TurnEvent.tryParse({
+        'v': kTurnEventSchemaVersion,
+        'turnId': 't',
+        'seq': 0,
+        'type': 'text-delta',
+        'data': {'text': 'hi'},
+      });
+      expect(current!.isUnsupportedSchema, isFalse);
+
+      // A missing v defaults to 1 — supported.
+      final unversioned =
+          TurnEvent.tryParse({'turnId': 't', 'seq': 0, 'type': 'done'});
+      expect(unversioned!.isUnsupportedSchema, isFalse);
+
+      final future = TurnEvent.tryParse({
+        'v': kTurnEventSchemaVersion + 1,
+        'turnId': 't',
+        'seq': 0,
+        'type': 'text-delta',
+        'data': {'text': 'hi'},
+      });
+      expect(future!.isUnsupportedSchema, isTrue);
     });
 
     test('coerces a numeric seq from a double', () {

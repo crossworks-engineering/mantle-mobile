@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:math';
 
 import 'package:dio/dio.dart' show CancelToken, DioException, DioExceptionType;
@@ -11,6 +12,7 @@ import '../../data/chat/chat_message.dart';
 import '../../data/chat/chat_repository.dart';
 import '../../data/chat/conversation_stream.dart';
 import '../../data/chat/turn_event.dart';
+import '../../data/chat/turn_meta.dart';
 import '../../data/location/location_service.dart';
 import '../conversations/conversations_controller.dart';
 import '../settings/settings_repository.dart';
@@ -34,16 +36,27 @@ enum TurnPhase { streaming, done, error }
 class ActiveTurn {
   const ActiveTurn({
     required this.turnId,
+    this.startedAt,
     this.outboundId,
     this.inboundId,
     this.reply = '',
-    this.stageLabel,
+    this.reasoning = '',
+    this.steps = const [],
+    this.toolsStarted = 0,
+    this.toolsDone = 0,
+    this.toolsFailed = 0,
+    this.tokens,
+    this.tokensApprox = true,
     this.phase = TurnPhase.streaming,
     this.error,
   });
 
   /// The turn id (= the idempotency-key) — the live-stream correlation id.
   final String turnId;
+
+  /// When the live subscription opened — the anchor each trail step's
+  /// [ThoughtStep.elapsedMs] is stamped against. Null in tests that don't care.
+  final DateTime? startedAt;
 
   /// Durable `assistant_messages` ids, captured from `turn-start`.
   final String? outboundId;
@@ -54,28 +67,71 @@ class ActiveTurn {
   /// final answer typing out). Advisory: the durable row reconciles it on done.
   final String reply;
 
-  /// Latest `status` label for the typing line (null before any status event).
-  final String? stageLabel;
+  /// Accumulated model reasoning from `reasoning-delta` — the real thinking
+  /// the model surfaced this turn. Accumulates across ALL rounds (unlike the
+  /// round-scoped reply). Ephemeral: never persisted, so a reload shows none.
+  final String reasoning;
+
+  /// Ordered, consecutive-deduped trail of `status` steps seen this turn,
+  /// upserted in place by [ThoughtStep.stepId] (a narrated line replaces its
+  /// grounded predecessor). Becomes the "thought process" record the durable
+  /// row persists. Mirrors the web's `trail`.
+  final List<ThoughtStep> steps;
+
+  /// Live tool tally from `tool-start` / `tool-end` — drives the
+  /// "N tools · M failed" footer while the turn runs. (The persisted
+  /// [ToolStats] on the durable row is the authoritative record.)
+  final int toolsStarted;
+  final int toolsDone;
+  final int toolsFailed;
+
+  /// Output tokens so far: a chars/4 ESTIMATE of all streamed output (reply +
+  /// reasoning, across rounds) while the turn runs, swapped for the real
+  /// `tokensOut` from `done` when the runner reports it. Null before output.
+  final int? tokens;
+
+  /// True while [tokens] is the streamed estimate; false once it's real.
+  final bool tokensApprox;
 
   final TurnPhase phase;
 
   /// Failure reason once [phase] is [TurnPhase.error]; null otherwise.
   final String? error;
 
+  /// Latest status label — the live typing line (null before any status).
+  String? get stageLabel => steps.isEmpty ? null : steps.last.label;
+
+  /// Tools currently running (started but not yet ended).
+  int get toolsRunning =>
+      toolsStarted > toolsDone ? toolsStarted - toolsDone : 0;
+
   ActiveTurn copyWith({
     String? outboundId,
     String? inboundId,
     String? reply,
-    String? stageLabel,
+    String? reasoning,
+    List<ThoughtStep>? steps,
+    int? toolsStarted,
+    int? toolsDone,
+    int? toolsFailed,
+    int? tokens,
+    bool? tokensApprox,
     TurnPhase? phase,
     String? error,
   }) {
     return ActiveTurn(
       turnId: turnId,
+      startedAt: startedAt,
       outboundId: outboundId ?? this.outboundId,
       inboundId: inboundId ?? this.inboundId,
       reply: reply ?? this.reply,
-      stageLabel: stageLabel ?? this.stageLabel,
+      reasoning: reasoning ?? this.reasoning,
+      steps: steps ?? this.steps,
+      toolsStarted: toolsStarted ?? this.toolsStarted,
+      toolsDone: toolsDone ?? this.toolsDone,
+      toolsFailed: toolsFailed ?? this.toolsFailed,
+      tokens: tokens ?? this.tokens,
+      tokensApprox: tokensApprox ?? this.tokensApprox,
       phase: phase ?? this.phase,
       error: error ?? this.error,
     );
@@ -152,6 +208,14 @@ class ChatController extends _$ChatController {
   /// buffer so only the final answer (after tool calls) types out.
   int _replyRound = -1;
 
+  /// Running character count of ALL streamed output this turn (visible reply +
+  /// reasoning, across rounds) — the chars/4 live token estimate. Kept outside
+  /// [ActiveTurn] so the round-scoped reply reset doesn't shrink it.
+  int _outChars = 0;
+
+  /// True while [_watchPendingRows] is looping (one poll per thread at a time).
+  bool _pollingPending = false;
+
   @override
   Future<ChatState> build(String agentSlug) async {
     // Tear the live turn stream down when the thread leaves the screen; the
@@ -185,13 +249,19 @@ class ChatController extends _$ChatController {
     final page = await ref
         .read(chatRepositoryProvider)
         .history(limit: chatPageSize, agentSlug: agentSlug);
+    // A reply may be mid-turn from another surface (its row is `pending`) —
+    // start the resolution poll once this state lands.
+    Future.microtask(() {
+      if (ref.mounted) _watchPendingRows();
+    });
     return ChatState(messages: page, hasMore: page.length >= chatPageSize);
   }
 
-  /// A turn landed on this thread elsewhere — pull the latest page and append
-  /// any messages we don't already have. Skipped while an optimistic send is in
-  /// flight (that path reconciles itself, and refetching mid-send could briefly
-  /// double the user's bubble).
+  /// A turn landed on this thread elsewhere — pull the latest page and merge it
+  /// in: known rows are REPLACED with their latest version (a `pending` reply
+  /// resolves to its final text/status) and unknown rows appended. Skipped
+  /// while an optimistic send is in flight (that path reconciles itself, and
+  /// refetching mid-send could briefly double the user's bubble).
   Future<void> _onRemoteTurn() async {
     final current = state.value;
     if (current == null) return;
@@ -201,15 +271,68 @@ class ChatController extends _$ChatController {
       final latest = await ref
           .read(chatRepositoryProvider)
           .history(limit: chatPageSize, agentSlug: agentSlug);
-      final known = current.messages.map((m) => m.id).toSet();
-      final fresh = latest.where((m) => !known.contains(m.id)).toList();
-      if (fresh.isEmpty || !ref.mounted) return;
-      final merged = [...current.messages, ...fresh]
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-      state = AsyncData(current.copyWith(messages: merged));
+      if (!ref.mounted) return;
+      final now = state.value;
+      if (now == null) return;
+      state = AsyncData(now.copyWith(messages: _mergeLatest(now, latest)));
+      _watchPendingRows();
     } catch (_) {
       /* keep what we have; the next event or refresh reconciles */
     }
+  }
+
+  /// Merge a freshly-fetched latest page into the thread: replace known rows
+  /// with their latest version, append unknown ones, keep chronological order.
+  List<ChatMessage> _mergeLatest(ChatState current, List<ChatMessage> latest) {
+    final byId = {for (final m in latest) m.id: m};
+    final merged = [
+      for (final m in current.messages) byId.remove(m.id) ?? m,
+      ...byId.values,
+    ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return merged;
+  }
+
+  /// The thread shows a server-`pending` reply whose turn is running elsewhere
+  /// (another device, web, Telegram — or one we lost the stream for). The
+  /// completion UPDATE fires no `conversation_changed` ping (the trigger is
+  /// insert-only), so poll the latest page at a gentle cadence until the row
+  /// resolves. Bounded (~2 min) — the foreground-resume refetch is the
+  /// backstop beyond that.
+  void _watchPendingRows() {
+    if (_pollingPending) return;
+    final hasPending = state.value?.messages
+            .any((m) => m.status == MessageStatus.pending) ??
+        false;
+    if (!hasPending) return;
+    _pollingPending = true;
+    unawaited(() async {
+      try {
+        for (var i = 0; i < 40; i++) {
+          await Future<void>.delayed(const Duration(seconds: 3));
+          if (!ref.mounted) return;
+          final current = state.value;
+          if (current == null) return;
+          if (current.active != null) continue; // live turn reconciles itself
+          if (!current.messages
+              .any((m) => m.status == MessageStatus.pending)) {
+            return; // resolved
+          }
+          try {
+            final latest = await ref
+                .read(chatRepositoryProvider)
+                .history(limit: chatPageSize, agentSlug: agentSlug);
+            if (!ref.mounted) return;
+            final now = state.value;
+            if (now == null) return;
+            state = AsyncData(now.copyWith(messages: _mergeLatest(now, latest)));
+          } catch (_) {
+            /* transient — keep polling */
+          }
+        }
+      } finally {
+        _pollingPending = false;
+      }
+    }());
   }
 
   /// Fetch the next older page and prepend it. No-op while one is in flight,
@@ -294,6 +417,7 @@ class ChatController extends _$ChatController {
     final turnId = _newIdempotencyKey();
     _stopRequested = false;
     _replyRound = -1;
+    _outChars = 0;
     final postCancel = CancelToken();
     _postCancel = postCancel;
 
@@ -359,7 +483,9 @@ class ChatController extends _$ChatController {
     final current = state.value;
     if (current == null) return SendOutcome.sent;
     // Switch the UI from the optimistic bubble to the live typing/streaming view.
-    state = AsyncData(current.copyWith(active: ActiveTurn(turnId: turnId)));
+    state = AsyncData(current.copyWith(
+      active: ActiveTurn(turnId: turnId, startedAt: DateTime.now()),
+    ));
 
     final streamCancel = CancelToken();
     _streamCancel = streamCancel;
@@ -410,29 +536,98 @@ class ChatController extends _$ChatController {
       case kTurnStatus:
         final label = ev.label;
         if (label == null || label.isEmpty) return;
-        next = active.copyWith(stageLabel: label);
+        final steps = _upsertStep(active, ev.stepId, ev.kind ?? 'tool', label);
+        if (steps == null) return; // no change (duplicate label)
+        next = active.copyWith(steps: steps);
+      case kTurnToolStart:
+        next = active.copyWith(toolsStarted: active.toolsStarted + 1);
+      case kTurnToolEnd:
+        next = active.copyWith(
+          toolsDone: active.toolsDone + 1,
+          toolsFailed:
+              ev.toolOk == false ? active.toolsFailed + 1 : active.toolsFailed,
+        );
+      case kTurnReasoningDelta:
+        final text = ev.text;
+        if (text == null || text.isEmpty) return;
+        // Surface the real reasoning (the collapsible "Thinking" trace) AND
+        // count it toward the output estimate — it's billed output, kept out
+        // of the visible reply buffer. Accumulates across rounds.
+        _outChars += text.length;
+        next = active.copyWith(
+          reasoning: active.reasoning + text,
+          tokens: _estimateTokens(_outChars),
+        );
       case kTurnTextDelta:
         final text = ev.text;
         if (text == null) return;
+        _outChars += text.length;
+        final tokens = _estimateTokens(_outChars);
         if (ev.round > _replyRound) {
           // A fresh round (the final answer after tool calls) — replace the
           // buffer so intermediate-round text isn't shown beneath it.
           _replyRound = ev.round;
-          next = active.copyWith(reply: text);
+          next = active.copyWith(reply: text, tokens: tokens);
         } else {
-          next = active.copyWith(reply: active.reply + text);
+          next = active.copyWith(reply: active.reply + text, tokens: tokens);
         }
       case kTurnDone:
-        next = active.copyWith(phase: TurnPhase.done);
+        // Swap the streamed estimate for the real output-token total when the
+        // runner reports one (>0); otherwise keep the estimate.
+        final real = ev.tokensOut;
+        next = real != null && real > 0
+            ? active.copyWith(
+                phase: TurnPhase.done, tokens: real, tokensApprox: false)
+            : active.copyWith(phase: TurnPhase.done);
       case kTurnError:
         next = active.copyWith(
           phase: TurnPhase.error,
           error: ev.message ?? 'The turn failed.',
         );
       default:
-        return; // reasoning-delta / tool-start / tool-end — not shown here
+        return; // an event type this client doesn't know — ignore (additive)
     }
     state = AsyncData(current.copyWith(active: next));
+  }
+
+  /// ~4 chars/token — the standard English heuristic, good enough for a live
+  /// readout the real `tokensOut` supersedes the moment the turn finishes.
+  static int _estimateTokens(int chars) => max(1, (chars / 4).round());
+
+  /// Fold one `status` event into the trail. Upgrade in place when [stepId]
+  /// matches an existing step (grounded → narrated, keeping the original
+  /// elapsed stamp); otherwise append, collapsing a consecutive duplicate
+  /// label. Returns null when the trail is unchanged. Mirrors the web.
+  List<ThoughtStep>? _upsertStep(
+    ActiveTurn active,
+    String? stepId,
+    String kind,
+    String label,
+  ) {
+    final steps = active.steps;
+    if (stepId != null) {
+      final i = steps.indexWhere((s) => s.stepId == stepId);
+      if (i >= 0) {
+        if (steps[i].label == label) return null;
+        return [
+          for (var j = 0; j < steps.length; j++)
+            if (j == i) steps[j].upgraded(label: label, kind: kind) else steps[j],
+        ];
+      }
+    }
+    if (steps.isNotEmpty && steps.last.label == label) return null;
+    final startedAt = active.startedAt;
+    return [
+      ...steps,
+      ThoughtStep(
+        stepId: stepId,
+        kind: kind,
+        label: label,
+        elapsedMs: startedAt == null
+            ? null
+            : DateTime.now().difference(startedAt).inMilliseconds,
+      ),
+    ];
   }
 
   /// The streamed turn finished — pull the canonical rows (the durable inbound +

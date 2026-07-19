@@ -1,11 +1,18 @@
 import 'chat_attachment.dart';
+import 'turn_meta.dart';
 
 /// Who a message is from. Mirrors Mantle's `direction`:
 /// `inbound` = from the user (us), `outbound` = from the assistant.
 enum MessageDirection { inbound, outbound }
 
-/// Delivery state for an outgoing message (optimistic UI).
-enum MessageStatus { sending, sent, failed }
+/// Delivery / execution state for a message.
+///
+/// [sending] and [failed]-on-inbound are LOCAL optimistic states for a message
+/// we're posting. [pending] and [failed]-on-outbound mirror the server's
+/// execution `status` (migration 0105): an outbound row is `pending` while the
+/// durable runner works — so a reload mid-turn renders a live "thinking"
+/// bubble — and `failed` when the turn errored (with [ChatMessage.error]).
+enum MessageStatus { sending, sent, pending, failed }
 
 /// A single assistant-thread message. Unified shape over the two Mantle
 /// payloads (history rows and turn inbound/outbound) — see [ChatApi].
@@ -17,7 +24,10 @@ class ChatMessage {
     required this.createdAt,
     this.model,
     this.status = MessageStatus.sent,
+    this.error,
     this.attachments = const [],
+    this.thoughts = const [],
+    this.toolStats,
   });
 
   final String id;
@@ -28,12 +38,25 @@ class ChatMessage {
   /// The model that produced an assistant reply (outbound only); null otherwise.
   final String? model;
 
-  /// Only meaningful for an outgoing user message we're sending optimistically.
+  /// Local optimistic state for outgoing sends, or the server's execution
+  /// status for history rows (see [MessageStatus]).
   final MessageStatus status;
+
+  /// Human-readable failure reason when [status] is [MessageStatus.failed] on
+  /// an outbound row; null otherwise.
+  final String? error;
 
   /// Images / files riding on this message — shown inline (images) or as a
   /// labeled chip (everything else). See [ChatAttachment].
   final List<ChatAttachment> attachments;
+
+  /// Persisted thought trail (outbound rows, when the brain keeps it) — the
+  /// "Thought process" record that survives a reload.
+  final List<ThoughtStep> thoughts;
+
+  /// The turn's persisted tool-outcome tally ("N tool calls · M failed");
+  /// null when the turn ran no tools or the brain predates it.
+  final ToolStats? toolStats;
 
   bool get isFromUser => direction == MessageDirection.inbound;
 
@@ -50,7 +73,10 @@ class ChatMessage {
       createdAt: createdAt,
       model: model,
       status: status ?? this.status,
+      error: error,
       attachments: attachments ?? this.attachments,
+      thoughts: thoughts,
+      toolStats: toolStats,
     );
   }
 }

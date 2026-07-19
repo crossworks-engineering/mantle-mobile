@@ -10,11 +10,13 @@ import '../agents/agent_avatar.dart';
 import '../agents/agent_controller.dart';
 import '../conversations/conversations_controller.dart';
 import '../../data/chat/chat_message.dart';
+import '../../data/chat/turn_meta.dart';
 import 'attachment_view.dart';
 import 'chat_composer.dart';
 import 'chat_controller.dart';
 import 'markdown/mantle_markdown.dart';
 import 'turn_stage_controller.dart';
+import 'turn_trail.dart';
 
 /// One agent's conversation: history on top, a composer at the bottom.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -138,11 +140,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     itemBuilder: (context, i) {
                       if (overlay == 1 && i == 0) {
                         return streamingReply
-                            ? _StreamingBubble(theme: theme, text: active.reply)
+                            ? _StreamingBubble(theme: theme, active: active!)
                             : _TypingBubble(
                                 theme: theme,
                                 agentSlug: widget.agentSlug,
-                                label: active?.stageLabel,
+                                active: active,
                               );
                       }
                       final adjusted = i - overlay;
@@ -314,6 +316,10 @@ class _Bubble extends StatelessWidget {
     final fromUser = message.isFromUser;
     final failed = message.status == MessageStatus.failed;
     final sending = message.status == MessageStatus.sending;
+    // A reply whose turn is still running elsewhere (server `pending` — e.g.
+    // the thread was opened mid-turn started from web/Telegram). Renders as a
+    // working bubble; the controller polls until the row resolves.
+    final pendingReply = !fromUser && message.status == MessageStatus.pending;
 
     final hasText = message.text.trim().isNotEmpty;
     // User messages are plain text (they typed plain text); assistant replies
@@ -337,6 +343,18 @@ class _Bubble extends StatelessWidget {
                     theme.textTheme.p.copyWith(color: scheme.primaryForeground),
               )
             : MantleMarkdown(message.text, textColor: scheme.foreground),
+      if (pendingReply)
+        Padding(
+          padding: EdgeInsets.only(top: hasText ? 6 : 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _TypingDots(color: scheme.mutedForeground),
+              const SizedBox(width: 10),
+              Text('Still working…', style: theme.textTheme.muted),
+            ],
+          ),
+        ),
     ];
 
     final bubble = Container(
@@ -365,7 +383,10 @@ class _Bubble extends StatelessWidget {
             onLongPress: () => _showActions(context),
             child: Opacity(opacity: sending ? 0.6 : 1, child: bubble),
           ),
-          if (failed)
+          // A failed USER send gets the retry affordance; a failed ASSISTANT
+          // turn shows the server's failure reason instead (nothing to retry —
+          // the user rephrases and sends again).
+          if (failed && fromUser)
             Padding(
               padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
               child: Row(
@@ -400,6 +421,42 @@ class _Bubble extends StatelessWidget {
                 ],
               ),
             ),
+          if (failed && !fromUser)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Text(
+                message.error?.isNotEmpty == true
+                    ? 'Turn failed: ${message.error}'
+                    : 'The turn failed.',
+                style:
+                    theme.textTheme.small.copyWith(color: scheme.destructive),
+              ),
+            ),
+          // The turn's persisted record: the thought trail (collapsed behind a
+          // disclosure) and the deterministic tool tally. Mirrors the web's
+          // "Thought process" + "N tool calls" footer under each reply.
+          if (!fromUser &&
+              (message.thoughts.isNotEmpty || message.toolStats != null))
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (message.thoughts.isNotEmpty)
+                    TrailDisclosure(
+                      title:
+                          'Thought process · ${message.thoughts.length} ${message.thoughts.length == 1 ? 'step' : 'steps'}',
+                      child:
+                          TurnTrail(steps: message.thoughts, emphasizeLast: false),
+                    ),
+                  if (message.toolStats != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: ToolStatsLine(stats: message.toolStats!),
+                    ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -408,13 +465,14 @@ class _Bubble extends StatelessWidget {
 
 /// The assistant reply typing out live, token by token (streaming path). Same
 /// muted assistant bubble as the final reply (so the swap to the durable
-/// [_Bubble] on `done` is seamless), rendered with our markdown, plus animated
-/// dots to signal it's still generating.
+/// [_Bubble] on `done` is seamless): an optional live "Thinking" trace above,
+/// the markdown reply, then a footer with the typing dots, the live token
+/// estimate, and the tool tally.
 class _StreamingBubble extends StatelessWidget {
-  const _StreamingBubble({required this.theme, required this.text});
+  const _StreamingBubble({required this.theme, required this.active});
 
   final ShadThemeData theme;
-  final String text;
+  final ActiveTurn active;
 
   @override
   Widget build(BuildContext context) {
@@ -436,11 +494,22 @@ class _StreamingBubble extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (active.reasoning.isNotEmpty) ...[
+                TrailDisclosure(
+                  title: 'Thinking',
+                  child: Text(
+                    active.reasoning,
+                    style: theme.textTheme.muted.copyWith(fontSize: 12),
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               // Selection is off mid-stream (it would fight the per-token
               // rebuild); the reconciled durable bubble is selectable.
-              MantleMarkdown(text, textColor: scheme.foreground, selectable: false),
+              MantleMarkdown(active.reply,
+                  textColor: scheme.foreground, selectable: false),
               const SizedBox(height: 6),
-              _TypingDots(color: scheme.mutedForeground),
+              _LiveTurnFooter(theme: theme, active: active),
             ],
           ),
         ),
@@ -450,47 +519,127 @@ class _StreamingBubble extends StatelessWidget {
 }
 
 /// The assistant "typing" bubble shown while a reply is being produced before
-/// any visible text: animated dots plus the responder's current stage label
-/// ("Thinking…", "Searching the web…"). [label] is the live label from the SSE
-/// bus on a streamed turn; when null (the legacy path) it falls back to polling
-/// [turnStageProvider]. Either way it's null between mapped steps — dots only.
+/// any visible text. On a streamed turn ([active] non-null) it shows the live
+/// thought trail — each step with its kind icon and elapsed stamp — plus the
+/// tool tally; on the legacy path it falls back to polling [turnStageProvider]
+/// for a single stage label. Dots only between mapped steps.
 class _TypingBubble extends ConsumerWidget {
   const _TypingBubble({
     required this.theme,
     required this.agentSlug,
-    this.label,
+    this.active,
   });
 
   final ShadThemeData theme;
   final String agentSlug;
-  final String? label;
+  final ActiveTurn? active;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = theme.colorScheme;
-    // Streamed turns carry their own label; only the legacy path polls.
-    final label = this.label ?? ref.watch(turnStageProvider(agentSlug)).value;
+    final active = this.active;
+    final steps = active?.steps ?? const <ThoughtStep>[];
+    // Streamed turns carry their own trail; only the legacy path polls.
+    final polledLabel = active == null
+        ? ref.watch(turnStageProvider(agentSlug)).value
+        : null;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width * 0.78,
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: scheme.muted,
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TypingDots(color: scheme.mutedForeground),
-              if (label != null) ...[
-                const SizedBox(width: 10),
-                Text(label, style: theme.textTheme.muted),
+              if (steps.isNotEmpty) ...[
+                TurnTrail(steps: steps),
+                const SizedBox(height: 8),
               ],
+              if (active != null && active.reasoning.isNotEmpty) ...[
+                TrailDisclosure(
+                  title: 'Thinking',
+                  child: Text(
+                    active.reasoning,
+                    style: theme.textTheme.muted.copyWith(fontSize: 12),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _TypingDots(color: scheme.mutedForeground),
+                  if (polledLabel != null) ...[
+                    const SizedBox(width: 10),
+                    Text(polledLabel, style: theme.textTheme.muted),
+                  ],
+                  if (active != null) _LiveTallyText(theme: theme, active: active),
+                ],
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Footer for the live streaming bubble: dots + the token readout + tool tally.
+class _LiveTurnFooter extends StatelessWidget {
+  const _LiveTurnFooter({required this.theme, required this.active});
+
+  final ShadThemeData theme;
+  final ActiveTurn active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _TypingDots(color: theme.colorScheme.mutedForeground),
+        _LiveTallyText(theme: theme, active: active),
+      ],
+    );
+  }
+}
+
+/// "· ≈128 tokens · 3 tools (1 failed)" — the live tally riding beside the
+/// typing dots. Empty until there's something to say.
+class _LiveTallyText extends StatelessWidget {
+  const _LiveTallyText({required this.theme, required this.active});
+
+  final ShadThemeData theme;
+  final ActiveTurn active;
+
+  @override
+  Widget build(BuildContext context) {
+    final parts = <String>[];
+    final tokens = active.tokens;
+    if (tokens != null) {
+      parts.add(active.tokensApprox ? '≈$tokens tokens' : '$tokens tokens');
+    }
+    if (active.toolsStarted > 0) {
+      final tools =
+          '${active.toolsStarted} ${active.toolsStarted == 1 ? 'tool' : 'tools'}';
+      parts.add(
+        active.toolsFailed > 0 ? '$tools (${active.toolsFailed} failed)' : tools,
+      );
+    }
+    if (parts.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 10),
+      child: Text(
+        parts.join(' · '),
+        style: theme.textTheme.muted.copyWith(fontSize: 11),
       ),
     );
   }

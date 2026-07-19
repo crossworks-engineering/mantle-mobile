@@ -314,6 +314,87 @@ void main() {
     verifyNever(() => repo.cancelTurn(any()));
   });
 
+  test(
+      'streaming: trail upserts by stepId, tools tally, reasoning + token estimate',
+      () async {
+    final canonical = [
+      _msg('i1', MessageDirection.inbound, 'hey',
+          at: DateTime(2026, 1, 1, 10)),
+      _msg('o1', MessageDirection.outbound, 'Hi',
+          at: DateTime(2026, 1, 1, 10, 0, 1)),
+    ];
+    var historyCalls = 0;
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer(
+        (_) async => historyCalls++ == 0 ? <ChatMessage>[] : canonical);
+
+    whenSend().thenAnswer((_) async => const TurnAccepted('turn-1'));
+
+    final events = StreamController<TurnEvent>();
+    addTearDown(() => events.close());
+    when(() => repo.streamTurn(any(), cancelToken: any(named: 'cancelToken')))
+        .thenAnswer((_) => events.stream);
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final notifier = c.read(chatControllerProvider(_slug).notifier);
+    final sendFuture = notifier.send('hey');
+
+    // A grounded status line starts the trail…
+    events.add(_ev(0, 'status',
+        {'label': 'Working on it…', 'stepId': 's1', 'kind': 'compute'}));
+    await pumpUntil(c, (s) => s.active?.steps.length == 1);
+
+    // …and its narrated upgrade replaces it IN PLACE (same stepId).
+    events.add(_ev(1, 'status',
+        {'label': 'Crunching your numbers…', 'stepId': 's1', 'kind': 'compute'}));
+    await pumpUntil(
+        c, (s) => s.active?.steps.first.label == 'Crunching your numbers…');
+    var active = c.read(chatControllerProvider(_slug)).value!.active!;
+    expect(active.steps, hasLength(1));
+    expect(active.stageLabel, 'Crunching your numbers…');
+
+    // A consecutive duplicate label collapses; a distinct step appends.
+    events.add(_ev(2, 'status', {'label': 'Crunching your numbers…'}));
+    events.add(_ev(3, 'status', {'label': 'Searching the web…', 'kind': 'web'}));
+    await pumpUntil(c, (s) => s.active?.steps.length == 2);
+    active = c.read(chatControllerProvider(_slug)).value!.active!;
+    expect(active.steps.map((s) => s.label),
+        ['Crunching your numbers…', 'Searching the web…']);
+
+    // Tool events feed the live tally (ok:false = a failure).
+    events.add(_ev(4, 'tool-start', {'name': 'web_search'}));
+    events.add(_ev(5, 'tool-end', {'name': 'web_search', 'ok': false}));
+    await pumpUntil(c, (s) => s.active?.toolsFailed == 1);
+    active = c.read(chatControllerProvider(_slug)).value!.active!;
+    expect(active.toolsStarted, 1);
+    expect(active.toolsDone, 1);
+    expect(active.toolsRunning, 0);
+
+    // Reasoning accumulates (kept out of the reply) and counts toward the
+    // chars/4 token estimate: 'pondering...' = 12 chars → 3.
+    events.add(_ev(6, 'reasoning-delta', {'text': 'pondering...'}));
+    await pumpUntil(c, (s) => s.active?.reasoning == 'pondering...');
+    active = c.read(chatControllerProvider(_slug)).value!.active!;
+    expect(active.reply, isEmpty);
+    expect(active.tokens, 3);
+    expect(active.tokensApprox, isTrue);
+
+    // The visible reply streams; done reports the real token total.
+    events.add(_ev(7, 'text-delta', {'text': 'Hi'}, round: 1));
+    await pumpUntil(c, (s) => s.active?.reply == 'Hi');
+    events.add(_ev(8, 'done', {'status': 'complete', 'tokensOut': 42}));
+
+    final outcome = await sendFuture;
+    expect(outcome, SendOutcome.sent);
+    final state = c.read(chatControllerProvider(_slug)).value!;
+    expect(state.active, isNull); // reconciled — the streaming view is cleared
+    expect(state.messages.map((m) => m.id), ['i1', 'o1']);
+  });
+
   test('streaming: stop aborts server-side, keeps the partial, returns cancelled',
       () async {
     final canonical = [
