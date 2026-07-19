@@ -16,6 +16,7 @@ import '../features/notes/notes_screen.dart';
 import '../features/pages/page_view_screen.dart';
 import '../features/pages/pages_screen.dart';
 import '../features/pending/pending_screen.dart';
+import '../features/search/search_screen.dart';
 import '../features/tasks/tasks_screen.dart';
 import '../features/settings/appearance_screen.dart';
 import '../features/settings/push/notifications_screen.dart';
@@ -74,6 +75,7 @@ GoRouter goRouter(Ref ref) {
         builder: (context, state) =>
             PageViewScreen(pageId: state.pathParameters['id']!),
       ),
+      GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       GoRoute(path: '/notes', builder: (_, _) => const NotesScreen()),
       GoRoute(
         path: '/notes/:id',

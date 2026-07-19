@@ -31,6 +31,14 @@ class HomeScreen extends ConsumerWidget {
             leading: const MantleHeaderTitle('mantle'),
             trailing: [
               ShadButton.ghost(
+                onPressed: () => context.push('/search'),
+                child: Icon(
+                  LucideIcons.search,
+                  size: 20,
+                  color: theme.colorScheme.primaryForeground,
+                ),
+              ),
+              ShadButton.ghost(
                 onPressed: () => context.push('/settings'),
                 child: Icon(
                   LucideIcons.settings,
@@ -113,14 +121,21 @@ class HomeScreen extends ConsumerWidget {
                       Expanded(
                         child: _ActionTile(
                           theme: theme,
+                          icon: LucideIcons.search,
+                          label: 'Search',
+                          onTap: () => context.push('/search'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _ActionTile(
+                          theme: theme,
                           icon: LucideIcons.inbox,
                           label: 'Pending',
                           badge: pending,
                           onTap: () => context.push('/pending'),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(child: SizedBox()),
                       const SizedBox(width: 12),
                       const Expanded(child: SizedBox()),
                     ],
