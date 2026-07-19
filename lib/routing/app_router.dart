@@ -11,6 +11,8 @@ import '../features/conversations/conversations_screen.dart';
 import '../features/events/events_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/journal/journal_screen.dart';
+import '../features/notes/note_view_screen.dart';
+import '../features/notes/notes_screen.dart';
 import '../features/pages/page_view_screen.dart';
 import '../features/pages/pages_screen.dart';
 import '../features/pending/pending_screen.dart';
@@ -71,6 +73,12 @@ GoRouter goRouter(Ref ref) {
         path: '/pages/:id',
         builder: (context, state) =>
             PageViewScreen(pageId: state.pathParameters['id']!),
+      ),
+      GoRoute(path: '/notes', builder: (_, _) => const NotesScreen()),
+      GoRoute(
+        path: '/notes/:id',
+        builder: (context, state) =>
+            NoteViewScreen(noteId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/tasks', builder: (_, _) => const TasksScreen()),
       GoRoute(path: '/journal', builder: (_, _) => const JournalScreen()),

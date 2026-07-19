@@ -1,0 +1,364 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+
+import '../../data/notes/notes_models.dart';
+import '../../widgets/mantle_header.dart';
+import 'notes_controller.dart';
+
+/// The notes list: quick-add on top, tag filter chips, then notes newest-
+/// edited first (tap to open, long-press to delete). Backed by
+/// `GET/POST /api/notes` via [NotesController].
+class NotesScreen extends ConsumerStatefulWidget {
+  const NotesScreen({super.key});
+
+  @override
+  ConsumerState<NotesScreen> createState() => _NotesScreenState();
+}
+
+class _NotesScreenState extends ConsumerState<NotesScreen> {
+  final _input = TextEditingController();
+  final _scroll = ScrollController();
+  bool _adding = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      if (_scroll.position.extentAfter < 400) {
+        ref.read(notesControllerProvider.notifier).loadMore();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _input.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  Future<void> _add() async {
+    final title = _input.text.trim();
+    if (title.isEmpty || _adding) return;
+    setState(() {
+      _adding = true;
+      _error = null;
+    });
+    try {
+      await ref.read(notesControllerProvider.notifier).add(title);
+      _input.clear();
+    } catch (_) {
+      if (mounted) setState(() => _error = "Couldn't add the note.");
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
+  Future<void> _confirmDelete(NoteRow note) async {
+    final notifier = ref.read(notesControllerProvider.notifier);
+    final choice = await showShadSheet<String>(
+      context: context,
+      builder: (ctx) => ShadSheet(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ShadButton.ghost(
+                  onPressed: () => Navigator.of(ctx).pop('delete'),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(LucideIcons.trash2,
+                          size: 18,
+                          color: ShadTheme.of(ctx).colorScheme.destructive),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Delete note',
+                        style: TextStyle(
+                            color: ShadTheme.of(ctx).colorScheme.destructive),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == 'delete') await notifier.delete(note.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    final fg = scheme.primaryForeground;
+    final async = ref.watch(notesControllerProvider);
+
+    return Container(
+      color: scheme.background,
+      child: Column(
+        children: [
+          MantleHeader(
+            leading: const MantleHeaderTitle('Notes', wordmark: false),
+            trailing: [
+              ShadButton.ghost(
+                onPressed: () =>
+                    ref.read(notesControllerProvider.notifier).refresh(),
+                child: Icon(LucideIcons.refreshCw, size: 18, color: fg),
+              ),
+              ShadButton.ghost(
+                onPressed: () => context.pop(),
+                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: ShadInput(
+                    controller: _input,
+                    placeholder: const Text('Capture a note…'),
+                    onSubmitted: (_) => _add(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ShadButton(
+                  onPressed: _adding ? null : _add,
+                  child: const Icon(LucideIcons.plus),
+                ),
+              ],
+            ),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  _error!,
+                  style:
+                      theme.textTheme.small.copyWith(color: scheme.destructive),
+                ),
+              ),
+            ),
+          Expanded(
+            child: SafeArea(
+              top: false,
+              child: async.when(
+                loading: () => Center(
+                  child: Text('Loading…', style: theme.textTheme.muted),
+                ),
+                error: (e, _) => Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("Couldn't load notes.",
+                          style: theme.textTheme.muted),
+                      const SizedBox(height: 12),
+                      ShadButton.outline(
+                        onPressed: () => ref
+                            .read(notesControllerProvider.notifier)
+                            .refresh(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+                data: (s) {
+                  if (s.notes.isEmpty && s.tag == null) {
+                    return Center(
+                      child: Text('No notes. Capture one above.',
+                          style: theme.textTheme.muted),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      if (s.tags.isNotEmpty)
+                        SizedBox(
+                          height: 40,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                            children: [
+                              _TagChip(
+                                theme: theme,
+                                label: 'All',
+                                selected: s.tag == null,
+                                onTap: () => ref
+                                    .read(notesControllerProvider.notifier)
+                                    .setTag(null),
+                              ),
+                              for (final t in s.tags)
+                                _TagChip(
+                                  theme: theme,
+                                  label: '${t.tag} ${t.count}',
+                                  selected: s.tag == t.tag,
+                                  onTap: () => ref
+                                      .read(notesControllerProvider.notifier)
+                                      .setTag(s.tag == t.tag ? null : t.tag),
+                                ),
+                            ],
+                          ),
+                        ),
+                      Expanded(
+                        child: s.notes.isEmpty
+                            ? Center(
+                                child: Text('No notes with this tag.',
+                                    style: theme.textTheme.muted),
+                              )
+                            : ListView(
+                                controller: _scroll,
+                                padding:
+                                    const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                                children: [
+                                  for (final n in s.notes)
+                                    _NoteTile(
+                                      theme: theme,
+                                      note: n,
+                                      onTap: () =>
+                                          context.push('/notes/${n.id}'),
+                                      onLongPress: () => _confirmDelete(n),
+                                    ),
+                                  if (s.loadingMore)
+                                    Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Center(
+                                        child: Text('Loading more…',
+                                            style: theme.textTheme.muted),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TagChip extends StatelessWidget {
+  const _TagChip({
+    required this.theme,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ShadThemeData theme;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = theme.colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(right: 6, top: 4, bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? scheme.primary : scheme.secondary,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.small.copyWith(
+            color:
+                selected ? scheme.primaryForeground : scheme.secondaryForeground,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _editedLabel(DateTime t) {
+  final diff = DateTime.now().difference(t);
+  if (diff.inMinutes < 1) return 'now';
+  if (diff.inHours < 1) return '${diff.inMinutes}m';
+  if (diff.inDays < 1) return '${diff.inHours}h';
+  if (diff.inDays < 7) return '${diff.inDays}d';
+  return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+}
+
+class _NoteTile extends StatelessWidget {
+  const _NoteTile({
+    required this.theme,
+    required this.note,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final ShadThemeData theme;
+  final NoteRow note;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = theme.colorScheme;
+    final muted = scheme.mutedForeground;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 2, 10, 2),
+              child: Icon(LucideIcons.stickyNote, size: 18, color: muted),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    note.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.p.copyWith(color: scheme.foreground),
+                  ),
+                  if (note.preview.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      note.preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.small.copyWith(color: muted),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _editedLabel(note.updatedAt),
+              style: theme.textTheme.small.copyWith(color: muted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

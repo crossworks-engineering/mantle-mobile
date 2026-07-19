@@ -69,9 +69,9 @@ class HomeScreen extends ConsumerWidget {
                       Expanded(
                         child: _ActionTile(
                           theme: theme,
-                          icon: LucideIcons.listChecks,
-                          label: 'Tasks',
-                          onTap: () => context.push('/tasks'),
+                          icon: LucideIcons.stickyNote,
+                          label: 'Notes',
+                          onTap: () => context.push('/notes'),
                         ),
                       ),
                     ],
@@ -79,6 +79,15 @@ class HomeScreen extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Row(
                     children: [
+                      Expanded(
+                        child: _ActionTile(
+                          theme: theme,
+                          icon: LucideIcons.listChecks,
+                          label: 'Tasks',
+                          onTap: () => context.push('/tasks'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: _ActionTile(
                           theme: theme,
@@ -96,7 +105,11 @@ class HomeScreen extends ConsumerWidget {
                           onTap: () => context.push('/events'),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
                       Expanded(
                         child: _ActionTile(
                           theme: theme,
@@ -106,6 +119,10 @@ class HomeScreen extends ConsumerWidget {
                           onTap: () => context.push('/pending'),
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      const Expanded(child: SizedBox()),
+                      const SizedBox(width: 12),
+                      const Expanded(child: SizedBox()),
                     ],
                   ),
                   const SizedBox(height: 20),
