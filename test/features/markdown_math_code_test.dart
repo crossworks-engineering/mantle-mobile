@@ -83,6 +83,16 @@ void main() {
         '\\frac{a}{b}\n+ c',
       );
     });
+
+    test(r'a prose line starting with $$ never opens a block', () {
+      final nodes = _parse(
+          '\$\$50 below the open, the stock slid further.\nNext line stays.');
+      expect(_byTag(nodes, kMathBlockTag), isEmpty);
+      // Both lines survive as paragraph text.
+      final text = nodes.map((n) => n.textContent).join('\n');
+      expect(text, contains('the stock slid further'));
+      expect(text, contains('Next line stays'));
+    });
   });
 
   group('rendering', () {

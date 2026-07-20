@@ -38,7 +38,8 @@ class FilesController extends _$FilesController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(_fetch);
+    final next = await AsyncValue.guard(_fetch);
+    if (ref.mounted) state = next;
   }
 
   /// Upload a picked local file into this folder, then reload so the new
@@ -53,7 +54,7 @@ class FilesController extends _$FilesController {
           localPath: localPath,
           filename: filename,
         );
-    await _reloadSilently();
+    if (ref.mounted) await _reloadSilently();
   }
 
   /// Delete a file (long-press action), optimistically.
@@ -70,13 +71,14 @@ class FilesController extends _$FilesController {
     try {
       await ref.read(filesApiProvider).delete(id);
     } catch (_) {
-      await _reloadSilently();
+      if (ref.mounted) await _reloadSilently();
     }
   }
 
   Future<void> _reloadSilently() async {
     try {
-      state = AsyncData(await _fetch());
+      final next = await _fetch();
+      if (ref.mounted) state = AsyncData(next);
     } catch (_) {
       /* keep current; pull-to-refresh reconciles */
     }

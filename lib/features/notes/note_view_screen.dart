@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../../data/notes/notes_api.dart';
 import '../../data/notes/notes_models.dart';
 import '../../widgets/mantle_header.dart';
 import '../chat/markdown/mantle_markdown.dart';
@@ -11,7 +10,7 @@ import 'notes_controller.dart';
 
 /// One note: title + tags, the content rendered as markdown, and an Edit
 /// sheet (title / content / comma-separated tags → `PATCH /api/notes/{id}`).
-/// Backed by [noteContentProvider].
+/// Backed by [NoteViewController].
 class NoteViewScreen extends ConsumerWidget {
   const NoteViewScreen({super.key, required this.noteId});
 
@@ -23,9 +22,11 @@ class NoteViewScreen extends ConsumerWidget {
       side: ShadSheetSide.bottom,
       builder: (ctx) => _NoteEditSheet(note: note),
     );
-    if (saved != null) {
-      // Refresh this screen and keep the list's preview in step.
-      ref.invalidate(noteContentProvider(noteId));
+    // The save already updated this screen's state; sync the list's preview
+    // only if the list is actually alive (a Search deep link reaches here
+    // without it — instantiating it just to patch a row would kick off a
+    // throwaway fetch that races the write).
+    if (saved != null && ref.exists(notesControllerProvider)) {
       ref.read(notesControllerProvider.notifier).applyUpdated(saved);
     }
   }
@@ -35,7 +36,7 @@ class NoteViewScreen extends ConsumerWidget {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
     final fg = scheme.primaryForeground;
-    final async = ref.watch(noteContentProvider(noteId));
+    final async = ref.watch(noteViewControllerProvider(noteId));
 
     return Container(
       color: scheme.background,
@@ -74,7 +75,7 @@ class NoteViewScreen extends ConsumerWidget {
                       const SizedBox(height: 12),
                       ShadButton.outline(
                         onPressed: () =>
-                            ref.invalidate(noteContentProvider(noteId)),
+                            ref.invalidate(noteViewControllerProvider(noteId)),
                         child: const Text('Retry'),
                       ),
                     ],
@@ -176,12 +177,9 @@ class _NoteEditSheetState extends ConsumerState<_NoteEditSheet> {
           .map((t) => t.trim())
           .where((t) => t.isNotEmpty)
           .toList();
-      final saved = await ref.read(notesApiProvider).update(
-            widget.note.id,
-            title: title,
-            content: _content.text,
-            tags: tags,
-          );
+      final saved = await ref
+          .read(noteViewControllerProvider(widget.note.id).notifier)
+          .save(title: title, content: _content.text, tags: tags);
       if (mounted) Navigator.of(context).pop(saved);
     } catch (_) {
       if (mounted) {

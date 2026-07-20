@@ -59,7 +59,7 @@ final class FilesControllerProvider
   }
 }
 
-String _$filesControllerHash() => r'9a52c45b04bd0cdbe874152f47a9154e7219b039';
+String _$filesControllerHash() => r'0e385bf03780b859e918557b1b29d0ea93043fc5';
 
 /// Owns one folder's listing (a family by ltree path — each drilled folder
 /// screen gets its own instance). Upload refreshes; delete is optimistic

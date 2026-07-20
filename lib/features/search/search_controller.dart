@@ -87,6 +87,10 @@ class SearchController extends _$SearchController {
       return;
     }
     state = state.copyWith(query: q, searching: true, clearError: true);
+    // Invalidate any in-flight request NOW, not when the timer fires — a
+    // response for the previous query landing inside the debounce window
+    // must never render under the new query.
+    _requestSeq++;
     _debounce = Timer(kSearchDebounce, () => _run(q));
   }
 
@@ -123,7 +127,8 @@ class SearchController extends _$SearchController {
       final results = await ref
           .read(searchApiProvider)
           .search(q, type: state.type);
-      if (seq != _requestSeq) return; // a newer request superseded this one
+      // Screen popped mid-request (autoDispose) or a newer request took over.
+      if (!ref.mounted || seq != _requestSeq) return;
       state = state.copyWith(
         results: results,
         searching: false,
@@ -131,7 +136,7 @@ class SearchController extends _$SearchController {
         clearError: true,
       );
     } catch (_) {
-      if (seq != _requestSeq) return;
+      if (!ref.mounted || seq != _requestSeq) return;
       state = state.copyWith(
         searching: false,
         searched: true,

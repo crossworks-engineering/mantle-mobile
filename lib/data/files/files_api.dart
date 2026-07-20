@@ -6,6 +6,16 @@ import 'files_models.dart';
 
 part 'files_api.g.dart';
 
+/// Thrown by [FilesApi.upload] for the user-explainable failures (409
+/// duplicate name, 413 too large) — typed so the screen never has to sniff
+/// status codes out of exception strings (a URL containing "409" must not
+/// read as a duplicate-name error).
+class FileUploadException implements Exception {
+  const FileUploadException(this.message);
+
+  final String message;
+}
+
 /// Mantle Files over HTTP: folder tree via `GET /api/files/folders?parent=`,
 /// files via `GET /api/files/files?parent=`, uploads as multipart
 /// `{parentPath, file}` (409 = duplicate name, 413 = too large). Bytes come
@@ -38,7 +48,8 @@ class FilesApi {
         .toList();
   }
 
-  /// Upload a local file into `parentPath`. Returns the saved row.
+  /// Upload a local file into `parentPath`. Returns the saved row. Throws
+  /// [FileUploadException] for 409/413; anything else rethrows raw.
   Future<FileRow> upload({
     required String parentPath,
     required String localPath,
@@ -48,11 +59,26 @@ class FilesApi {
       'parentPath': parentPath,
       'file': await MultipartFile.fromFile(localPath, filename: filename),
     });
-    final res = await _dio.post<Map<String, dynamic>>(
-      '/api/files/files',
-      data: form,
-    );
-    return FileRow.fromJson((res.data?['file'] as Map).cast<String, dynamic>());
+    try {
+      final res = await _dio.post<Map<String, dynamic>>(
+        '/api/files/files',
+        data: form,
+      );
+      return FileRow.fromJson(
+        (res.data?['file'] as Map).cast<String, dynamic>(),
+      );
+    } on DioException catch (e) {
+      switch (e.response?.statusCode) {
+        case 409:
+          throw const FileUploadException(
+            'A file with that name already exists here.',
+          );
+        case 413:
+          throw const FileUploadException('That file is too large.');
+        default:
+          rethrow;
+      }
+    }
   }
 
   /// `DELETE /api/files/files/{id}`.

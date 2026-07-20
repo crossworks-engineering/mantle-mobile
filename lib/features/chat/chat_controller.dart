@@ -256,8 +256,19 @@ class ChatController extends _$ChatController {
     });
 
     final repo = ref.read(chatRepositoryProvider);
-    final page = await repo.history(limit: chatPageSize, agentSlug: agentSlug);
-    final queued = await _queuedBubbles();
+    HistoryPage page;
+    List<ChatMessage> queued;
+    try {
+      page = await repo.history(limit: chatPageSize, agentSlug: agentSlug);
+      queued = await _queuedBubbles();
+    } catch (e) {
+      // Fully offline with an empty cache: if turns are queued, show THEM
+      // (with the offline banner) rather than an error screen — the user's
+      // unsent words matter more than the empty history.
+      queued = await _queuedBubbles();
+      if (queued.isEmpty) rethrow;
+      page = const HistoryPage(messages: [], fromCache: true);
+    }
     // A reply may be mid-turn from another surface (its row is `pending`) —
     // start the resolution poll once this state lands. If anything sits in
     // the offline outbox, try to flush it now too.
@@ -268,7 +279,9 @@ class ChatController extends _$ChatController {
     });
     return ChatState(
       messages: [...page.messages, ...queued],
-      hasMore: page.messages.length >= chatPageSize,
+      // A cache-served page can't promise older pages — offline loadMore
+      // fetches are doomed anyway.
+      hasMore: !page.fromCache && page.messages.length >= chatPageSize,
       offline: page.fromCache,
     );
   }
@@ -290,9 +303,25 @@ class ChatController extends _$ChatController {
     ];
   }
 
+  /// True while a flush is running — build, foreground resume, and send all
+  /// trigger flushes, and two overlapping ones would replay the same outbox
+  /// row concurrently (safe only if the server dedups in-flight same-key
+  /// requests, which we must not rely on).
+  bool _flushing = false;
+
   /// Replay the offline outbox, then refetch so delivered turns (and their
   /// replies) land as real history rows and the queued bubbles disappear.
   Future<void> _flushQueuedTurns() async {
+    if (_flushing) return;
+    _flushing = true;
+    try {
+      await _flushQueuedTurnsInner();
+    } finally {
+      _flushing = false;
+    }
+  }
+
+  Future<void> _flushQueuedTurnsInner() async {
     final repo = ref.read(chatRepositoryProvider);
     final delivered = await repo.flushOutbox(agentSlug);
     if (!ref.mounted || delivered == 0) return;
@@ -349,13 +378,25 @@ class ChatController extends _$ChatController {
 
   /// Merge a freshly-fetched latest page into the thread: replace known rows
   /// with their latest version, append unknown ones, keep chronological order.
+  /// `queued` bubbles are held out of the sort and re-appended TRAILING —
+  /// they haven't reached the server, so they must never interleave into the
+  /// middle of server history (their enqueue timestamps are older than rows
+  /// that land after connectivity returns).
   List<ChatMessage> _mergeLatest(ChatState current, List<ChatMessage> latest) {
+    final queued = [
+      for (final m in current.messages)
+        if (m.status == MessageStatus.queued) m,
+    ];
+    final rest = [
+      for (final m in current.messages)
+        if (m.status != MessageStatus.queued) m,
+    ];
     final byId = {for (final m in latest) m.id: m};
     final merged = [
-      for (final m in current.messages) byId.remove(m.id) ?? m,
+      for (final m in rest) byId.remove(m.id) ?? m,
       ...byId.values,
     ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    return merged;
+    return [...merged, ...queued];
   }
 
   /// The thread shows a server-`pending` reply whose turn is running elsewhere
@@ -486,17 +527,17 @@ class ChatController extends _$ChatController {
     // Anything still queued from an offline spell goes first, so the
     // conversation lands in the order it was written. If the network is
     // still down this fails fast and the new turn will queue behind it.
+    // The full flush (not just replay): it refetches so delivered turns'
+    // server rows replace their queued bubbles instead of both vanishing.
     try {
-      await ref.read(chatRepositoryProvider).flushOutbox(agentSlug);
-      // Rebuild queued bubbles from what actually remains, keeping them
-      // ahead of the new sending bubble (they're older).
-      final remaining = await _queuedBubbles();
+      await _flushQueuedTurns();
       final afterFlush = state.value;
-      if (afterFlush != null) {
+      if (afterFlush != null && ref.mounted) {
+        // Keep the new sending bubble last (the flush's merge re-appends
+        // still-queued bubbles at the tail, after it).
         state = AsyncData(afterFlush.copyWith(messages: [
           for (final m in afterFlush.messages)
-            if (m.status != MessageStatus.queued && m.id != tempId) m,
-          ...remaining,
+            if (m.id != tempId) m,
           for (final m in afterFlush.messages)
             if (m.id == tempId) m,
         ]));
@@ -857,7 +898,7 @@ class ChatController extends _$ChatController {
       final queued = await _queuedBubbles();
       return ChatState(
         messages: [...page.messages, ...queued],
-        hasMore: page.messages.length >= chatPageSize,
+        hasMore: !page.fromCache && page.messages.length >= chatPageSize,
         offline: page.fromCache,
       );
     });

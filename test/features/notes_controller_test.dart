@@ -1,6 +1,8 @@
 // NotesController: list + tag filter + paging + optimistic add/delete.
 // Plus NoteRow/NotesPage model parsing.
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantle_companion/data/notes/notes_api.dart';
@@ -124,6 +126,31 @@ void main() {
     final s = c.read(notesControllerProvider).value!;
     expect(calls, 2);
     expect(s.notes.map((n) => n.id), ['a', 'b']);
+  });
+
+  test('loadMore pages by counter (a local delete cannot desync the cursor) '
+      'and rebases on the live state', () async {
+    final first = List.generate(50, (i) => note('n$i'));
+    when(() => api.list(tag: null)).thenAnswer(
+      (_) async => pageOf(first, total: 60),
+    );
+    when(() => api.delete('n0')).thenAnswer((_) async {});
+    final page2 = Completer<NotesPage>();
+    when(() => api.list(page: 2, tag: null)).thenAnswer((_) => page2.future);
+
+    final c = make();
+    await c.read(notesControllerProvider.future);
+    final notifier = c.read(notesControllerProvider.notifier);
+    final loading = notifier.loadMore(); // page 2 in flight
+    await notifier.delete('n0'); // optimistic delete mid-fetch
+    page2.complete(pageOf([note('x1')], total: 60, page: 2));
+    await loading;
+
+    final s = c.read(notesControllerProvider).value!;
+    expect(s.notes.map((n) => n.id), isNot(contains('n0'))); // not resurrected
+    expect(s.notes.map((n) => n.id), contains('x1'));
+    expect(s.page, 2);
+    verify(() => api.list(page: 2, tag: null)).called(1); // counter, not ~/50
   });
 
   test('loadMore appends the next page and de-dupes', () async {

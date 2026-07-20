@@ -42,7 +42,7 @@ final class NotesControllerProvider
   NotesController create() => NotesController();
 }
 
-String _$notesControllerHash() => r'28798e32166875bbef683963cb0f827dc8096f82';
+String _$notesControllerHash() => r'7bff0703b8e4761bdf59eee4e3d249ed33d824a4';
 
 /// Owns the notes list: first page on build, older pages via [loadMore],
 /// a tag filter, and optimistic quick-add/delete (a failure reloads so the
@@ -66,52 +66,52 @@ abstract class _$NotesController extends $AsyncNotifier<NotesState> {
   }
 }
 
-/// One note by id — backs the note view screen.
+/// One note by id — backs the note view screen. Class-based so the edit
+/// sheet saves THROUGH the controller (UI → controller → data source, per
+/// the layering rule) and the open screen reflects the save without a
+/// refetch.
 
-@ProviderFor(noteContent)
-final noteContentProvider = NoteContentFamily._();
+@ProviderFor(NoteViewController)
+final noteViewControllerProvider = NoteViewControllerFamily._();
 
-/// One note by id — backs the note view screen.
-
-final class NoteContentProvider
-    extends $FunctionalProvider<AsyncValue<NoteRow>, NoteRow, FutureOr<NoteRow>>
-    with $FutureModifier<NoteRow>, $FutureProvider<NoteRow> {
-  /// One note by id — backs the note view screen.
-  NoteContentProvider._({
-    required NoteContentFamily super.from,
+/// One note by id — backs the note view screen. Class-based so the edit
+/// sheet saves THROUGH the controller (UI → controller → data source, per
+/// the layering rule) and the open screen reflects the save without a
+/// refetch.
+final class NoteViewControllerProvider
+    extends $AsyncNotifierProvider<NoteViewController, NoteRow> {
+  /// One note by id — backs the note view screen. Class-based so the edit
+  /// sheet saves THROUGH the controller (UI → controller → data source, per
+  /// the layering rule) and the open screen reflects the save without a
+  /// refetch.
+  NoteViewControllerProvider._({
+    required NoteViewControllerFamily super.from,
     required String super.argument,
   }) : super(
          retry: null,
-         name: r'noteContentProvider',
+         name: r'noteViewControllerProvider',
          isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
 
   @override
-  String debugGetCreateSourceHash() => _$noteContentHash();
+  String debugGetCreateSourceHash() => _$noteViewControllerHash();
 
   @override
   String toString() {
-    return r'noteContentProvider'
+    return r'noteViewControllerProvider'
         ''
         '($argument)';
   }
 
   @$internal
   @override
-  $FutureProviderElement<NoteRow> $createElement($ProviderPointer pointer) =>
-      $FutureProviderElement(pointer);
-
-  @override
-  FutureOr<NoteRow> create(Ref ref) {
-    final argument = this.argument as String;
-    return noteContent(ref, argument);
-  }
+  NoteViewController create() => NoteViewController();
 
   @override
   bool operator ==(Object other) {
-    return other is NoteContentProvider && other.argument == argument;
+    return other is NoteViewControllerProvider && other.argument == argument;
   }
 
   @override
@@ -120,26 +120,66 @@ final class NoteContentProvider
   }
 }
 
-String _$noteContentHash() => r'50a30b5de9f716ac2ecd7c031bdb77e3d4f0d643';
+String _$noteViewControllerHash() =>
+    r'7e3528b62059b0970a7fc1306276b16107515769';
 
-/// One note by id — backs the note view screen.
+/// One note by id — backs the note view screen. Class-based so the edit
+/// sheet saves THROUGH the controller (UI → controller → data source, per
+/// the layering rule) and the open screen reflects the save without a
+/// refetch.
 
-final class NoteContentFamily extends $Family
-    with $FunctionalFamilyOverride<FutureOr<NoteRow>, String> {
-  NoteContentFamily._()
+final class NoteViewControllerFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          NoteViewController,
+          AsyncValue<NoteRow>,
+          NoteRow,
+          FutureOr<NoteRow>,
+          String
+        > {
+  NoteViewControllerFamily._()
     : super(
         retry: null,
-        name: r'noteContentProvider',
+        name: r'noteViewControllerProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
         isAutoDispose: true,
       );
 
-  /// One note by id — backs the note view screen.
+  /// One note by id — backs the note view screen. Class-based so the edit
+  /// sheet saves THROUGH the controller (UI → controller → data source, per
+  /// the layering rule) and the open screen reflects the save without a
+  /// refetch.
 
-  NoteContentProvider call(String id) =>
-      NoteContentProvider._(argument: id, from: this);
+  NoteViewControllerProvider call(String id) =>
+      NoteViewControllerProvider._(argument: id, from: this);
 
   @override
-  String toString() => r'noteContentProvider';
+  String toString() => r'noteViewControllerProvider';
+}
+
+/// One note by id — backs the note view screen. Class-based so the edit
+/// sheet saves THROUGH the controller (UI → controller → data source, per
+/// the layering rule) and the open screen reflects the save without a
+/// refetch.
+
+abstract class _$NoteViewController extends $AsyncNotifier<NoteRow> {
+  late final _$args = ref.$arg as String;
+  String get id => _$args;
+
+  FutureOr<NoteRow> build(String id);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<AsyncValue<NoteRow>, NoteRow>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<NoteRow>, NoteRow>,
+              AsyncValue<NoteRow>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
 }

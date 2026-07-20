@@ -1,6 +1,9 @@
 // FilesController: folder+file load, optimistic delete with rollback,
 // upload → reload. Plus FolderRow/FileRow model parsing.
 
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mantle_companion/data/files/files_api.dart';
@@ -9,6 +12,8 @@ import 'package:mantle_companion/features/files/files_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockFilesApi extends Mock implements FilesApi {}
+
+class MockDio extends Mock implements Dio {}
 
 FolderRow folder(String slug) => FolderRow(
       id: 'folder-$slug',
@@ -129,6 +134,50 @@ void main() {
           .upload(localPath: '/tmp/dup.pdf', filename: 'dup.pdf'),
       throwsA(isA<Exception>()),
     );
+  });
+
+  group('FilesApi.upload error mapping', () {
+    test('409/413 become typed FileUploadException; others rethrow raw',
+        () async {
+      final tmp = File(
+          '${Directory.systemTemp.createTempSync('files_api_test').path}/x.pdf')
+        ..writeAsStringSync('pdf-ish');
+      addTearDown(() => tmp.parent.deleteSync(recursive: true));
+
+      DioException status(int code) => DioException(
+            requestOptions: RequestOptions(path: '/api/files/files'),
+            type: DioExceptionType.badResponse,
+            response: Response(
+              requestOptions: RequestOptions(path: '/api/files/files'),
+              statusCode: code,
+            ),
+          );
+
+      Future<void> expectUpload(DioException e, Matcher matcher) async {
+        final dio = MockDio();
+        when(() => dio.post<Map<String, dynamic>>(any(),
+            data: any(named: 'data'))).thenThrow(e);
+        await expectLater(
+          FilesApi(dio).upload(
+            parentPath: 'files',
+            localPath: tmp.path,
+            filename: 'x.pdf',
+          ),
+          throwsA(matcher),
+        );
+      }
+
+      await expectUpload(status(409), isA<FileUploadException>());
+      await expectUpload(status(413), isA<FileUploadException>());
+      // A connection error whose URL merely CONTAINS "409" must stay raw.
+      await expectUpload(
+        DioException(
+          requestOptions: RequestOptions(path: 'http://192.168.1.20:4090/x'),
+          type: DioExceptionType.connectionError,
+        ),
+        isA<DioException>(),
+      );
+    });
   });
 
   group('models', () {

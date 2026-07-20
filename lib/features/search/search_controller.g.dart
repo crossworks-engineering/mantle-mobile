@@ -50,7 +50,7 @@ final class SearchControllerProvider
   }
 }
 
-String _$searchControllerHash() => r'613e3ec8f068e4a5be425741ce809b2d5251409a';
+String _$searchControllerHash() => r'fc4910da74e5f13d7c07cb6f49439efd9a8d91ea';
 
 /// Owns the search flow: debounced as-you-type queries, an immediate path
 /// for submit, a type filter that re-runs the current query, and stale-

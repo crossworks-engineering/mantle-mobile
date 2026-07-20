@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../data/files/files_api.dart' show FileUploadException;
 import '../../data/files/files_models.dart';
 import '../../data/server/server_config.dart';
 import '../../widgets/mantle_header.dart';
@@ -50,18 +51,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           .upload(localPath: localPath, filename: filename);
     } catch (e) {
       if (mounted) {
-        setState(() => _error = _uploadError(e));
+        setState(() => _error = e is FileUploadException
+            ? e.message
+            : "Couldn't upload the file.");
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
-  }
-
-  String _uploadError(Object e) {
-    final msg = e.toString();
-    if (msg.contains('409')) return 'A file with that name already exists here.';
-    if (msg.contains('413')) return 'That file is too large.';
-    return "Couldn't upload the file.";
   }
 
   Future<void> _pickImage(ImageSource source) async {

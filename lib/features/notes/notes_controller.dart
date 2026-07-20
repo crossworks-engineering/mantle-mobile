@@ -14,6 +14,7 @@ class NotesState {
     required this.total,
     required this.tags,
     this.tag,
+    this.page = 1,
     this.loadingMore = false,
   });
 
@@ -23,6 +24,11 @@ class NotesState {
 
   /// Active tag filter (null = all notes).
   final String? tag;
+
+  /// Highest server page loaded — the paging cursor. Deriving it from
+  /// `notes.length ~/ pageSize` desyncs after local deletes; a counter
+  /// doesn't.
+  final int page;
   final bool loadingMore;
 
   bool get hasMore => notes.length < total;
@@ -33,6 +39,7 @@ class NotesState {
     List<NoteTag>? tags,
     String? tag,
     bool clearTag = false,
+    int? page,
     bool? loadingMore,
   }) {
     return NotesState(
@@ -40,6 +47,7 @@ class NotesState {
       total: total ?? this.total,
       tags: tags ?? this.tags,
       tag: clearTag ? null : (tag ?? this.tag),
+      page: page ?? this.page,
       loadingMore: loadingMore ?? this.loadingMore,
     );
   }
@@ -66,13 +74,15 @@ class NotesController extends _$NotesController {
   Future<void> refresh() async {
     final tag = state.value?.tag;
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _fetch(tag: tag));
+    final next = await AsyncValue.guard(() => _fetch(tag: tag));
+    if (ref.mounted) state = next;
   }
 
   /// Switch the tag filter (null = all) and reload from page 1.
   Future<void> setTag(String? tag) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _fetch(tag: tag));
+    final next = await AsyncValue.guard(() => _fetch(tag: tag));
+    if (ref.mounted) state = next;
   }
 
   /// Append the next server page (no-op while one is already loading).
@@ -81,23 +91,31 @@ class NotesController extends _$NotesController {
     if (current == null || current.loadingMore || !current.hasMore) return;
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
-      final nextPage = (current.notes.length ~/ 50) + 1;
+      final nextPage = current.page + 1;
       final page = await ref
           .read(notesApiProvider)
           .list(page: nextPage, tag: current.tag);
-      final seen = {for (final n in current.notes) n.id};
-      state = AsyncData(current.copyWith(
+      if (!ref.mounted) return;
+      // Rebase on the LIVE state, not the pre-await snapshot — an optimistic
+      // delete/edit that landed mid-fetch must not be resurrected.
+      final now = state.value;
+      if (now == null || now.tag != current.tag) return;
+      final seen = {for (final n in now.notes) n.id};
+      state = AsyncData(now.copyWith(
         notes: [
-          ...current.notes,
+          ...now.notes,
           for (final n in page.notes)
             if (!seen.contains(n.id)) n,
         ],
         total: page.total,
         tags: page.tags,
+        page: nextPage,
         loadingMore: false,
       ));
     } catch (_) {
-      state = AsyncData(current.copyWith(loadingMore: false));
+      if (!ref.mounted) return;
+      final now = state.value;
+      if (now != null) state = AsyncData(now.copyWith(loadingMore: false));
     }
   }
 
@@ -110,12 +128,15 @@ class NotesController extends _$NotesController {
     final current = state.value;
     try {
       final row = await ref.read(notesApiProvider).create(trimmed);
+      if (!ref.mounted) return;
       if (current == null || current.tag != null) {
-        state = await AsyncValue.guard(() => _fetch(tag: null));
+        final next = await AsyncValue.guard(() => _fetch(tag: null));
+        if (ref.mounted) state = next;
       } else {
-        state = AsyncData(current.copyWith(
-          notes: [row, ...current.notes],
-          total: current.total + 1,
+        final now = state.value ?? current;
+        state = AsyncData(now.copyWith(
+          notes: [row, ...now.notes],
+          total: now.total + 1,
         ));
       }
     } catch (_) {
@@ -139,7 +160,7 @@ class NotesController extends _$NotesController {
     try {
       await ref.read(notesApiProvider).delete(id);
     } catch (_) {
-      await _reloadSilently();
+      if (ref.mounted) await _reloadSilently();
     }
   }
 
@@ -158,15 +179,34 @@ class NotesController extends _$NotesController {
 
   Future<void> _reloadSilently() async {
     try {
-      state = AsyncData(await _fetch(tag: state.value?.tag));
+      final next = await _fetch(tag: state.value?.tag);
+      if (ref.mounted) state = AsyncData(next);
     } catch (_) {
       /* keep current; pull-to-refresh reconciles */
     }
   }
 }
 
-/// One note by id — backs the note view screen.
+/// One note by id — backs the note view screen. Class-based so the edit
+/// sheet saves THROUGH the controller (UI → controller → data source, per
+/// the layering rule) and the open screen reflects the save without a
+/// refetch.
 @riverpod
-Future<NoteRow> noteContent(Ref ref, String id) {
-  return ref.watch(notesApiProvider).get(id);
+class NoteViewController extends _$NoteViewController {
+  @override
+  Future<NoteRow> build(String id) => ref.watch(notesApiProvider).get(id);
+
+  /// `PATCH /api/notes/{id}` via the api; the saved row becomes this
+  /// screen's state and is returned so the caller can sync the list.
+  Future<NoteRow> save({
+    String? title,
+    String? content,
+    List<String>? tags,
+  }) async {
+    final saved = await ref
+        .read(notesApiProvider)
+        .update(id, title: title, content: content, tags: tags);
+    if (ref.mounted) state = AsyncData(saved);
+    return saved;
+  }
 }

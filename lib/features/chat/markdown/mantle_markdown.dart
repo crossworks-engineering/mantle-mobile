@@ -164,8 +164,12 @@ class _CodeBuilder extends MarkdownElementBuilder {
     );
     final span = highlightedCode(context, source, language, baseStyle: base);
     if (span == null) return null; // unknown language → default rendering
+    // A custom `code` builder REPLACES the package's padded scroller, and the
+    // `pre` wrapper only draws the decoration — re-apply the stylesheet's
+    // 12px codeblockPadding here or the code sits flush against the border.
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.all(12),
       child: Text.rich(span),
     );
   }

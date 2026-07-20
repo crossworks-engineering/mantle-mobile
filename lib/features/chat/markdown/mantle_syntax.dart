@@ -138,8 +138,10 @@ class MathInlineSyntax extends md.InlineSyntax {
 }
 
 /// Block `$$ … $$` TeX — either one line (`$$E=mc^2$$`) or a fenced block
-/// closed by a line ending in `$$`. Unclosed blocks consume to the end of
-/// input (same forgiving behaviour as the container fences).
+/// OPENED by a bare `$$` line and closed by a line ending in `$$`. A line
+/// that merely *starts* with `$$` followed by prose (`$$50 below the
+/// open…`) never opens a block — without that guard an unclosed open would
+/// swallow the rest of the message into one broken TeX blob.
 class MathBlockSyntax extends md.BlockSyntax {
   const MathBlockSyntax();
 
@@ -147,6 +149,14 @@ class MathBlockSyntax extends md.BlockSyntax {
 
   @override
   RegExp get pattern => _open;
+
+  @override
+  bool canParse(md.BlockParser parser) {
+    final m = _open.firstMatch(parser.current.content);
+    if (m == null) return false;
+    final rest = m.group(1)!.trim();
+    return rest.isEmpty || rest.endsWith(r'$$');
+  }
 
   @override
   md.Node parse(md.BlockParser parser) {

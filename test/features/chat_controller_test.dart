@@ -11,6 +11,7 @@ import 'package:mantle_companion/data/chat/chat_api.dart';
 import 'package:mantle_companion/data/chat/chat_message.dart';
 import 'package:mantle_companion/data/chat/chat_repository.dart';
 import 'package:mantle_companion/data/chat/conversation_stream.dart';
+import 'package:mantle_companion/data/db/app_database.dart';
 import 'package:mantle_companion/data/chat/turn_event.dart';
 import 'package:mantle_companion/features/chat/chat_controller.dart';
 import 'package:mantle_companion/features/settings/settings_repository.dart';
@@ -179,6 +180,77 @@ void main() {
 
     final ids = c.read(chatControllerProvider(_slug)).value!.messages.map((m) => m.id);
     expect(ids.length, ids.toSet().length);
+  });
+
+  test('queued turns render as TRAILING bubbles and flush-on-open replaces '
+      'them with the delivered server rows', () async {
+    final turn = OutboxTurn(
+      id: 'k1',
+      agentSlug: _slug,
+      body: 'written offline',
+      locationJson: null,
+      createdAt: DateTime(2026, 1, 2),
+      attempts: 0,
+    );
+    var queuedCalls = 0;
+    when(() => repo.queuedTurns(any()))
+        .thenAnswer((_) async => queuedCalls++ == 0 ? [turn] : const []);
+    final canonical = [
+      _msg('i1', MessageDirection.inbound, 'written offline',
+          at: DateTime(2026, 1, 3)),
+      _msg('o1', MessageDirection.outbound, 'reply',
+          at: DateTime(2026, 1, 3, 0, 0, 1)),
+    ];
+    var histCalls = 0;
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer((_) async => HistoryPage(
+        messages: histCalls++ == 0 ? <ChatMessage>[] : canonical));
+    when(() => repo.flushOutbox(any())).thenAnswer((_) async => 1);
+
+    final c = makeContainer();
+    final first = await c.read(chatControllerProvider(_slug).future);
+    expect(first.messages.single.status, MessageStatus.queued);
+    expect(first.messages.single.text, 'written offline');
+
+    // Let the build-scheduled flush deliver + refetch.
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    final after = c.read(chatControllerProvider(_slug)).value!;
+    expect(after.messages.map((m) => m.id), ['i1', 'o1']);
+    expect(
+      after.messages.any((m) => m.status == MessageStatus.queued),
+      isFalse,
+    );
+    verify(() => repo.flushOutbox(_slug)).called(1);
+  });
+
+  test('a fully offline build with an empty cache but queued turns shows '
+      'the queue, not the error screen', () async {
+    final turn = OutboxTurn(
+      id: 'k1',
+      agentSlug: _slug,
+      body: 'still queued',
+      locationJson: null,
+      createdAt: DateTime(2026, 1, 2),
+      attempts: 0,
+    );
+    when(() => repo.queuedTurns(any())).thenAnswer((_) async => [turn]);
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenThrow(Exception('offline, no cache'));
+
+    final c = makeContainer();
+    final state = await c.read(chatControllerProvider(_slug).future);
+
+    expect(state.offline, isTrue);
+    expect(state.messages.single.status, MessageStatus.queued);
+    expect(state.hasMore, isFalse);
   });
 
   test('send appends the user message then the assistant reply', () async {

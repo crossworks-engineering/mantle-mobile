@@ -93,6 +93,25 @@ void main() {
     expect(s.searching, isFalse);
   });
 
+  test('a response for the PREVIOUS query never lands inside the new '
+      'debounce window', () async {
+    final slow = Completer<List<SearchResult>>();
+    when(() => api.search('ab', type: null)).thenAnswer((_) => slow.future);
+    when(() => api.search('abc', type: null)).thenAnswer((_) async => const []);
+
+    final c = make();
+    final notifier = c.read(searchControllerProvider.notifier);
+    final pending = notifier.searchNow('ab'); // in flight
+    notifier.onQueryChanged('abc'); // debouncing — must invalidate 'ab' NOW
+    slow.complete([hit('stale')]);
+    await pending;
+
+    final s = c.read(searchControllerProvider);
+    expect(s.results, isEmpty); // the stale 'ab' response never rendered
+    expect(s.query, 'abc');
+    expect(s.searching, isTrue); // still waiting on the debounced request
+  });
+
   test('onQueryChanged below min length invalidates in-flight requests',
       () async {
     final slow = Completer<List<SearchResult>>();
