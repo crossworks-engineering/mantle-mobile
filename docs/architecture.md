@@ -9,7 +9,7 @@ A cross-platform (iOS + Android) Flutter app — a mobile companion for the
 **self-hosted Mantle** personal assistant. It connects to a user's own Mantle
 server over an authenticated REST API.
 
-Scope, in order of build (all shipped as of **v1.6.0+13**):
+Scope, in order of build (all shipped as of **v1.11.0+18**):
 
 1. **Chat** with the assistant — rich rendering, attachments, voice, and (v1.3–
    1.4) live token streaming with a thought trail
@@ -20,6 +20,16 @@ Scope, in order of build (all shipped as of **v1.6.0+13**):
    capture-first **Tasks** + **Journal**
 5. **Events with real device alarms** (v1.6) — OS-scheduled local notifications
    that ring at the exact start time, offline, phone locked
+6. **Notes** (v1.7) — the capture primitive: quick-add, tag filter, markdown
+   view + edit
+7. **Global search** (v1.8) — the brain's hybrid FTS+vector engine over
+   `GET /api/search` (**needs Mantle ≥ v0.148.0**), type filters, deep links
+8. **Files** (v1.9) — folder browser, authed image preview, camera/library/
+   document upload into any folder
+9. **Offline chat** (v1.10) — Drift read cache + an idempotent send-queue
+   (see [Chat](#offline-cache--send-queue-v110))
+10. **Markdown math + code highlighting** (v1.11) — `$…$`/`$$…$$` TeX and
+    theme-token syntax highlighting (closes rendering Phase 4)
 
 The client is intentionally thin; Mantle is smart. The app sends raw input and
 renders responses — no reverse-geocoding or POI logic on device. The one
@@ -39,7 +49,9 @@ alarm scheduler so they fire without network (see [Events](#events--device-alarm
 | Nav | **go_router** | Auth-gated redirect |
 | Models | freezed + json_serializable | Available; chat model hand-written for now |
 | Markdown | **flutter_markdown_plus** (+ `markdown` parser) | Renders assistant replies; `url_launcher` opens external links |
-| Tests | flutter_test + **mocktail** + in-memory Drift | 95 tests |
+| Math | **flutter_math_fork** | `$…$` / `$$…$$` TeX in chat + pages |
+| Code highlighting | **re_highlight** | Curated language set — NOT `languages/all.dart` (the full registry ground kernel compiles to 30+ min) |
+| Tests | flutter_test + **mocktail** + in-memory Drift | 138 tests |
 
 ## Project layout
 
@@ -58,7 +70,7 @@ lib/
                      auth_repository.dart     — login/logout orchestration
     chat/            chat_message.dart        — unified message model
                      chat_api.dart            — turn/messages/stream endpoints
-                     chat_repository.dart     — seam (future Drift cache/queue)
+                     chat_repository.dart     — Drift read cache + offline send-queue
                      turn_event.dart          — one SSE turn event (+ v tripwire)
                      turn_meta.dart           — thought trail / tool-stat shapes
                      conversation_stream.dart — per-owner /api/assistant/stream
@@ -70,6 +82,9 @@ lib/
     dashboard/       dashboard_models.dart    — summary + health models
                      dashboard_api.dart       — GET /api/dashboard/summary, /api/health
     pages/           pages_api.dart, pages_models.dart      — index/meta/markdown/backlinks
+    notes/           notes_api.dart, notes_models.dart      — CRUD + tag facets
+    search/          search_api.dart, search_models.dart    — GET /api/search hits
+    files/           files_api.dart, files_models.dart      — folders/files/upload
     tasks/           tasks_api.dart, tasks_models.dart      — CRUD + done flip
     journal/         journal_api.dart, journal_models.dart  — list + capture
     events/          events_api.dart, events_models.dart    — CRUD + done tag
@@ -95,6 +110,12 @@ lib/
     home/            home_screen.dart          — landing dashboard (stats + actions)
     pages/           pages_controller.dart, pages_screen.dart (tree),
                      page_view_screen.dart     — markdown + authed images + links
+    notes/           notes_controller.dart, notes_screen.dart,
+                     note_view_screen.dart     — markdown view + edit sheet
+    search/          search_controller.dart (debounce + stale guard),
+                     search_screen.dart        — filter chips + per-type routing
+    files/           files_controller.dart (family by folder path),
+                     files_screen.dart, file_image_screen.dart
     tasks/           tasks_controller.dart, tasks_screen.dart
     journal/         journal_controller.dart, journal_screen.dart (mic capture)
     events/          events_controller.dart, events_screen.dart (+ add sheet)
@@ -141,10 +162,12 @@ never touches Dio/Drift directly.
 
 ## Persistence
 
-- **Drift** — `app_settings(key, value)` key/value store holds the server URL
-  (`server_base_url`) and theme mode (`theme_mode`). Add typed domain tables as
-  features need them (chat cache, send-queue). Migrations live in Drift's
-  `schemaVersion`/`onUpgrade`. Tests use `AppDatabase.forTesting(NativeDatabase.memory())`.
+- **Drift** (schema v2) — `app_settings(key, value)` holds the server URL
+  (`server_base_url`) and theme mode (`theme_mode`); `cached_messages` is the
+  chat read cache (raw history-row JSON per agent, pruned to the newest 200);
+  `outbox_turns` is the offline send-queue (row id = the turn's idempotency
+  key). Migrations live in Drift's `schemaVersion`/`onUpgrade`. Tests use
+  `AppDatabase.forTesting(NativeDatabase.memory())`.
 - **Secure storage** — only the bearer token (`mantle_bearer_token`).
 
 ## Networking
@@ -274,8 +297,21 @@ the bubble colour drive it). User messages stay plain `Text`. Built in phases:
    `mantle_theme.dart`). Invalid colour tokens are baked out of the inline regex
    so they fall through to plain text. Inline spans flatten nested emphasis (v1).
 3. **Images & attachments (done)** — see [Attachments & voice](#attachments--voice).
-4. **Math & syntax highlighting** — `$…$` / `$$…$$` (flutter_math_fork) and
-   code-block highlighting.
+4. **Math & syntax highlighting (done, v1.11)** — `$…$` / `$$…$$` TeX via
+   flutter_math_fork, parsed by `MathInlineSyntax`/`MathBlockSyntax` in
+   `mantle_syntax.dart`. Currency guards: the opening `$` can't precede
+   whitespace, the closing `$` can't follow whitespace or precede a digit,
+   and digits-plus-punctuation-only content is emitted as plain TEXT — and
+   crucially it is *consumed* (an inline syntax must NEVER match without
+   consuming: returning false from `onMatch` after a regex match loops the
+   parser forever — this cost a debugging session, see the code comment).
+   Invalid TeX falls back to the raw source in monospace. Fenced code blocks
+   with a known language render through `code_highlight.dart` (re_highlight):
+   a **curated ~26-language set** — importing `languages/all.dart` (~190
+   grammars) blew test-bundle kernel compiles past 30 minutes — with the
+   colour map built from the active theme's chart ramp + tokens, so
+   highlighting follows light/dark and all 42 colour themes. Unknown
+   languages and inline code fall through to the default stylesheet path.
 
 ### Attachments & voice
 
@@ -340,6 +376,31 @@ attach and voice reuse Mantle's existing endpoints — no new server work:
   message-attached location feature — see Theming/roadmap; the string is also
   required to clear App Store validation 90683 from a linked SDK); Android
   `RECORD_AUDIO` (the pickers use the system UIs, so no storage permission).
+
+### Offline cache & send-queue (v1.10)
+
+The `ChatRepository` seam is now real — network-first with an on-device
+fallback, in [`data/chat/chat_repository.dart`](../lib/data/chat/chat_repository.dart):
+
+- **Read cache.** Every fetched LATEST page is written to Drift
+  `cached_messages` as the **raw server row JSON** and re-parsed through the
+  same `ChatApi.messageFromHistory` as the wire — cache and contract cannot
+  drift. When a fetch fails on a *connectivity* error (`isOfflineError`:
+  connection error/timeout, send timeout, SocketException — deliberately NOT
+  `receiveTimeout`, the server may have the turn), the cache answers instead,
+  flagged `HistoryPage.fromCache` → the thread shows an offline banner with a
+  Retry. Only the latest page falls back; older pages can't be answered
+  honestly offline. Pruned to the newest 200 rows per agent.
+- **Send-queue.** A text-only turn failing on connectivity is queued in
+  `outbox_turns` — **the row id IS the turn's idempotency key**, so a flush
+  that races a half-delivered send replays instead of duplicating. The
+  controller swaps the optimistic bubble for a `queued` one ("Queued — sends
+  when back online"). Attachment turns are never queued (fail fast, as
+  before). Flush points: thread open, app foreground resume, and before every
+  new send (so an offline backlog lands in written order ahead of the new
+  turn). A server-rejected row is retried across flushes and dropped after 3
+  attempts so one poisoned turn can't wedge the queue. Delivered turns
+  surface via a normal history refetch.
 
 ## Theming (color themes)
 
@@ -424,6 +485,35 @@ screen) and live under `/pages`, `/tasks`, `/journal`.
   reuses the chat's mic flow: record → `POST /api/assistant/transcribe` →
   transcript fills the field → save.
 
+## Notes, Search, Files (v1.7–v1.9)
+
+Three more surfaces over owner-gated JSON routes, same layering as v1.5:
+
+- **Notes** (`/notes`, `/notes/:id`). `GET/POST /api/notes` (paged 50, `q`/
+  `tag` filters, tag facets ride the response; agent digests stay hidden),
+  `GET/PATCH/DELETE /api/notes/{id}`. Capture-first: quick-add field on top
+  (with a tag filter active, adding resets to "all" so the new note is
+  visible), infinite scroll pages by `notes.length ~/ 50 + 1`, note view
+  renders content with `MantleMarkdown`, edit sheet PATCHes title/content/
+  comma-separated tags and patches the list row in place.
+- **Search** (`/search`, also the magnifier in the home header).
+  `GET /api/search?q&type&limit` — **added to Mantle in v0.148.0**; the
+  server embeds the query for vector-led hybrid ranking and degrades to FTS
+  if embedding fails. Controller debounces ~350 ms at ≥2 chars with a
+  request-sequence guard (a stale response can never overwrite a newer one).
+  Hits route by type: page/note → their view screens, task/event/journal →
+  their lists; everything else opens a sheet with the summary and an "Open
+  in Mantle" link (the server's absolute `/n/<id>` permalink resolves any
+  node type web-side).
+- **Files** (`/files?path=…`). Folders `GET /api/files/folders?parent=`,
+  files `GET /api/files/files?parent=`, upload `POST /api/files/files`
+  (multipart `{parentPath, file}` — camera / photo library / any document;
+  409 duplicate-name and 413 too-large surfaced inline), delete by id.
+  Each drilled folder is its own route push (controller is a family by
+  ltree path), so back just works. Image files open a full-screen authed
+  preview (`fileBytesProvider` + `InteractiveViewer`); others get a detail
+  sheet with "Open in Mantle".
+
 ## Events & device alarms (v1.6)
 
 Events (`/events`) are the headline v1.6 surface: CRUD over `GET/POST
@@ -478,7 +568,10 @@ event rings at its exact start time — offline, app killed, phone locked.
   **added**), `/api/pages` + `/api/pages/{id}` + `/api/pages/{id}/backlinks` +
   `/api/export/{id}?format=md` (Pages), `/api/tasks` + `/api/tasks/{id}`
   (Tasks), `/api/journal` (Journal), `/api/events` + `/api/events/{id}`
-  (Events), `/api/push/*` (enrollment/preferences — see
+  (Events), `/api/notes` + `/api/notes/{id}` (Notes), **`/api/search`**
+  (global search — **requires Mantle ≥ v0.148.0**; older servers 404→401 it),
+  `/api/files/folders` + `/api/files/files` (+ multipart upload) (Files),
+  `/api/push/*` (enrollment/preferences — see
   [push-notifications.md](push-notifications.md)).
 - **Auth-failure contract**: treat **401 OR 3xx→/login** as "session invalid →
   clear token → re-login".
@@ -538,15 +631,17 @@ cleartext to local hosts. Production Mantle is HTTPS.
 
 ## Roadmap
 
-Shipped through v1.6.0: chat (rich rendering, attachments, voice, streaming +
-thought trail), location, push, pages/tasks/journal, events + device alarms.
-Still open:
+Shipped through v1.11.0: chat (rich rendering, attachments, voice, streaming +
+thought trail, offline cache + send-queue, math + code highlighting),
+location, push, pages/tasks/journal, events + device alarms, notes, global
+search, files. Still open:
 
-- **Math & syntax highlighting** in markdown (Phase 4 under
-  [Chat](#rendering-assistant-replies))
-- Drift message **cache + offline send-queue** (the `ChatRepository` seam exists)
+- **Deploy Mantle ≥ v0.148.0** (the `/api/search` endpoint) to dev/prod —
+  until then the Search screen errors on older servers
 - **Events: first-class server status field** (today "done" is the reserved
   `done` tag — flagged as a backend follow-up)
-- **Write surfaces for Pages** (currently read-only)
+- **Write surfaces for Pages** (currently read-only; the draft/commit API is
+  ProseMirror-doc-shaped — needs a markdown-append backend route first)
 - Migrate Android to **AGP built-in Kotlin** so the `file_picker` 8.x pin can
   lift (see `android/gradle.properties`)
+- Android **release keystore** (release APK still signs with the debug key)
