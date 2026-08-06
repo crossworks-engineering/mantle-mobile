@@ -21,6 +21,11 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
   bool _checking = false;
   String? _error;
 
+  /// Set when the address turned out to be the owner app rather than the brain:
+  /// we rewrite the field to the brain it points at and say so, instead of
+  /// connecting somewhere the user didn't type. The next tap connects.
+  String? _notice;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -36,18 +41,28 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
     setState(() {
       _checking = true;
       _error = null;
+      _notice = null;
     });
-    final reachable = await probeMantleServer(url);
+    final probe = await probeMantleServer(url);
     if (!mounted) return;
-    if (!reachable) {
-      setState(() {
-        _checking = false;
-        _error = "Couldn't reach a Mantle server at that URL.";
-      });
-      return;
+    switch (probe) {
+      case ServerProbeUnreachable():
+        setState(() {
+          _checking = false;
+          _error = "Couldn't reach a Mantle server at that URL.";
+        });
+      case ServerProbeClientApp(:final brainBaseUrl):
+        setState(() {
+          _checking = false;
+          _controller.text = brainBaseUrl;
+          _notice =
+              "That's the Mantle app address. Its brain is at $brainBaseUrl — "
+              'tap Connect to use it.';
+        });
+      case ServerProbeBrain(:final baseUrl):
+        await ref.read(sessionControllerProvider.notifier).setServer(baseUrl);
+      // Router redirects to /login once the server is saved.
     }
-    await ref.read(sessionControllerProvider.notifier).setServer(url);
-    // Router redirects to /login once the server is saved.
   }
 
   @override
@@ -91,6 +106,10 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                         color: theme.colorScheme.destructive,
                       ),
                     ),
+                  ],
+                  if (_notice != null) ...[
+                    const SizedBox(height: 8),
+                    Text(_notice!, style: theme.textTheme.small),
                   ],
                   const SizedBox(height: 20),
                   SizedBox(

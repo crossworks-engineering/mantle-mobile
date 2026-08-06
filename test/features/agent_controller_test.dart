@@ -15,7 +15,12 @@ const _pages = Agent(slug: 'pages', name: 'Pages');
 
 void main() {
   late MockAgentApi api;
-  setUp(() => api = MockAgentApi());
+  setUp(() {
+    api = MockAgentApi();
+    // Default: the server has no opinion (old route / failed call), so the
+    // controller keeps its pre-v1.12 behaviour. Individual tests override.
+    when(() => api.threadInfo()).thenAnswer((_) async => null);
+  });
 
   ProviderContainer make() {
     final c = ProviderContainer(
@@ -62,6 +67,70 @@ void main() {
     expect(state.agents, isEmpty);
     expect(state.active, isNull);
     expect(c.read(activeAgentSlugProvider), isNull);
+  });
+
+  group('server-owned list + default (/api/assistant/thread)', () {
+    const disabled = Agent(slug: 'retired', name: 'Retired');
+
+    test('hides agents the server does not consider chattable', () async {
+      // /api/agents filters to conversational ROLES but not `enabled`, so a
+      // disabled agent arrives here and must be dropped.
+      when(() => api.list()).thenAnswer((_) async => [_saskia, disabled, _pages]);
+      when(() => api.threadInfo()).thenAnswer(
+        (_) async => const AssistantThreadInfo(
+          chattableSlugs: {'saskia', 'pages'},
+          defaultSlug: 'saskia',
+        ),
+      );
+      final c = make();
+
+      final state = await c.read(agentControllerProvider.future);
+      expect(state.agents.map((a) => a.slug), ['saskia', 'pages']);
+    });
+
+    test("defaults to the server's resolved agent, not merely the first", () async {
+      // The per-login assistant (v0.224 agents.assigned_user_id) ranks BELOW
+      // its source in priority, so first-by-priority is the wrong answer.
+      when(() => api.list()).thenAnswer((_) async => [_saskia, _pages]);
+      when(() => api.threadInfo()).thenAnswer(
+        (_) async => const AssistantThreadInfo(
+          chattableSlugs: {'saskia', 'pages'},
+          defaultSlug: 'pages',
+        ),
+      );
+      final c = make();
+
+      final state = await c.read(agentControllerProvider.future);
+      expect(state.active?.slug, 'pages');
+      expect(c.read(activeAgentSlugProvider), 'pages');
+    });
+
+    test('a resolved agent missing from the list falls back to the first', () async {
+      when(() => api.list()).thenAnswer((_) async => [_saskia, _pages]);
+      when(() => api.threadInfo()).thenAnswer(
+        (_) async => const AssistantThreadInfo(
+          chattableSlugs: {'saskia', 'pages'},
+          defaultSlug: 'ghost',
+        ),
+      );
+      final c = make();
+
+      expect((await c.read(agentControllerProvider.future)).active?.slug, 'saskia');
+    });
+
+    test('an empty chattable set never empties the picker', () async {
+      // An unrecognised response shape must not cost the user their agents.
+      when(() => api.list()).thenAnswer((_) async => [_saskia, _pages]);
+      when(() => api.threadInfo()).thenAnswer(
+        (_) async =>
+            const AssistantThreadInfo(chattableSlugs: {}, defaultSlug: null),
+      );
+      final c = make();
+
+      final state = await c.read(agentControllerProvider.future);
+      expect(state.agents, hasLength(2));
+      expect(state.active?.slug, 'saskia');
+    });
   });
 
   group('Agent model', () {

@@ -11,6 +11,15 @@ part of 'agent_controller.dart';
 /// Loads the agent list and tracks the selected agent. Kept alive so the
 /// selection survives leaving the chat screen. (Persisting it across restarts
 /// is a TODO.)
+///
+/// Both the list and the default come from Mantle rather than being derived
+/// here. `/api/agents` carries the rich rows (avatar, role) but is filtered
+/// only to conversational roles — it still includes DISABLED agents, which the
+/// web picker hides. `/api/assistant/thread` supplies the server's own answer
+/// to both questions, so the two are intersected: the app never re-implements
+/// the eligibility rule, and its default matches the agent the server would
+/// pick for this login when a turn omits `?agent=` (since v0.224 that is the
+/// login's own assigned assistant, not just the highest-priority agent).
 
 @ProviderFor(AgentController)
 final agentControllerProvider = AgentControllerProvider._();
@@ -18,11 +27,29 @@ final agentControllerProvider = AgentControllerProvider._();
 /// Loads the agent list and tracks the selected agent. Kept alive so the
 /// selection survives leaving the chat screen. (Persisting it across restarts
 /// is a TODO.)
+///
+/// Both the list and the default come from Mantle rather than being derived
+/// here. `/api/agents` carries the rich rows (avatar, role) but is filtered
+/// only to conversational roles — it still includes DISABLED agents, which the
+/// web picker hides. `/api/assistant/thread` supplies the server's own answer
+/// to both questions, so the two are intersected: the app never re-implements
+/// the eligibility rule, and its default matches the agent the server would
+/// pick for this login when a turn omits `?agent=` (since v0.224 that is the
+/// login's own assigned assistant, not just the highest-priority agent).
 final class AgentControllerProvider
     extends $AsyncNotifierProvider<AgentController, AgentsState> {
   /// Loads the agent list and tracks the selected agent. Kept alive so the
   /// selection survives leaving the chat screen. (Persisting it across restarts
   /// is a TODO.)
+  ///
+  /// Both the list and the default come from Mantle rather than being derived
+  /// here. `/api/agents` carries the rich rows (avatar, role) but is filtered
+  /// only to conversational roles — it still includes DISABLED agents, which the
+  /// web picker hides. `/api/assistant/thread` supplies the server's own answer
+  /// to both questions, so the two are intersected: the app never re-implements
+  /// the eligibility rule, and its default matches the agent the server would
+  /// pick for this login when a turn omits `?agent=` (since v0.224 that is the
+  /// login's own assigned assistant, not just the highest-priority agent).
   AgentControllerProvider._()
     : super(
         from: null,
@@ -42,11 +69,20 @@ final class AgentControllerProvider
   AgentController create() => AgentController();
 }
 
-String _$agentControllerHash() => r'3e12d0c6d09e9efb315fe29253fb91fcbb2ec07b';
+String _$agentControllerHash() => r'fd1ac314c5579a1badd38f4bbb54e3fc426872bf';
 
 /// Loads the agent list and tracks the selected agent. Kept alive so the
 /// selection survives leaving the chat screen. (Persisting it across restarts
 /// is a TODO.)
+///
+/// Both the list and the default come from Mantle rather than being derived
+/// here. `/api/agents` carries the rich rows (avatar, role) but is filtered
+/// only to conversational roles — it still includes DISABLED agents, which the
+/// web picker hides. `/api/assistant/thread` supplies the server's own answer
+/// to both questions, so the two are intersected: the app never re-implements
+/// the eligibility rule, and its default matches the agent the server would
+/// pick for this login when a turn omits `?agent=` (since v0.224 that is the
+/// login's own assigned assistant, not just the highest-priority agent).
 
 abstract class _$AgentController extends $AsyncNotifier<AgentsState> {
   FutureOr<AgentsState> build();

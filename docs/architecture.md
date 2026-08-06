@@ -193,9 +193,56 @@ is the single source of truth the go_router `redirect` follows.
 
 Mantle side (in the `mantle` repo, see its commit): a `mobile_tokens` table; the
 token is HMAC-signed like the session cookie but carries a `jti` + `k:'m'`;
-`getSessionUser()` and the Edge `middleware` accept it, so **every existing
-endpoint works with the mobile token, no per-route changes**. `mobile-logout`
-revokes by `jti`.
+`getSessionUser()` and the gate accept it, so **every existing endpoint works
+with the mobile token, no per-route changes**. `mobile-logout` revokes by `jti`.
+
+### Which address is "the server" (Mantle ≥ v0.200.0)
+
+Mantle's v0.200.0–v0.202.0 split carved the owner UI out of the server: a
+deployment can serve the brain on one vhost and the owner app on another
+(`app.<domain>`), and **the app must point at the brain** — the owner-app origin
+carries no `/api` at all. That makes the address people see in their browser the
+one thing guaranteed not to work.
+
+`probeMantleServer` therefore returns a `ServerProbe`, not a bool:
+
+- `ServerProbeBrain` — `GET /api/version` answered; save this address.
+- `ServerProbeClientApp` — it's the owner app. `client/web` serves `/env.js`
+  (public) advertising `serverOrigin`, so the app recovers the brain address,
+  verifies it, and offers it. The setup screen **rewrites the field and says
+  so** rather than connecting somewhere the user didn't type.
+- `ServerProbeUnreachable` — neither.
+
+Single-host installs — one hostname path-routing `/api` to the server and
+everything else to the owner app, which is how `dev` and `jason-prod` are set
+up — never reach the recovery branch, because `/api/version` answers first.
+They also advertise their own hostname as `serverOrigin`, and an origin equal
+to (or empty, meaning same as) the address just probed is rejected, so the
+recovery can't loop back onto an address already found dead.
+
+The split otherwise changed nothing for this app: the mobile bearer was the
+mechanism the split was designed around, `/api/**` still answers a credential-less
+request with a clean 401 (never an HTML redirect), CORS never engages because a
+native client sends no `Origin`, and `mobile-login` is deliberately frozen at its
+original path, shape and 1-year TTL. Contract details:
+`mantle/docs/mobile-companion-backend.md` §The frontend/server split.
+
+## Agents — the server owns the list and the default
+
+`AgentController` merges two calls at launch:
+
+- `GET /api/agents` — the rich rows (name, role, `avatar`), filtered by the
+  server to conversational roles but **not** to `enabled`.
+- `GET /api/assistant/thread?withMessages=0` — Mantle's own answer to *which
+  agents may this login chat to* (`agents`: roles **and** enabled) and *which
+  one is it talking to by default* (`agent`: `resolveAgentForActor`, which since
+  Mantle v0.224 prefers the agent bound to this login over the brain-wide
+  priority default). `withMessages=0` suppresses the 100-message thread the
+  chat screen would refetch from its own cache anyway.
+
+The two are intersected, so the app never re-implements either rule. Both
+degrade safely: a failed or unrecognised thread response leaves the full list
+and the first-by-priority default, exactly as before.
 
 ## Chat
 

@@ -20,14 +20,49 @@ class AgentsState {
 /// Loads the agent list and tracks the selected agent. Kept alive so the
 /// selection survives leaving the chat screen. (Persisting it across restarts
 /// is a TODO.)
+///
+/// Both the list and the default come from Mantle rather than being derived
+/// here. `/api/agents` carries the rich rows (avatar, role) but is filtered
+/// only to conversational roles — it still includes DISABLED agents, which the
+/// web picker hides. `/api/assistant/thread` supplies the server's own answer
+/// to both questions, so the two are intersected: the app never re-implements
+/// the eligibility rule, and its default matches the agent the server would
+/// pick for this login when a turn omits `?agent=` (since v0.224 that is the
+/// login's own assigned assistant, not just the highest-priority agent).
 @Riverpod(keepAlive: true)
 class AgentController extends _$AgentController {
   @override
   Future<AgentsState> build() async {
-    final agents = await ref.read(agentApiProvider).list();
+    final api = ref.read(agentApiProvider);
+    // Both in flight together — the thread call is best-effort, so a failure
+    // there must not cost the user their agent list.
+    final results = await (api.list(), api.threadInfo()).wait;
+    final all = results.$1;
+    final info = results.$2;
+
+    // Intersect only when the server answered with a non-empty set; an older
+    // route, a failed call, or an unrecognised shape leaves the previous
+    // behaviour (every conversational agent) intact rather than emptying the
+    // picker on a response we didn't understand.
+    final eligible = info?.chattableSlugs ?? const <String>{};
+    final agents = eligible.isEmpty
+        ? all
+        : [
+            for (final a in all)
+              if (eligible.contains(a.slug)) a,
+          ];
+
+    Agent? active;
+    for (final a in agents) {
+      if (a.slug == info?.defaultSlug) {
+        active = a;
+        break;
+      }
+    }
+
     return AgentsState(
       agents: agents,
-      active: agents.isEmpty ? null : agents.first,
+      active: active ?? (agents.isEmpty ? null : agents.first),
     );
   }
 
