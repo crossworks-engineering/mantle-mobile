@@ -6,9 +6,9 @@ import Sodium
 /// lib/data/push/push_keys.dart (access group, service, account names) and the
 /// keychain-access-groups entitlement on both targets.
 enum PushCrypto {
-  // $(AppIdentifierPrefix)crossworks.engineering.mantle.pushkeys — prefix is the
+  // $(AppIdentifierPrefix)crossworks.engineering.jackdaw.pushkeys — prefix is the
   // team id P6NLP32L8H. If the team changes, update this AND the entitlements.
-  private static let accessGroup = "P6NLP32L8H.crossworks.engineering.mantle.pushkeys"
+  private static let accessGroup = "P6NLP32L8H.crossworks.engineering.jackdaw.pushkeys"
   private static let service = "mantle_push" // flutter_secure_storage accountName
   private static let secretKeyAccount = "mantle_push_secret_key"
   private static let publicKeyAccount = "mantle_push_public_key"

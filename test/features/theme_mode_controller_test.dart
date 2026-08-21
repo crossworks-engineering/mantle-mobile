@@ -4,8 +4,8 @@
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/features/settings/settings_repository.dart';
-import 'package:mantle_companion/features/settings/theme_mode_controller.dart';
+import 'package:jackdaw/features/settings/settings_repository.dart';
+import 'package:jackdaw/features/settings/theme_mode_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSettingsRepository extends Mock implements SettingsRepository {}

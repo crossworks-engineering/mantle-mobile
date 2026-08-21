@@ -5,9 +5,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/notes/notes_api.dart';
-import 'package:mantle_companion/data/notes/notes_models.dart';
-import 'package:mantle_companion/features/notes/notes_controller.dart';
+import 'package:jackdaw/data/notes/notes_api.dart';
+import 'package:jackdaw/data/notes/notes_models.dart';
+import 'package:jackdaw/features/notes/notes_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockNotesApi extends Mock implements NotesApi {}

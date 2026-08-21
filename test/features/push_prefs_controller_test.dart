@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/push/push_api.dart';
-import 'package:mantle_companion/features/settings/push/push_prefs_controller.dart';
+import 'package:jackdaw/data/push/push_api.dart';
+import 'package:jackdaw/features/settings/push/push_prefs_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockPushApi extends Mock implements PushApi {}

@@ -97,7 +97,7 @@ class _MantleCompanionAppState extends ConsumerState<MantleCompanionApp>
     return MantleColors(
       def: MantleTheme.defFor(themeId),
       child: ShadApp.router(
-        title: 'Mantle Companion',
+        title: 'Jackdaw',
         themeMode: themeMode,
         theme: MantleTheme.light(themeId),
         darkTheme: MantleTheme.dark(themeId),

@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "me.schoeman.mantle_companion"
+    namespace = "crossworks.engineering.jackdaw"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "me.schoeman.mantle_companion"
+        applicationId = "crossworks.engineering.jackdaw"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

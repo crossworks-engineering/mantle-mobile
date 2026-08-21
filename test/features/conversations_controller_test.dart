@@ -3,11 +3,11 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/agents/agent.dart';
-import 'package:mantle_companion/data/chat/conversation_stream.dart';
-import 'package:mantle_companion/data/conversations/conversation_models.dart';
-import 'package:mantle_companion/data/conversations/conversations_api.dart';
-import 'package:mantle_companion/features/conversations/conversations_controller.dart';
+import 'package:jackdaw/data/agents/agent.dart';
+import 'package:jackdaw/data/chat/conversation_stream.dart';
+import 'package:jackdaw/data/conversations/conversation_models.dart';
+import 'package:jackdaw/data/conversations/conversations_api.dart';
+import 'package:jackdaw/features/conversations/conversations_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockConversationsApi extends Mock implements ConversationsApi {}

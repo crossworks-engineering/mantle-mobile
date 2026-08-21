@@ -7,14 +7,14 @@ import 'package:dio/dio.dart'
     show CancelToken, DioException, DioExceptionType, RequestOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/chat/chat_api.dart';
-import 'package:mantle_companion/data/chat/chat_message.dart';
-import 'package:mantle_companion/data/chat/chat_repository.dart';
-import 'package:mantle_companion/data/chat/conversation_stream.dart';
-import 'package:mantle_companion/data/db/app_database.dart';
-import 'package:mantle_companion/data/chat/turn_event.dart';
-import 'package:mantle_companion/features/chat/chat_controller.dart';
-import 'package:mantle_companion/features/settings/settings_repository.dart';
+import 'package:jackdaw/data/chat/chat_api.dart';
+import 'package:jackdaw/data/chat/chat_message.dart';
+import 'package:jackdaw/data/chat/chat_repository.dart';
+import 'package:jackdaw/data/chat/conversation_stream.dart';
+import 'package:jackdaw/data/db/app_database.dart';
+import 'package:jackdaw/data/chat/turn_event.dart';
+import 'package:jackdaw/features/chat/chat_controller.dart';
+import 'package:jackdaw/features/settings/settings_repository.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockChatRepository extends Mock implements ChatRepository {}

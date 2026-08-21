@@ -1,4 +1,4 @@
-# Mantle Companion
+# Jackdaw — mobile
 
 A cross-platform mobile companion for the Mantle personal assistant. Built with
 Flutter, themed with [shadcn/ui for Flutter](https://flutter-shadcn-ui.mariuti.com/)

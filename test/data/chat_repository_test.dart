@@ -8,10 +8,10 @@ import 'dart:io' show SocketException;
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/chat/chat_api.dart';
-import 'package:mantle_companion/data/chat/chat_message.dart';
-import 'package:mantle_companion/data/chat/chat_repository.dart';
-import 'package:mantle_companion/data/db/app_database.dart';
+import 'package:jackdaw/data/chat/chat_api.dart';
+import 'package:jackdaw/data/chat/chat_message.dart';
+import 'package:jackdaw/data/chat/chat_repository.dart';
+import 'package:jackdaw/data/db/app_database.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockChatApi extends Mock implements ChatApi {}

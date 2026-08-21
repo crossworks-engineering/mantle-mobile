@@ -1,4 +1,4 @@
-package me.schoeman.mantle_companion
+package crossworks.engineering.jackdaw
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -2,9 +2,9 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/dashboard/dashboard_api.dart';
-import 'package:mantle_companion/data/dashboard/dashboard_models.dart';
-import 'package:mantle_companion/features/dashboard/dashboard_controller.dart';
+import 'package:jackdaw/data/dashboard/dashboard_api.dart';
+import 'package:jackdaw/data/dashboard/dashboard_models.dart';
+import 'package:jackdaw/features/dashboard/dashboard_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockDashboardApi extends Mock implements DashboardApi {}

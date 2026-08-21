@@ -6,8 +6,8 @@
 	<string>development</string>
 	<key>keychain-access-groups</key>
 	<array>
-		<string>$(AppIdentifierPrefix)crossworks.engineering.mantle.pushkeys</string>
-		<string>$(AppIdentifierPrefix)crossworks.engineering.mantle.NotificationService</string>
+		<string>$(AppIdentifierPrefix)crossworks.engineering.jackdaw.pushkeys</string>
+		<string>$(AppIdentifierPrefix)crossworks.engineering.jackdaw.NotificationService</string>
 	</array>
 </dict>
 </plist>

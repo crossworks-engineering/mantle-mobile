@@ -1,9 +1,9 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/db/app_database.dart';
-import 'package:mantle_companion/data/db/database_provider.dart';
-import 'package:mantle_companion/data/server/server_config.dart';
+import 'package:jackdaw/data/db/app_database.dart';
+import 'package:jackdaw/data/db/database_provider.dart';
+import 'package:jackdaw/data/server/server_config.dart';
 
 void main() {
   group('normalizeBaseUrl', () {

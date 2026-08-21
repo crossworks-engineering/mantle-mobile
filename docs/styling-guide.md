@@ -1,4 +1,4 @@
-# Mantle Companion — Styling Guide
+# Jackdaw (mobile) — Styling Guide
 
 The rulebook for UI. **Read this before building or tweaking any screen**, so the
 whole app stays visually consistent. When in doubt, match the existing screens

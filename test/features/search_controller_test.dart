@@ -5,9 +5,9 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/search/search_api.dart';
-import 'package:mantle_companion/data/search/search_models.dart';
-import 'package:mantle_companion/features/search/search_controller.dart';
+import 'package:jackdaw/data/search/search_api.dart';
+import 'package:jackdaw/data/search/search_models.dart';
+import 'package:jackdaw/features/search/search_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockSearchApi extends Mock implements SearchApi {}

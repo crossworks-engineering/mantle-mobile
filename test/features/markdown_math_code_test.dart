@@ -5,9 +5,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/features/chat/markdown/mantle_markdown.dart';
-import 'package:mantle_companion/features/chat/markdown/mantle_syntax.dart';
-import 'package:mantle_companion/theme/mantle_theme.dart';
+import 'package:jackdaw/features/chat/markdown/mantle_markdown.dart';
+import 'package:jackdaw/features/chat/markdown/mantle_syntax.dart';
+import 'package:jackdaw/theme/mantle_theme.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:shadcn_ui/shadcn_ui.dart';
 

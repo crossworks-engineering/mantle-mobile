@@ -5,10 +5,10 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/chat/chat_api.dart';
-import 'package:mantle_companion/data/chat/chat_attachment.dart';
-import 'package:mantle_companion/data/chat/chat_message.dart';
-import 'package:mantle_companion/data/location/location_ping.dart';
+import 'package:jackdaw/data/chat/chat_api.dart';
+import 'package:jackdaw/data/chat/chat_attachment.dart';
+import 'package:jackdaw/data/chat/chat_message.dart';
+import 'package:jackdaw/data/location/location_ping.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';

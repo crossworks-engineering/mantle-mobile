@@ -1,7 +1,7 @@
 // LocationPing wire serialization (Mantle's `location` field on a chat turn).
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/location/location_ping.dart';
+import 'package:jackdaw/data/location/location_ping.dart';
 
 void main() {
   test('toJson sends required coords + ISO timestamp, omits null optionals', () {

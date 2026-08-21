@@ -1,9 +1,9 @@
 // AuthRepository orchestration, with the API and token store both mocked.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/auth/auth_api.dart';
-import 'package:mantle_companion/data/auth/auth_repository.dart';
-import 'package:mantle_companion/data/auth/token_store.dart';
+import 'package:jackdaw/data/auth/auth_api.dart';
+import 'package:jackdaw/data/auth/auth_repository.dart';
+import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAuthApi extends Mock implements AuthApi {}

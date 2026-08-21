@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/features/settings/push/direct_push_controller.dart';
+import 'package:jackdaw/features/settings/push/direct_push_controller.dart';
 
 void main() {
   // FlutterForegroundTask (called inside disable()) is a method-channel plugin,

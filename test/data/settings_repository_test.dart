@@ -5,8 +5,8 @@
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/db/app_database.dart';
-import 'package:mantle_companion/features/settings/settings_repository.dart';
+import 'package:jackdaw/data/db/app_database.dart';
+import 'package:jackdaw/features/settings/settings_repository.dart';
 
 void main() {
   late AppDatabase db;

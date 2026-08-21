@@ -6,9 +6,9 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/files/files_api.dart';
-import 'package:mantle_companion/data/files/files_models.dart';
-import 'package:mantle_companion/features/files/files_controller.dart';
+import 'package:jackdaw/data/files/files_api.dart';
+import 'package:jackdaw/data/files/files_models.dart';
+import 'package:jackdaw/features/files/files_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockFilesApi extends Mock implements FilesApi {}

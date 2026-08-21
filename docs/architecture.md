@@ -1,4 +1,4 @@
-# Mantle Companion — Architecture
+# Jackdaw (mobile) — Architecture
 
 A handover-oriented map of the app: what it is, how it's structured, and how it
 talks to Mantle. Pair this with [styling-guide.md](styling-guide.md) for UI rules.

@@ -8,10 +8,20 @@ ceremony — most of it is already wired in the repo.
 
 | Thing | Value |
 |---|---|
-| Android package | `me.schoeman.mantle_companion` |
+| Android package | `crossworks.engineering.jackdaw` |
 | Firebase project | `pusher` (`pusher-5bacc`) |
-| `google-services.json` | already at `android/app/` (gitignored) |
+| `google-services.json` | at `android/app/` (gitignored) — **must be re-issued for the new package, see below** |
 | Notification channel | `mantle_messages` ("Messages") |
+
+> **Renamed 2026-08-21.** The Android package changed from
+> `me.schoeman.mantle_companion` to `crossworks.engineering.jackdaw`. FCM issues
+> `mobilesdk_app_id` per package name, so the old `google-services.json` no
+> longer matches this build. Before the next Android build: Firebase console →
+> project `pusher-5bacc` → Project settings → **Add app** → Android →
+> `crossworks.engineering.jackdaw` → download the new `google-services.json`
+> over `android/app/google-services.json`. While there, drop the stale
+> `com.pusher.pusher_beams_example` client if it is still listed. Push will not
+> register until this is done.
 
 What the code already does (`lib/data/push/*` + `lib/main.dart`):
 - `main()` on Android calls `setupAndroidPush()` → `Firebase.initializeApp()`,
@@ -65,7 +75,7 @@ fvm flutter run                 # a real device or an emulator WITH Google Play 
   failed (no local keypair, or a stale one). Disconnect + Connect again to
   regenerate keys and re-subscribe.
 - **`google-services.json` missing at build** → it's gitignored; re-download from
-  Firebase → pusher → Project settings → Your apps → `me.schoeman.mantle_companion`.
+  Firebase → pusher → Project settings → Your apps → `crossworks.engineering.jackdaw`.
 - **FCM `INVALID_ARGUMENT` in the worker log** → the stored routing token's device
   was pruned (token rotated). Reconnect.
 

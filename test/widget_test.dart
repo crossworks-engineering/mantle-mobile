@@ -5,9 +5,9 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/db/app_database.dart';
-import 'package:mantle_companion/data/db/database_provider.dart';
-import 'package:mantle_companion/main.dart';
+import 'package:jackdaw/data/db/app_database.dart';
+import 'package:jackdaw/data/db/database_provider.dart';
+import 'package:jackdaw/main.dart';
 
 void main() {
   testWidgets('App boots to the server-setup screen when unconfigured',

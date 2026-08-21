@@ -1,4 +1,4 @@
-# Mantle Companion — repo guide
+# Jackdaw (mobile) — repo guide
 
 Cross-platform Flutter companion app for the self-hosted **Mantle** assistant
 (chat, notifications, message-attached location).

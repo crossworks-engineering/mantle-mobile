@@ -11,7 +11,7 @@ import 'package:path_provider/path_provider.dart';
 QueryExecutor openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();
-    final file = File(p.join(dir.path, 'mantle_companion.sqlite'));
+    final file = File(p.join(dir.path, 'jackdaw.sqlite'));
     return NativeDatabase.createInBackground(file);
   });
 }

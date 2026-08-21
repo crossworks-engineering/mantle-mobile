@@ -3,9 +3,9 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/agents/agent.dart';
-import 'package:mantle_companion/data/agents/agent_api.dart';
-import 'package:mantle_companion/features/agents/agent_controller.dart';
+import 'package:jackdaw/data/agents/agent.dart';
+import 'package:jackdaw/data/agents/agent_api.dart';
+import 'package:jackdaw/features/agents/agent_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockAgentApi extends Mock implements AgentApi {}

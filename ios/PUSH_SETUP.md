@@ -9,9 +9,9 @@ signing) and a **real device via TestFlight** — our APNs key is _production-on
 
 | Thing | Value |
 |---|---|
-| App bundle id (APNs topic) | `crossworks.engineering.mantle` |
+| App bundle id (APNs topic) | `crossworks.engineering.jackdaw` |
 | Team id (`AppIdentifierPrefix`) | `P6NLP32L8H` |
-| Shared Keychain group | `$(AppIdentifierPrefix)crossworks.engineering.mantle.pushkeys` |
+| Shared Keychain group | `$(AppIdentifierPrefix)crossworks.engineering.jackdaw.pushkeys` |
 | NSE target name | **`NotificationService`** (use exactly this) |
 | Relay | `https://push.crossworks.network` (live, APNs prod) |
 
@@ -28,7 +28,7 @@ libsodium keypair, stores the secret key in the shared Keychain group, and runs
 In Xcode → **Runner** target → **Signing & Capabilities**:
 
 1. **+ Capability → Push Notifications.**
-2. **+ Capability → Keychain Sharing** → add group **`crossworks.engineering.mantle.pushkeys`**.
+2. **+ Capability → Keychain Sharing** → add group **`crossworks.engineering.jackdaw.pushkeys`**.
 3. Confirm **Automatically manage signing** is on with the team (`P6NLP32L8H`).
 
 This should make Xcode use `ios/Runner/Runner.entitlements` (already in the repo
@@ -40,7 +40,7 @@ token, the second is shared with the NSE).
 
 1. **File → New → Target… → Notification Service Extension.**
 2. Name it exactly **`NotificationService`**. Bundle id will be
-   `crossworks.engineering.mantle.NotificationService`. Activate the scheme if asked.
+   `crossworks.engineering.jackdaw.NotificationService`. Activate the scheme if asked.
 3. Set its **iOS Deployment Target** to match Runner.
 4. **Delete the two stub files Xcode generated** (`NotificationService.swift` +
    its `Info.plist`) and instead **add the repo's files** to the target:
@@ -49,7 +49,7 @@ token, the second is shared with the NSE).
    and set its Info.plist to `ios/NotificationService/Info.plist`.
    (Or paste the repo file contents over the generated stubs.)
 5. **NotificationService target → Signing & Capabilities → + Keychain Sharing** →
-   add the **same** group `crossworks.engineering.mantle.pushkeys`. Point its
+   add the **same** group `crossworks.engineering.jackdaw.pushkeys`. Point its
    entitlements at `ios/NotificationService/NotificationService.entitlements`.
 
 ## 3. CocoaPods (libsodium for the NSE)
@@ -129,7 +129,7 @@ ssh mantle-prod 'docker logs -f mantle_worker_push'   # "[push-notify] <agent>: 
   persist) or the agent turn wasn't `outbound`.
 - **The existing login breaks after adding Keychain Sharing** → the first
   keychain-access-group entry must be the app's own
-  (`$(AppIdentifierPrefix)crossworks.engineering.mantle`) so items written without
+  (`$(AppIdentifierPrefix)crossworks.engineering.jackdaw`) so items written without
   an explicit group stay readable. It's already first in `Runner.entitlements`.
 
 Once a real decrypted push lands, M3 is done — then **M4** wires the Android FCM

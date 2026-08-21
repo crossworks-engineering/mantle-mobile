@@ -21,9 +21,9 @@ class PushKeyStore {
 
   /// Shared iOS Keychain access group. MUST match the `keychain-access-groups`
   /// entitlement on BOTH the Runner and NotificationService targets —
-  /// `$(AppIdentifierPrefix)crossworks.engineering.mantle.pushkeys` (the prefix
+  /// `$(AppIdentifierPrefix)crossworks.engineering.jackdaw.pushkeys` (the prefix
   /// resolves to team id `P6NLP32L8H`). See ios/PUSH_SETUP.md.
-  static const _iosAccessGroup = 'P6NLP32L8H.crossworks.engineering.mantle.pushkeys';
+  static const _iosAccessGroup = 'P6NLP32L8H.crossworks.engineering.jackdaw.pushkeys';
   // Public so the Android background-isolate decryptor reads the same items.
   static const secretKeyKey = 'mantle_push_secret_key';
   static const publicKeyKey = 'mantle_push_public_key';

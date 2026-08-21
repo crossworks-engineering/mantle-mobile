@@ -1,5 +1,13 @@
 # Mantle Companion — Handover
 
+> **Renamed 2026-08-21 — Mantle Companion → Jackdaw.** Entries below this line
+> were written under the old name and are kept verbatim as history. Current
+> identifiers: Dart package `jackdaw`; iOS bundle id / Android applicationId
+> `crossworks.engineering.jackdaw`; Keychain group
+> `crossworks.engineering.jackdaw.pushkeys`. Old values (`mantle_companion`,
+> `me.schoeman.mantle_companion`, `crossworks.engineering.mantle`) are dead.
+
+
 _Last updated: 2026-06-21._
 
 A checkpoint for picking the work back up. For the system map read

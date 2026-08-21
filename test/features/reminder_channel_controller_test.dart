@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/profile/profile_api.dart';
-import 'package:mantle_companion/features/settings/push/reminder_channel_controller.dart';
+import 'package:jackdaw/data/profile/profile_api.dart';
+import 'package:jackdaw/features/settings/push/reminder_channel_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockProfileApi extends Mock implements ProfileApi {}

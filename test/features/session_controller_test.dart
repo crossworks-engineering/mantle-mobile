@@ -4,11 +4,11 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/auth/auth_repository.dart';
-import 'package:mantle_companion/data/auth/token_store.dart';
-import 'package:mantle_companion/data/db/app_database.dart';
-import 'package:mantle_companion/data/db/database_provider.dart';
-import 'package:mantle_companion/features/auth/session_controller.dart';
+import 'package:jackdaw/data/auth/auth_repository.dart';
+import 'package:jackdaw/data/auth/token_store.dart';
+import 'package:jackdaw/data/db/app_database.dart';
+import 'package:jackdaw/data/db/database_provider.dart';
+import 'package:jackdaw/features/auth/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class MockTokenStore extends Mock implements TokenStore {}

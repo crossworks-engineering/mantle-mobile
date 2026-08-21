@@ -1,7 +1,7 @@
 // SSE line parsing + the TurnEvent model for the live turn stream.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/chat/turn_event.dart';
+import 'package:jackdaw/data/chat/turn_event.dart';
 
 void main() {
   group('parseTurnSseLine', () {

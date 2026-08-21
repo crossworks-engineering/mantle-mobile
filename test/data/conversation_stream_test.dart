@@ -1,7 +1,7 @@
 // SSE line parsing + event model for the live chat stream.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mantle_companion/data/chat/conversation_stream.dart';
+import 'package:jackdaw/data/chat/conversation_stream.dart';
 
 void main() {
   group('parseSseLine', () {

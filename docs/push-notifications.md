@@ -1,4 +1,4 @@
-# Design — Push notifications for Mantle Companion ("Mantle Push")
+# Design — Push notifications for Jackdaw mobile ("Mantle Push")
 
 _Status: **approved — ready to build** · 2026-06-13 · owner: Jason_
 
@@ -21,17 +21,37 @@ repo** — the APNs `.p8` and the FCM service-account JSON live only in the
 `mantle-push` deployment's secrets. These are the non-secret identifiers the
 relay/app wire up against.
 
+> ### ⚠️ Rename 2026-08-21 — iOS push is BLOCKED until this is done
+>
+> The bundle id changed from `crossworks.engineering.mantle` to
+> `crossworks.engineering.jackdaw`. The APNs key `2TJ76S5L69` is **topic
+> specific** to the old id, so it will not sign pushes for the new one.
+> Two steps, both manual:
+>
+> 1. **Apple Developer portal** — register App ID
+>    `crossworks.engineering.jackdaw` with Push Notifications enabled, plus a
+>    Keychain Sharing group `crossworks.engineering.jackdaw.pushkeys` shared
+>    with `crossworks.engineering.jackdaw.NotificationService`. Then either add
+>    the new topic to key `2TJ76S5L69` if the portal allows editing its topic
+>    list, or create a fresh topic-specific key. A fresh key means a new
+>    one-time `.p8` download and a new `APNS_KEY_ID` on the relay.
+> 2. **Relay (`mantle-push`)** — set `APNS_TOPIC=crossworks.engineering.jackdaw`
+>    (and `APNS_KEY_ID` / `secrets/AuthKey.p8` if the key changed).
+>
+> Until both are done, iOS notifications fail to send. Android is blocked
+> separately on a re-issued `google-services.json` (see `android/PUSH_SETUP.md`).
+
 **Apple (iOS / APNs) — token auth (`.p8`):**
 
 | Field | Value |
 |---|---|
-| App ID (bundle id / APNs topic) | `crossworks.engineering.mantle` ("Mantle Companion", **Push Notifications** enabled) |
-| APNs Auth Key | name **Mantle Push**, **Key ID `2TJ76S5L69`** — **Topic Specific** (`crossworks.engineering.mantle`), **Production** env |
+| App ID (bundle id / APNs topic) | `crossworks.engineering.jackdaw` ("Jackdaw", **Push Notifications** enabled) |
+| APNs Auth Key | name **Mantle Push**, **Key ID `2TJ76S5L69`** — **Topic Specific**, bound to the OLD topic `crossworks.engineering.mantle`. ⚠️ **Does not cover `crossworks.engineering.jackdaw`** — see the rename note below. **Production** env |
 | Team ID | `P6NLP32L8H` |
 | Private key file | `AuthKey_2TJ76S5L69.p8` — downloaded 2026-06-14 (valid EC P-256, 257 B); **one-time download, can't be re-issued** → into `mantle-push` secrets as `secrets/AuthKey.p8` |
 
 > **Relay config:** `APNS_KEY_ID=2TJ76S5L69`, `APNS_TEAM_ID=P6NLP32L8H`,
-> `APNS_TOPIC=crossworks.engineering.mantle`, **`APNS_ENV=production`** (this is a
+> `APNS_TOPIC=crossworks.engineering.jackdaw` ⚠️ **(must be changed on the relay — still set to the old `crossworks.engineering.mantle` in the deployed config)**, **`APNS_ENV=production`** (this is a
 > Production-only topic-specific key — won't auth Xcode dev/sandbox builds; that's
 > fine, testing is via TestFlight).
 >
@@ -45,8 +65,8 @@ relay/app wire up against.
 | Field | Value |
 |---|---|
 | Firebase project | **pusher** · id `pusher-5bacc` · sender/project number `426833137509` (free Spark plan — FCM included) |
-| Android app (package) | `me.schoeman.mantle_companion` |
-| `google-services.json` | ✅ downloaded (for the Flutter app at `android/app/`). Re-download: Firebase → pusher → ⚙ Project settings → Your apps → Mantle Companion. Not a secret. |
+| Android app (package) | `crossworks.engineering.jackdaw` |
+| `google-services.json` | ✅ downloaded (for the Flutter app at `android/app/`). Re-download: Firebase → pusher → ⚙ Project settings → Your apps → Jackdaw. Not a secret. |
 | Service-account JSON | ✅ **generated 2026-06-14** (`firebase-adminsdk-m8shx@pusher-5bacc`) for the relay's FCM v1 sends → `mantle-push` `secrets/fcm-service-account.json`. **Server secret; never commit** (the relay repo is public). Re-generatable. |
 
 > iOS does **not** need Firebase — it goes straight to APNs via the `.p8`. FCM is
