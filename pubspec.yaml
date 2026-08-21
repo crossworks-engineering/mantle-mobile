@@ -105,7 +105,7 @@ dev_dependencies:
   # masters; flutter_launcher_icons / flutter_native_splash fan them out to all
   # platforms.
   image: ^4.3.0
-  flutter_launcher_icons: ^0.14.3
+  flutter_launcher_icons: ^0.14.4
   flutter_native_splash: ^2.4.4
 
 # For information on the generic Dart part of this file, see the
@@ -164,7 +164,9 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 # App icon generation. The masters are composed by tool/generate_app_icon.dart
-# from assets/icon/source/mantle_logo.png (white "m" on Mantle indigo). Run:
+# from branding/jackdaw-icon-logo-dark-trans.png (the full-colour jackdaw badge
+# with the cream ring). Colour is preserved — the badge is illustrated artwork.
+# Run:
 #   fvm dart run tool/generate_app_icon.dart   # (re)build the masters
 #   fvm dart run flutter_launcher_icons        # fan out to iOS + Android
 flutter_launcher_icons:
@@ -173,27 +175,28 @@ flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   # iOS forbids alpha; the master is already opaque, but flatten to be safe.
   remove_alpha_ios: true
-  background_color_ios: "#6366F1"
-  # Android adaptive icon: white "m" foreground over the brand indigo.
-  adaptive_icon_background: "#6366F1"
+  background_color_ios: "#2D1500"
+  # Android adaptive icon: the badge over Jackdaw brand brown.
+  adaptive_icon_background: "#2D1500"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
-# Launch / splash screen. The white wordmark master is composed by
-# tool/generate_splash.dart from branding/mantle_logo_full.png. Run:
-#   fvm dart run tool/generate_splash.dart          # (re)build the white wordmark
+# Launch / splash screen. The lockup master is composed by
+# tool/generate_splash.dart from branding/jackdaw-icon-name-logo-dark-row-trans.png.
+# Run:
+#   fvm dart run tool/generate_splash.dart          # (re)build the lockup
 #   fvm dart run flutter_native_splash:create       # fan out to iOS + Android
-# Indigo (#6366F1) background with a centered white "mantle" wordmark, identical
-# in light and dark so dark-mode launches don't flash white. The Android 12+
-# splash masks its image to a circle, so it reuses the white "m" icon foreground
-# instead of the wide wordmark.
+# Brand brown (#2D1500) background with the centered badge + cream wordmark,
+# identical in light and dark so dark-mode launches don't flash white. The
+# Android 12+ splash masks its image to a circle, so it reuses the badge-only
+# icon foreground instead of the wide lockup.
 flutter_native_splash:
-  color: "#6366F1"
-  color_dark: "#6366F1"
-  image: assets/splash/mantle_wordmark_white.png
-  image_dark: assets/splash/mantle_wordmark_white.png
+  color: "#2D1500"
+  color_dark: "#2D1500"
+  image: assets/splash/jackdaw_lockup.png
+  image_dark: assets/splash/jackdaw_lockup.png
   ios_content_mode: center
   android_12:
-    color: "#6366F1"
-    color_dark: "#6366F1"
+    color: "#2D1500"
+    color_dark: "#2D1500"
     image: assets/icon/app_icon_foreground.png
     image_dark: assets/icon/app_icon_foreground.png

@@ -1,33 +1,63 @@
 # Branding
 
-## Official logo files (`mantle-logo-*`)
+## Jackdaw marks (`jackdaw-*`) — this app's brand
 
-The current official Mantle marks. These are copies — the source of truth is
-[`brand/` in the mantle repo](https://github.com/crossworks-engineering/mantle/tree/main/brand),
-which carries the full usage notes. If the mark changes, it changes there first
-and gets copied here.
+The app's own marks, as of the 2026-08-21 rename. These are copies — the source
+of truth is [`brand/redesign/` in the jackdaw repo](https://github.com/crossworks-engineering/jackdaw/tree/main/brand/redesign).
+If the mark changes, it changes there first and gets copied here.
+
+`dark` / `light` name the **background the mark is drawn for**, not the mark's
+own colour: the `dark` variants have a cream ring and cream wordmark and belong
+on a dark ground; the `light` variants have a dark brown ring and belong on a
+pale one.
 
 | file | what it is |
 |---|---|
-| `mantle-logo-icon.svg` / `.png` | Icon (`m` in a filled circle), solid black |
-| `mantle-logo-icon-color.svg` / `.png` | Icon, blue gradient with a white `m` |
-| `mantle-logo-full.svg` / `.png` | Full wordmark, solid black |
-| `mantle-logo-full-color.svg` / `.png` | Full wordmark, blue-to-purple gradient |
+| `jackdaw-icon-logo-{dark,light}-trans.png` | The badge alone — the jackdaw in a ringed circle |
+| `jackdaw-name-logo-{dark,light}-trans.png` | The wordmark alone |
+| `jackdaw-icon-name-logo-{dark,light}-row-trans.png` | Horizontal lockup — badge left, wordmark right |
+| `jackdaw-icon-name-logo-{dark,light}-trans.png` | Stacked lockup — badge above wordmark |
 
-SVG is the master; the PNGs are transparent RGBA exports (icon 2000x2000,
-wordmark 1400x400).
+### Brand colours
 
-## Older files (`mantle_logo*`)
+| swatch | hex | where it comes from |
+|---|---|---|
+| Brand brown | `#2D1500` | the ring of the light-background badge; the darkest swatch in the Affinity palette |
+| Brand cream | `#FDE7BC` | the ring and wordmark of the dark-background variants (the wordmark is 100% this one colour) |
 
-`mantle_logo.png`, `mantle_logo.svg` and `mantle_logo_full.png` are the earlier
-exports from July 2026. Same artwork, but looser crops, and the icon predates
-the circle badge. They are kept only so nothing referencing them breaks —
-**use the `mantle-logo-*` files above for anything new.**
+### ⚠️ The badge's cream field is semi-transparent
 
-## Note on the app launcher icon
+Only about **32% opaque**. The artwork was drawn against a light page, so
+compositing it straight onto the brand brown turns the whole interior a muddy
+olive — it looks fine in any image viewer (which shows it on white) and wrong
+in the app.
 
-The Flutter launcher icons under `assets/icon/` are generated separately and
-were **not** regenerated when these files landed, so they still derive from the
-older artwork. Refreshing them is a deliberate step (it changes the installed
-app icon and needs a rebuild), not something that follows automatically from
-dropping new files in here.
+Both generators handle this by sliding an opaque `#FDE7BC` disc underneath the
+badge first, inset slightly so its edge hides beneath the cream ring. If you
+ever composite the badge yourself, do the same.
+
+## Generated app icon and splash
+
+Neither is committed by hand — both are generated, and **regenerating is a
+deliberate step**: it changes the installed app icon and needs a rebuild.
+
+```
+fvm dart run tool/generate_app_icon.dart   # badge  → assets/icon/app_icon*.png
+fvm dart run flutter_launcher_icons        # fan out to iOS + Android
+
+fvm dart run tool/generate_splash.dart     # lockup → assets/splash/jackdaw_lockup.png
+fvm dart run flutter_native_splash:create  # fan out to iOS + Android
+```
+
+The composed look: the badge on brand brown for the icon, and the horizontal
+lockup centred on brand brown for the launch screen — identical in light and
+dark, so a dark-mode launch never flashes white. Configuration lives at the
+bottom of `pubspec.yaml`.
+
+## Mantle marks (`mantle-logo-*`, `mantle_logo*`) — the brain's brand, not this app's
+
+Kept for reference only. Mantle is the system this app talks to, and its marks
+still appear in that context — but they are **no longer this app's brand** and
+nothing here generates from them any more. Source of truth is
+[`brand/` in the mantle repo](https://github.com/crossworks-engineering/mantle/tree/main/brand).
+Safe to delete from this repo once nothing refers to them.
