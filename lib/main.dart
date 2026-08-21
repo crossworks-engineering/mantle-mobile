@@ -27,7 +27,7 @@ Future<void> main() async {
   // Listen for notification-tap deep links (iOS over the mantle/push channel;
   // Android via push_notifier). The root widget routes on each link.
   await DeepLinkRouter.instance.start();
-  runApp(const ProviderScope(child: MantleCompanionApp()));
+  runApp(const ProviderScope(child: JackdawApp()));
 }
 
 /// Root of the app. Uses [ShadApp.router] (the shadcn app type) rather than
@@ -37,14 +37,14 @@ Future<void> main() async {
 ///
 /// Stateful so it can observe app lifecycle and feed [appLifecycleProvider] —
 /// the live chat SSE stream pauses while backgrounded and reconnects on resume.
-class MantleCompanionApp extends ConsumerStatefulWidget {
-  const MantleCompanionApp({super.key});
+class JackdawApp extends ConsumerStatefulWidget {
+  const JackdawApp({super.key});
 
   @override
-  ConsumerState<MantleCompanionApp> createState() => _MantleCompanionAppState();
+  ConsumerState<JackdawApp> createState() => _JackdawAppState();
 }
 
-class _MantleCompanionAppState extends ConsumerState<MantleCompanionApp>
+class _JackdawAppState extends ConsumerState<JackdawApp>
     with WidgetsBindingObserver {
   @override
   void initState() {

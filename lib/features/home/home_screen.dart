@@ -28,7 +28,7 @@ class HomeScreen extends ConsumerWidget {
       child: Column(
         children: [
           MantleHeader(
-            leading: const MantleHeaderTitle('mantle'),
+            leading: const MantleHeaderTitle('Jackdaw'),
             trailing: [
               ShadButton.ghost(
                 onPressed: () => context.push('/search'),

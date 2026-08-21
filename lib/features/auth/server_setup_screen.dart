@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../widgets/jackdaw_wordmark.dart';
+
 import '../../data/server/server_config.dart';
 import 'session_controller.dart';
 
@@ -64,6 +66,11 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  JackdawWordmark(
+                    color: theme.colorScheme.foreground,
+                    height: 30,
+                  ),
+                  const SizedBox(height: 20),
                   Text('Connect to Mantle', style: theme.textTheme.h2),
                   const SizedBox(height: 8),
                   Text(

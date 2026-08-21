@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import 'jackdaw_wordmark.dart';
+
 /// The app's standard header: a flat primary-filled bar that runs edge-to-edge
 /// under the status bar. [leading] (identity/title) fills the start; [trailing]
 /// actions sit at the end. Use it on every screen with a header — see
@@ -44,9 +46,12 @@ class MantleHeader extends StatelessWidget {
 }
 
 /// Title for the leading slot of a [MantleHeader], in `primaryForeground`.
-/// [wordmark] (default) sets it in Mantle's logo font (`BukhariScript`) for
-/// brand/identity (e.g. the home `mantle` title); pass `wordmark: false` for a
-/// plain screen title on sub-screens (Settings, Pending).
+///
+/// [wordmark] (default) draws the Jackdaw brand mark itself and ignores [text]
+/// apart from using it as the accessibility label — the wordmark is custom
+/// lettering, so it cannot be reproduced by setting type. Pass
+/// `wordmark: false` for a plain screen title on sub-screens (Settings,
+/// Pending).
 class MantleHeaderTitle extends StatelessWidget {
   const MantleHeaderTitle(this.text, {super.key, this.wordmark = true});
 
@@ -58,22 +63,18 @@ class MantleHeaderTitle extends StatelessWidget {
     final scheme = ShadTheme.of(context).colorScheme;
     return Align(
       alignment: Alignment.centerLeft,
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: wordmark
-            ? TextStyle(
-                fontFamily: 'BukhariScript',
-                fontSize: 26,
-                color: scheme.primaryForeground,
-              )
-            : TextStyle(
+      child: wordmark
+          ? JackdawWordmark(color: scheme.primaryForeground)
+          : Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 color: scheme.primaryForeground,
               ),
-      ),
+            ),
     );
   }
 }

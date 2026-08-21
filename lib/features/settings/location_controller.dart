@@ -33,7 +33,7 @@ class LocationController extends _$LocationController {
       final granted = await ref.read(locationServiceProvider).requestPermission();
       if (!granted) {
         throw const LocationException(
-          'Location permission is off. Enable it for Mantle in your device '
+          'Location permission is off. Enable it for Jackdaw in your device '
           'settings to share location with messages.',
         );
       }

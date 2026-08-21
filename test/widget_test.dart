@@ -18,7 +18,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
-        child: const MantleCompanionApp(),
+        child: const JackdawApp(),
       ),
     );
     await tester.pumpAndSettle();

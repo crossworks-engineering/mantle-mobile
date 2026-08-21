@@ -132,10 +132,11 @@ flutter:
       fonts:
         - asset: assets/fonts/BukhariScript-Regular.ttf
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    # The Jackdaw wordmark. A single flat colour (#FDE7BC) on transparent, which
+    # is what lets JackdawWordmark tint it to a theme token with BlendMode.srcIn
+    # instead of shipping one PNG per theme.
+    - assets/brand/jackdaw_wordmark.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
