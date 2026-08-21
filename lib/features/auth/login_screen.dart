@@ -2,7 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../../widgets/jackdaw_wordmark.dart';
+import '../../widgets/jackdaw_lockup.dart';
 
 import '../../data/auth/auth_api.dart';
 import '../../data/server/server_config.dart';
@@ -72,11 +72,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  JackdawWordmark(
-                    color: theme.colorScheme.foreground,
-                    height: 30,
-                  ),
-                  const SizedBox(height: 20),
+                  const JackdawLockup(),
+                  const SizedBox(height: 24),
                   Text('Sign in', style: theme.textTheme.h2),
                   const SizedBox(height: 8),
                   Text(

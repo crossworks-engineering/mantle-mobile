@@ -137,6 +137,12 @@ flutter:
     # is what lets JackdawWordmark tint it to a theme token with BlendMode.srcIn
     # instead of shipping one PNG per theme.
     - assets/brand/jackdaw_wordmark.png
+    # The full badge+wordmark lockup. Two files, not one tinted file: the badge
+    # is illustrated artwork and srcIn would flatten it to a silhouette.
+    # dark/light name the BACKGROUND each is drawn for. Composed by
+    # tool/generate_lockups.dart.
+    - assets/brand/jackdaw_lockup_dark.png
+    - assets/brand/jackdaw_lockup_light.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -181,10 +187,9 @@ flutter_launcher_icons:
   adaptive_icon_background: "#2D1500"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
-# Launch / splash screen. The lockup master is composed by
-# tool/generate_splash.dart from branding/jackdaw-icon-name-logo-dark-row-trans.png.
-# Run:
-#   fvm dart run tool/generate_splash.dart          # (re)build the lockup
+# Launch / splash screen. Reuses the dark-background lockup the app itself
+# shows on its auth screens, composed by tool/generate_lockups.dart. Run:
+#   fvm dart run tool/generate_lockups.dart         # (re)build both lockups
 #   fvm dart run flutter_native_splash:create       # fan out to iOS + Android
 # Brand brown (#2D1500) background with the centered badge + cream wordmark,
 # identical in light and dark so dark-mode launches don't flash white. The
@@ -193,8 +198,8 @@ flutter_launcher_icons:
 flutter_native_splash:
   color: "#2D1500"
   color_dark: "#2D1500"
-  image: assets/splash/jackdaw_lockup.png
-  image_dark: assets/splash/jackdaw_lockup.png
+  image: assets/brand/jackdaw_lockup_dark.png
+  image_dark: assets/brand/jackdaw_lockup_dark.png
   ios_content_mode: center
   android_12:
     color: "#2D1500"

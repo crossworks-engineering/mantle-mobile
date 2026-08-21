@@ -20,11 +20,19 @@ whole app stays visually consistent. When in doubt, match the existing screens
 
 ## Theme
 
-The palette is **Mantle's Clean Slate**, defined in
-[`lib/theme/mantle_theme.dart`](../lib/theme/mantle_theme.dart) for light and
-dark (indigo primary `#6366F1` / `#818CF8`, slate surfaces, radius 8). It's
-ported from Mantle web's `globals.css`. Don't hardcode these — if you need a new
-value, add it to `mantle_theme.dart`.
+The default palette is **Jackdaw**, hand-written in
+[`lib/theme/jackdaw_theme.dart`](../lib/theme/jackdaw_theme.dart) from the app's
+own mark: brand brown `#2D1500` and cream `#FDE7BC`, radius 8. `primary` is the
+brown and `primaryForeground` the cream, so the header bar reproduces the app
+icon; dark mode inverts the pair. The chart ramp is the badge's sunset stripes.
+
+It sits OUTSIDE the generated registry on purpose —
+`tool/generate_themes.dart` rewrites `mantle_themes.g.dart` wholesale, so a
+theme added there would vanish on the next run.
+[`mantle_theme.dart`](../lib/theme/mantle_theme.dart) prepends it to
+`kMantleThemes` and names it as `defaultId`. The other 42 themes are still
+ported from Mantle web's `globals.css` and remain selectable. Don't hardcode
+colours — read tokens from `ShadTheme.of(context)`.
 
 Theme mode follows the system by default; the in-app **Theme** button cycles
 system → light → dark and **persists** (`ThemeModeController` → Drift).

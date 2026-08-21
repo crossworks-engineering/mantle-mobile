@@ -1,26 +1,25 @@
-// Splash-image master generator.
+// Lockup generator — the badge-plus-wordmark marks the app shows on its
+// branded screens, and the one flutter_native_splash centres on the launch
+// screen.
 //
-// Takes the horizontal Jackdaw lockup — the badge next to the cream "jackdaw"
-// wordmark, branding/jackdaw-icon-name-logo-dark-row-trans.png — and produces
-// the master flutter_native_splash centers on the brand-brown launch screen:
+// Reads the two horizontal lockups in branding/ and emits:
 //
-//   assets/splash/jackdaw_lockup.png   badge + cream wordmark, transparent, ~4x density
+//   assets/brand/jackdaw_lockup_dark.png    cream mark, for DARK backgrounds
+//   assets/brand/jackdaw_lockup_light.png   brown mark, for LIGHT backgrounds
 //
-// Colour is preserved: the badge is illustrated artwork, and the wordmark is
-// already the brand cream (#FDE7BC), which is what the dark launch screen wants.
-// The Mantle-era version recolored everything white — that would flatten the
-// bird into a silhouette.
+// `dark`/`light` name the background the mark is drawn FOR, not its own colour.
+// Two assets are needed because the badge is illustrated artwork — unlike the
+// flat wordmark (see JackdawWordmark), it cannot be tinted to a theme token.
 //
-// The badge half needs the same opaque disc as the app icon (see
-// tool/generate_app_icon.dart): its cream field is only ~32% opaque, so on the
-// brown launch screen it would otherwise go a muddy olive. The wordmark half is
+// The badge half gets an opaque disc slid underneath it first: its cream field
+// is only ~32% opaque, because the artwork was drawn against a light page. Skip
+// that and the interior goes muddy on any dark ground — and it still looks
+// right in every image viewer, which shows it on white. The wordmark half is
 // already fully opaque and is left alone.
 //
-// flutter_native_splash treats the source as 4x and downscales to @3x/@2x, so
-// the on-screen width is roughly [_targetWidth] / 4 in points. Re-run after
-// changing the source, then regenerate the platform splashes:
+// Re-run after changing the source art, then regenerate the launch screens:
 //
-//   fvm dart run tool/generate_splash.dart
+//   fvm dart run tool/generate_lockups.dart
 //   fvm dart run flutter_native_splash:create
 import 'dart:io';
 import 'dart:math';
@@ -31,38 +30,45 @@ import 'package:image/image.dart' as img;
 /// comfortable margin on the narrowest phones (~390pt wide).
 const _targetWidth = 1100;
 
-/// Brand cream — the disc laid under the badge. Matches the badge's own ring,
-/// so the seam between them disappears. Keep in step with the same constant in
+/// Brand cream — the disc laid under the badge. Matches the badge's own ring so
+/// the seam between them disappears. Keep in step with the same constant in
 /// tool/generate_app_icon.dart.
 const _backingR = 0xFD, _backingG = 0xE7, _backingB = 0xBC;
 
-/// Inset so the disc edge hides beneath the badge's cream ring.
+/// Inset so the disc edge hides beneath the badge's ring.
 const _backingInset = 0.985;
 
+const _sources = {
+  'dark': 'branding/jackdaw-icon-name-logo-dark-row-trans.png',
+  'light': 'branding/jackdaw-icon-name-logo-light-row-trans.png',
+};
+
 void main() {
-  final src = File('branding/jackdaw-icon-name-logo-dark-row-trans.png');
-  if (!src.existsSync()) {
-    stderr.writeln('✗ Missing ${src.path}');
-    exit(1);
-  }
-  final lockup = img.decodePng(src.readAsBytesSync());
-  if (lockup == null) {
-    stderr.writeln('✗ Could not decode ${src.path}');
-    exit(1);
-  }
+  for (final entry in _sources.entries) {
+    final src = File(entry.value);
+    if (!src.existsSync()) {
+      stderr.writeln('✗ Missing ${src.path}');
+      exit(1);
+    }
+    final lockup = img.decodePng(src.readAsBytesSync());
+    if (lockup == null) {
+      stderr.writeln('✗ Could not decode ${src.path}');
+      exit(1);
+    }
 
-  final glyph = _backBadgeDisc(_trim(lockup));
-  final scale = _targetWidth / glyph.width;
-  final resized = img.copyResize(
-    glyph,
-    width: _targetWidth,
-    height: (glyph.height * scale).round(),
-    interpolation: img.Interpolation.cubic,
-  );
+    final glyph = _backBadgeDisc(_trim(lockup));
+    final scale = _targetWidth / glyph.width;
+    final resized = img.copyResize(
+      glyph,
+      width: _targetWidth,
+      height: (glyph.height * scale).round(),
+      interpolation: img.Interpolation.cubic,
+    );
 
-  _write('assets/splash/jackdaw_lockup.png', resized);
-  stdout.writeln('✅ wrote assets/splash/jackdaw_lockup.png '
-      '(${resized.width}x${resized.height})');
+    final out = 'assets/brand/jackdaw_lockup_${entry.key}.png';
+    _write(out, resized);
+    stdout.writeln('✅ wrote $out (${resized.width}x${resized.height})');
+  }
 }
 
 /// Crop to the bounding box of pixels with meaningful opacity.

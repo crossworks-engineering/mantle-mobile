@@ -7,6 +7,7 @@ import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/features/settings/settings_repository.dart';
+import 'package:jackdaw/theme/mantle_theme.dart';
 
 void main() {
   late AppDatabase db;
@@ -30,8 +31,9 @@ void main() {
     expect(await repo.themeMode(), ThemeMode.light);
   });
 
-  test('color theme defaults to clean-slate and round-trips', () async {
-    expect(await repo.colorTheme(), 'clean-slate');
+  test('color theme defaults to jackdaw and round-trips', () async {
+    expect(await repo.colorTheme(), MantleTheme.defaultId);
+    expect(MantleTheme.defaultId, 'jackdaw');
 
     await repo.setColorTheme('cosmic-night');
     expect(await repo.colorTheme(), 'cosmic-night');
@@ -40,7 +42,7 @@ void main() {
   test('color theme falls back to default when the stored id is unknown',
       () async {
     await repo.setColorTheme('a-theme-that-was-removed');
-    expect(await repo.colorTheme(), 'clean-slate');
+    expect(await repo.colorTheme(), MantleTheme.defaultId);
   });
 
   test('random mode defaults to off with the default interval', () async {

@@ -45,14 +45,25 @@ deliberate step**: it changes the installed app icon and needs a rebuild.
 fvm dart run tool/generate_app_icon.dart   # badge  → assets/icon/app_icon*.png
 fvm dart run flutter_launcher_icons        # fan out to iOS + Android
 
-fvm dart run tool/generate_splash.dart     # lockup → assets/splash/jackdaw_lockup.png
-fvm dart run flutter_native_splash:create  # fan out to iOS + Android
+fvm dart run tool/generate_lockups.dart    # lockups → assets/brand/jackdaw_lockup_{dark,light}.png
+fvm dart run flutter_native_splash:create  # fan the launch screen out to iOS + Android
 ```
 
 The composed look: the badge on brand brown for the icon, and the horizontal
 lockup centred on brand brown for the launch screen — identical in light and
 dark, so a dark-mode launch never flashes white. Configuration lives at the
 bottom of `pubspec.yaml`.
+
+## In-app brand assets (`assets/brand/`)
+
+| asset | used by | why |
+|---|---|---|
+| `jackdaw_wordmark.png` | `JackdawWordmark` — the home header | One flat colour, so `BlendMode.srcIn` tints it to any theme token. One file serves all 43 themes. |
+| `jackdaw_lockup_{dark,light}.png` | `JackdawLockup` — server setup + sign-in, and the launch screen | The badge is illustrated, so it can NOT be tinted. Two files, picked by brightness. |
+
+The colours also drive the app's default **Jackdaw theme**
+(`lib/theme/jackdaw_theme.dart`): brown `primary` carrying a cream
+`primaryForeground`, so the header bar reproduces the icon.
 
 ## Mantle marks (`mantle-logo-*`, `mantle_logo*`) — the brain's brand, not this app's
 

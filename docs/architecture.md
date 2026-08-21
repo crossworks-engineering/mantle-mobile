@@ -404,13 +404,21 @@ fallback, in [`data/chat/chat_repository.dart`](../lib/data/chat/chat_repository
 
 ## Theming (color themes)
 
-The app ships all **42 of Mantle web's color themes** (Clean Slate, Claude,
-Cosmic Night, …), each with light + dark variants, plus the existing
-light/dark/system **mode** toggle. Two independent axes: *mode* (when to be
-dark) and *color theme* (which palette).
+The app ships the **Jackdaw** theme plus all **42 of Mantle web's color themes**
+(Clean Slate, Claude, Cosmic Night, …), each with light + dark variants, plus
+the existing light/dark/system **mode** toggle. Two independent axes: *mode*
+(when to be dark) and *color theme* (which palette).
+
+- **Jackdaw is the default** and is the one theme NOT generated. It is
+  hand-written in [`theme/jackdaw_theme.dart`](../lib/theme/jackdaw_theme.dart)
+  from the app's own mark (brown `#2D1500`, cream `#FDE7BC`) and prepended to
+  `kMantleThemes` by `mantle_theme.dart`. It lives outside the generated file
+  because `generate_themes.dart` rewrites that wholesale.
 
 - **Generated registry.** [`tool/generate_themes.dart`](../tool/generate_themes.dart)
-  reads the web repo (`apps/web/lib/themes.ts` + `app/globals.css`), converts
+  reads the web repo (`apps/web/lib/themes.ts` + `app/globals.css` — ⚠️ that
+  path moved when the clients split out of the mantle monorepo on 2026-08-13;
+  the generator has not been repointed and will not run as written), converts
   every token from oklch/hex/hsl → sRGB, and emits
   [`theme/mantle_themes.g.dart`](../lib/theme/mantle_themes.g.dart): a const
   `kMantleThemes` list of `MantleThemeDef` (id, label, radius, picker swatches,
@@ -597,9 +605,11 @@ step). Re-evaluate (gitignore + CI-generate) when CI lands.
 Two standalone generators (not `build_runner`, run by hand, output committed):
 
 ```bash
-fvm dart run tool/generate_themes.dart      # color themes ← web globals.css
-fvm dart run tool/generate_app_icon.dart    # icon masters ← assets/icon/source
+fvm dart run tool/generate_themes.dart      # color themes ← web globals.css (see caveat above)
+fvm dart run tool/generate_app_icon.dart    # icon masters ← branding/
 fvm dart run flutter_launcher_icons         # then fan the icon out to platforms
+fvm dart run tool/generate_lockups.dart     # badge+wordmark lockups ← branding/
+fvm dart run flutter_native_splash:create   # then fan the launch screen out
 ```
 
 ## Local dev

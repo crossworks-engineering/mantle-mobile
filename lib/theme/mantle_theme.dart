@@ -1,18 +1,35 @@
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'mantle_themes.g.dart';
+import 'jackdaw_theme.dart';
+// Twice on purpose: unprefixed for the MantleThemeDef type, prefixed for the
+// generated list, whose name this file reuses for the combined registry below.
+import 'mantle_themes.g.dart' hide kMantleThemes;
+import 'mantle_themes.g.dart' as generated;
 
-export 'mantle_themes.g.dart' show MantleThemeDef, kMantleThemes;
+export 'jackdaw_theme.dart' show kJackdawTheme;
+export 'mantle_themes.g.dart' show MantleThemeDef;
 
-/// Builds [ShadThemeData] for any of Mantle's ported web color themes. The
-/// per-theme color values live in the generated [kMantleThemes] registry
-/// (`mantle_themes.g.dart`, produced by `tool/generate_themes.dart` from the
-/// web repo). This class only adds the shared text scale and looks themes up.
+/// Every theme the picker offers: the app's own [kJackdawTheme] first, then the
+/// themes ported from the web registry.
+///
+/// The Jackdaw entry is prepended here rather than added to
+/// `mantle_themes.g.dart`, because `tool/generate_themes.dart` rewrites that
+/// file from scratch and would drop it.
+const List<MantleThemeDef> kMantleThemes = [
+  kJackdawTheme,
+  ...generated.kMantleThemes,
+];
+
+/// Builds [ShadThemeData] for any theme in [kMantleThemes] — the app's own
+/// [kJackdawTheme] plus the themes ported from the web registry, whose colour
+/// values live in `mantle_themes.g.dart` (produced by
+/// `tool/generate_themes.dart`). This class only adds the shared text scale and
+/// looks themes up.
 abstract final class MantleTheme {
-  /// The baseline theme id (Clean Slate) — used when nothing is stored or a
-  /// persisted id is no longer in the registry.
-  static const String defaultId = 'clean-slate';
+  /// The baseline theme id — used when nothing is stored or a persisted id is
+  /// no longer in the registry. The app's own brand theme.
+  static const String defaultId = 'jackdaw';
 
   /// The theme definition for [id], falling back to the default if unknown.
   static MantleThemeDef defFor(String id) => kMantleThemes.firstWhere(
