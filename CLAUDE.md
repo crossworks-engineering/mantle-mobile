@@ -24,7 +24,7 @@ system map, read [`docs/architecture.md`](docs/architecture.md).**
 - **Secrets** (bearer token) → `flutter_secure_storage` only. Config (server
   URL, theme) → Drift `app_settings`.
 - **Before commit**: `fvm flutter analyze` (must be clean) + `fvm flutter test`.
-  Commit on `main` with the `Co-Authored-By` trailer; **don't push unless asked**.
+  Commit on `main` with NO agent co-author trailer (this repo is public and the commits are the owner's work); **don't push unless asked**.
 
 ## Gotchas
 
