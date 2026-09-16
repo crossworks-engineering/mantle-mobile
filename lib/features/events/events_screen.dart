@@ -177,8 +177,11 @@ String _dayLabel(DateTime local) {
   if (diff == 1) return 'Tomorrow';
   if (diff == -1) return 'Yesterday';
   const week = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   final wd = week[local.weekday - 1];
-  return '$wd ${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+  final md = '${local.day} ${months[local.month - 1]}';
+  // "Fri 18 Sep" this year, "Fri 18 Sep 2027" once the year changes.
+  return local.year == now.year ? '$wd $md' : '$wd $md ${local.year}';
 }
 
 List<_DayGroup> _groupByDay(List<EventRow> events) {
@@ -222,12 +225,20 @@ class _EventTile extends StatelessWidget {
           )
         : theme.textTheme.p.copyWith(color: scheme.foreground);
 
-    final subBits = <String>[
+    final metaStyle = theme.textTheme.small.copyWith(color: muted);
+    // Secondary line: location, reminder lead, recurrence. Icons, not emoji,
+    // so the row reads as one typeset line in every theme.
+    final meta = <Widget>[
       if (event.location != null && event.location!.isNotEmpty)
-        event.location!,
+        _Meta(icon: LucideIcons.mapPin, text: event.location!, style: metaStyle),
       if (event.remindMinutesBefore > 0)
-        '⏰ ${event.remindMinutesBefore}m before',
-      if (event.recurring) '🔁 ${event.recur}',
+        _Meta(
+          icon: LucideIcons.bellRing,
+          text: '${event.remindMinutesBefore} min before',
+          style: metaStyle,
+        ),
+      if (event.recurring)
+        _Meta(icon: LucideIcons.repeat, text: event.recur, style: metaStyle),
     ];
 
     return GestureDetector(
@@ -252,30 +263,31 @@ class _EventTile extends StatelessWidget {
                 ),
               ),
             ),
+            // Fixed time column so titles line up down the list; tabular
+            // digits so 08:00 and 11:30 take the same width.
             SizedBox(
-              width: 46,
+              width: 56,
               child: Padding(
-                padding: const EdgeInsets.only(top: 1),
+                padding: const EdgeInsets.only(top: 5),
                 child: Text(
                   _timeLabel(local),
                   style: theme.textTheme.small.copyWith(
                     color: event.done ? muted : scheme.foreground,
                     fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
             ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(event.title, style: titleStyle),
-                  if (subBits.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subBits.join(' · '),
-                      style: theme.textTheme.small.copyWith(color: muted),
-                    ),
+                  if (meta.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Wrap(spacing: 12, runSpacing: 2, children: meta),
                   ],
                 ],
               ),
@@ -283,6 +295,27 @@ class _EventTile extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// One icon + label pair on an event's secondary line.
+class _Meta extends StatelessWidget {
+  const _Meta({required this.icon, required this.text, required this.style});
+
+  final IconData icon;
+  final String text;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: style.color),
+        const SizedBox(width: 4),
+        Text(text, style: style),
+      ],
     );
   }
 }
