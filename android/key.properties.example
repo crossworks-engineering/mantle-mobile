@@ -1,0 +1,13 @@
+# Copy to android/key.properties (gitignored) on the machine that builds the
+# Play upload. Never commit the keystore or this file with real values.
+#
+# Create the upload keystore once, and keep it and the passwords in a
+# password manager. Losing it means a new app listing on Play:
+#
+#   keytool -genkey -v -keystore ~/keys/jackdaw-upload.jks \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+#
+storeFile=/Users/you/keys/jackdaw-upload.jks
+storePassword=
+keyAlias=upload
+keyPassword=
