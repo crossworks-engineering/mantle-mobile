@@ -343,6 +343,9 @@ class _Composer extends StatelessWidget {
         color: scheme.background,
         border: Border(top: BorderSide(color: scheme.border)),
       ),
+      // Clear the keyboard when open, else the home indicator. There is no
+      // Scaffold to resize the body, so the composer pads itself (same as
+      // the chat composer).
       padding: EdgeInsets.fromLTRB(
         16,
         10,
@@ -350,7 +353,7 @@ class _Composer extends StatelessWidget {
         10 +
             (MediaQuery.viewInsetsOf(context).bottom == 0
                 ? MediaQuery.viewPaddingOf(context).bottom
-                : 0),
+                : MediaQuery.viewInsetsOf(context).bottom),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

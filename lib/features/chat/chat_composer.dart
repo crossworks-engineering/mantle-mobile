@@ -178,6 +178,10 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   // ── Send ─────────────────────────────────────────────────────────────────
 
   Future<void> _send() async {
+    // The field stays editable while a turn is in flight (so the next message
+    // can be drafted), but the keyboard's send key must not start a second
+    // turn on top of the first.
+    if (_sending) return;
     final text = _input.text;
     final attachment = _attachment;
     final attachmentBytes = _attachmentBytes;

@@ -349,6 +349,75 @@ void main() {
         ));
   });
 
+  test('a second send while one is in flight is refused as cancelled', () async {
+    stubHistory(<ChatMessage>[]);
+    final first = Completer<SendTurnResponse>();
+    whenSend().thenAnswer((_) => first.future);
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final n = c.read(chatControllerProvider(_slug).notifier);
+    final inFlight = n.send('one');
+    await Future<void>.delayed(Duration.zero);
+
+    // The keyboard's send key fires again mid-turn.
+    expect(await n.send('two'), SendOutcome.cancelled);
+    expect(c.read(chatControllerProvider(_slug)).value!.messages, hasLength(1));
+
+    first.complete(TurnCompleted(TurnResult(
+      inbound: _msg('i1', MessageDirection.inbound, 'one'),
+      outbound: _msg('o1', MessageDirection.outbound, 'reply'),
+    )));
+    expect(await inFlight, SendOutcome.sent);
+    final ids = c.read(chatControllerProvider(_slug)).value!.messages.map((m) => m.id);
+    expect(ids, ['i1', 'o1']);
+    // Only one turn ever reached the repository.
+    verify(() => repo.send(any(),
+        agentSlug: any(named: 'agentSlug'),
+        attachment: any(named: 'attachment'),
+        cancelToken: any(named: 'cancelToken'),
+        idempotencyKey: any(named: 'idempotencyKey'),
+        location: any(named: 'location'))).called(1);
+  });
+
+  test('loadMore merges into the live thread, not a snapshot from before the fetch',
+      () async {
+    final first = _page('new', chatPageSize);
+    final older = _page('old', chatPageSize);
+    final olderPage = Completer<HistoryPage>();
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer((inv) => inv.namedArguments[#before] == null
+        ? Future.value(HistoryPage(messages: first))
+        : olderPage.future);
+    whenSend().thenAnswer(
+      (_) async => TurnCompleted(TurnResult(
+        inbound: _msg('i1', MessageDirection.inbound, 'hey'),
+        outbound: _msg('o1', MessageDirection.outbound, 'reply'),
+      )),
+    );
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final n = c.read(chatControllerProvider(_slug).notifier);
+    final paging = n.loadMore();
+    await Future<void>.delayed(Duration.zero);
+
+    // A turn lands while the older page is still loading.
+    await n.send('hey');
+    olderPage.complete(HistoryPage(messages: older));
+    await paging;
+
+    final state = c.read(chatControllerProvider(_slug)).value!;
+    expect(state.messages.first.id, 'old0');
+    expect(state.messages.map((m) => m.id), containsAll(['i1', 'o1']));
+    expect(state.messages.last.id, 'o1');
+    expect(state.messages, hasLength(chatPageSize * 2 + 2));
+    expect(state.loadingMore, isFalse);
+  });
+
   test('streaming: send types the reply out and reconciles to the durable rows',
       () async {
     // History: empty on build, the canonical rows on the reconcile read.

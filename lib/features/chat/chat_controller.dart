@@ -462,22 +462,26 @@ class ChatController extends _$ChatController {
               .history(before: oldest, limit: chatPageSize, agentSlug: agentSlug))
           .messages;
 
-      final knownIds = current.messages.map((m) => m.id).toSet();
+      if (!ref.mounted) return;
+      // Merge into the LIVE state, not the snapshot from before the fetch:
+      // tokens streamed, remote turns merged, or queued rows resolved while
+      // the page was loading must survive.
+      final live = state.value ?? current;
+      final knownIds = live.messages.map((m) => m.id).toSet();
       final merged = [
         ...older.where((m) => !knownIds.contains(m.id)),
-        ...current.messages,
+        ...live.messages,
       ];
-      state = AsyncData(
-        ChatState(
-          messages: merged,
-          hasMore: older.length >= chatPageSize,
-          active: current.active,
-          offline: current.offline,
-        ),
-      );
+      state = AsyncData(live.copyWith(
+        messages: merged,
+        hasMore: older.length >= chatPageSize,
+        loadingMore: false,
+      ));
     } catch (_) {
       // Keep what we have and let the user try again.
-      state = AsyncData(current.copyWith(loadingMore: false));
+      if (!ref.mounted) return;
+      final live = state.value ?? current;
+      state = AsyncData(live.copyWith(loadingMore: false));
     }
   }
 
@@ -498,6 +502,12 @@ class ChatController extends _$ChatController {
   Future<SendOutcome> send(String text, {OutgoingAttachment? attachment}) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty && attachment == null) return SendOutcome.sent;
+    // One turn at a time. A second send would replace the active turn and
+    // the first turn's reconcile would then wipe the second's live view;
+    // `cancelled` makes the composer hand the text back untouched.
+    if (_postCancel != null || state.value?.active != null) {
+      return SendOutcome.cancelled;
+    }
 
     final base = state.value ?? const ChatState(messages: [], hasMore: false);
     final tempId = 'temp-${DateTime.now().microsecondsSinceEpoch}';
