@@ -21,9 +21,9 @@ class PagesController extends _$PagesController {
   Future<void> search(String q) async {
     final query = q.trim();
     try {
-      state = AsyncData(
-        await ref.read(pagesApiProvider).list(q: query.isEmpty ? null : query),
-      );
+      final index =
+          await ref.read(pagesApiProvider).list(q: query.isEmpty ? null : query);
+      if (ref.mounted) state = AsyncData(index);
     } catch (_) {
       /* keep current; the user can retry */
     }
@@ -31,7 +31,8 @@ class PagesController extends _$PagesController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => ref.read(pagesApiProvider).list());
+    final next = await AsyncValue.guard(() => ref.read(pagesApiProvider).list());
+    if (ref.mounted) state = next;
   }
 }
 

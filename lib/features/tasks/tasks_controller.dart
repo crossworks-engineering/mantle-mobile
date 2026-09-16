@@ -18,9 +18,10 @@ class TasksController extends _$TasksController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
+    final next = await AsyncValue.guard(
       () async => (await ref.read(tasksApiProvider).list()).tasks,
     );
+    if (ref.mounted) state = next;
   }
 
   /// Flip open/done optimistically, then persist.
@@ -46,6 +47,7 @@ class TasksController extends _$TasksController {
     if (trimmed.isEmpty) return;
     try {
       final row = await ref.read(tasksApiProvider).create(trimmed);
+      if (!ref.mounted) return;
       final current = state.value;
       if (current != null) {
         state = AsyncData([row, ...current]);
@@ -74,7 +76,8 @@ class TasksController extends _$TasksController {
 
   Future<void> _reloadSilently() async {
     try {
-      state = AsyncData((await ref.read(tasksApiProvider).list()).tasks);
+      final rows = (await ref.read(tasksApiProvider).list()).tasks;
+      if (ref.mounted) state = AsyncData(rows);
     } catch (_) {
       /* keep current; pull-to-refresh reconciles */
     }

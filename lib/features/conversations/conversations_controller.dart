@@ -35,7 +35,8 @@ class ConversationsController extends _$ConversationsController {
   /// shouldn't blank the inbox. Keeps the current list on error.
   Future<void> _reloadSilently() async {
     try {
-      state = AsyncData(await ref.read(conversationsApiProvider).list());
+      final rows = await ref.read(conversationsApiProvider).list();
+      if (ref.mounted) state = AsyncData(rows);
     } catch (_) {
       /* keep current; the next event or pull-to-refresh reconciles */
     }
@@ -43,9 +44,10 @@ class ConversationsController extends _$ConversationsController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
+    final next = await AsyncValue.guard(
       () => ref.read(conversationsApiProvider).list(),
     );
+    if (ref.mounted) state = next;
   }
 
   Future<void> markRead(String slug) async {

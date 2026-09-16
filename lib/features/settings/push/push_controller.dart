@@ -54,7 +54,7 @@ class PushController extends _$PushController {
   /// `/connect` (ticket) → relay `/enroll` (routing token) → Mantle `/subscribe`.
   Future<void> connect() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final next = await AsyncValue.guard(() async {
       final api = ref.read(pushApiProvider);
       // Each step has a timeout so a silent native stall surfaces as a labelled
       // error instead of an endless "Connecting…" spinner (which steps blocks).
@@ -96,13 +96,14 @@ class PushController extends _$PushController {
       await keyStore.setSubscriptionId(id);
       return _load();
     });
+    if (ref.mounted) state = next;
   }
 
   /// Unpair this device: drop the Mantle subscription (which also tells the
   /// relay), then clear the local keypair so the NSE can no longer decrypt.
   Future<void> disconnect() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final next = await AsyncValue.guard(() async {
       final api = ref.read(pushApiProvider);
       final keyStore = await ref.read(pushKeyStoreProvider.future);
       final id = await keyStore.subscriptionId();
@@ -116,6 +117,7 @@ class PushController extends _$PushController {
       await keyStore.clear();
       return _load();
     });
+    if (ref.mounted) state = next;
   }
 
   /// Reset push for this whole install: roll Mantle's instance token (which
@@ -123,7 +125,7 @@ class PushController extends _$PushController {
   /// Everyone must re-Connect afterwards.
   Future<void> reset() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final next = await AsyncValue.guard(() async {
       final api = ref.read(pushApiProvider);
       final keyStore = await ref.read(pushKeyStoreProvider.future);
       try {
@@ -134,5 +136,6 @@ class PushController extends _$PushController {
       await keyStore.clear();
       return _load();
     });
+    if (ref.mounted) state = next;
   }
 }

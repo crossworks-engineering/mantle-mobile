@@ -44,7 +44,8 @@ class EventsController extends _$EventsController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(_load);
+    final next = await AsyncValue.guard(_load);
+    if (ref.mounted) state = next;
   }
 
   /// Create an event and insert it in start order. Throws on failure so the
@@ -61,6 +62,7 @@ class EventsController extends _$EventsController {
           location: location,
           remindMinutesBefore: remindMinutesBefore,
         );
+    if (!ref.mounted) return;
     final current = state.value;
     if (current != null) {
       final merged = [...current, row]
@@ -87,6 +89,7 @@ class EventsController extends _$EventsController {
         : [...row.tags.where((t) => t != kEventDoneTag)];
     try {
       final updated = await ref.read(eventsApiProvider).setTags(id, tags);
+      if (!ref.mounted) return;
       final next = [
         for (final e in current)
           if (e.id == id) updated else e,
@@ -118,7 +121,8 @@ class EventsController extends _$EventsController {
 
   Future<void> _reloadSilently() async {
     try {
-      state = AsyncData(await _load());
+      final rows = await _load();
+      if (ref.mounted) state = AsyncData(rows);
     } catch (_) {
       /* keep current; pull-to-refresh reconciles */
     }

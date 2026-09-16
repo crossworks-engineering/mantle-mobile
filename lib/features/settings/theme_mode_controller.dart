@@ -19,7 +19,7 @@ class ThemeModeController extends _$ThemeModeController {
   /// Persist [mode], then reflect it in state immediately.
   Future<void> setMode(ThemeMode mode) async {
     await ref.read(settingsRepositoryProvider).setThemeMode(mode);
-    state = AsyncData(mode);
+    if (ref.mounted) state = AsyncData(mode);
   }
 
   /// Cycle system → light → dark → system, persisting each step.

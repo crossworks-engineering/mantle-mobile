@@ -25,7 +25,8 @@ class PendingController extends _$PendingController {
   /// shouldn't blank the list. Keeps the current list on error.
   Future<void> _reloadSilently() async {
     try {
-      state = AsyncData(await ref.read(pendingApiProvider).list());
+      final rows = await ref.read(pendingApiProvider).list();
+      if (ref.mounted) state = AsyncData(rows);
     } catch (_) {
       /* keep current; the next event or pull-to-refresh reconciles */
     }
@@ -33,7 +34,8 @@ class PendingController extends _$PendingController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => ref.read(pendingApiProvider).list());
+    final next = await AsyncValue.guard(() => ref.read(pendingApiProvider).list());
+    if (ref.mounted) state = next;
   }
 
   Future<void> approve(String id) => _decide(id, approve: true);

@@ -19,9 +19,10 @@ class JournalController extends _$JournalController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(
+    final next = await AsyncValue.guard(
       () async => (await ref.read(journalApiProvider).list()).journals,
     );
+    if (ref.mounted) state = next;
   }
 
   /// Save an entry. Throws on failure so the composer keeps the text for a
@@ -30,6 +31,7 @@ class JournalController extends _$JournalController {
     final trimmed = body.trim();
     if (trimmed.isEmpty) return;
     final row = await ref.read(journalApiProvider).create(trimmed);
+    if (!ref.mounted) return;
     final current = state.value;
     if (current != null) {
       state = AsyncData([row, ...current]);

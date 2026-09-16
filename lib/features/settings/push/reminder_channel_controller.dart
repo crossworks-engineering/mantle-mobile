@@ -22,9 +22,11 @@ class ReminderChannelController extends _$ReminderChannelController {
     if (state.value == channel) return;
     state = AsyncData(channel); // optimistic
     try {
-      state = AsyncData(await ref.read(profileApiProvider).setReminderChannel(channel));
+      final saved =
+          await ref.read(profileApiProvider).setReminderChannel(channel);
+      if (ref.mounted) state = AsyncData(saved);
     } catch (e, st) {
-      state = AsyncError(e, st);
+      if (ref.mounted) state = AsyncError(e, st);
     }
   }
 }

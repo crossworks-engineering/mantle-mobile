@@ -570,6 +570,8 @@ class ChatController extends _$ChatController {
 
       // Legacy blocking result (200): swap the optimistic bubble for the rows.
       final result = (resp as TurnCompleted).result;
+      // The POST can take up to two minutes; the thread may be gone by now.
+      if (!ref.mounted) return SendOutcome.sent;
       final current = state.value ?? base;
       final landed = localAttachments.isEmpty
           ? result.inbound
@@ -584,9 +586,12 @@ class ChatController extends _$ChatController {
       ref.invalidate(conversationsControllerProvider);
       return SendOutcome.sent;
     } catch (e) {
-      final current = state.value ?? base;
       final cancelled =
           e is DioException && e.type == DioExceptionType.cancel;
+      if (!ref.mounted) {
+        return cancelled ? SendOutcome.cancelled : SendOutcome.failed;
+      }
+      final current = state.value ?? base;
       // Queued offline: the repository stored the turn (same idempotency
       // key) — swap the optimistic bubble for a `queued` one that survives
       // until a flush delivers it.

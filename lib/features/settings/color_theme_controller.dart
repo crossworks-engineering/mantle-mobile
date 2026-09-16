@@ -18,6 +18,6 @@ class ColorThemeController extends _$ColorThemeController {
   /// Persist [id], then reflect it in state immediately.
   Future<void> select(String id) async {
     await ref.read(settingsRepositoryProvider).setColorTheme(id);
-    state = AsyncData(id);
+    if (ref.mounted) state = AsyncData(id);
   }
 }

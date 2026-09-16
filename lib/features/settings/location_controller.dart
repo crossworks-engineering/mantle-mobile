@@ -24,7 +24,7 @@ class LocationController extends _$LocationController {
 
   Future<void> setEnabled(bool enabled) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final next = await AsyncValue.guard(() async {
       final repo = ref.read(settingsRepositoryProvider);
       if (!enabled) {
         await repo.setLocationSharing(false);
@@ -40,5 +40,7 @@ class LocationController extends _$LocationController {
       await repo.setLocationSharing(true);
       return true;
     });
+    // The permission dialog can outlive the settings screen.
+    if (ref.mounted) state = next;
   }
 }

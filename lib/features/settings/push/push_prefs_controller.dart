@@ -19,9 +19,10 @@ class PushPrefsController extends _$PushPrefsController {
     final current = state.value;
     if (current != null) state = AsyncData(current.merge(patch)); // optimistic
     try {
-      state = AsyncData(await ref.read(pushApiProvider).updatePreferences(patch));
+      final saved = await ref.read(pushApiProvider).updatePreferences(patch);
+      if (ref.mounted) state = AsyncData(saved);
     } catch (e, st) {
-      state = AsyncError(e, st);
+      if (ref.mounted) state = AsyncError(e, st);
     }
   }
 }

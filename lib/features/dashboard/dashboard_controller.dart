@@ -27,6 +27,7 @@ class DashboardController extends _$DashboardController {
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(_load);
+    final next = await AsyncValue.guard(_load);
+    if (ref.mounted) state = next;
   }
 }

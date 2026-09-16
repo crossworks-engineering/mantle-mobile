@@ -55,6 +55,7 @@ class RandomThemeController extends _$RandomThemeController {
     // Force an immediate first shuffle when turning it on, so the toggle has
     // visible effect; the scheduler reshuffles on its next (re)build.
     if (enabled) await repo.setLastRandomAtMs(0);
+    if (!ref.mounted) return;
     state = AsyncData(RandomThemeState(
       enabled: enabled,
       interval: state.value?.interval ?? SettingsRepository.defaultRandomInterval,
@@ -65,6 +66,7 @@ class RandomThemeController extends _$RandomThemeController {
     final repo = ref.read(settingsRepositoryProvider);
     await repo.setRandomInterval(interval);
     await repo.setLastRandomAtMs(DateTime.now().millisecondsSinceEpoch);
+    if (!ref.mounted) return;
     state = AsyncData(RandomThemeState(
       enabled: state.value?.enabled ?? false,
       interval: interval,
