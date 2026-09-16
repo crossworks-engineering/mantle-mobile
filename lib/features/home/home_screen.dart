@@ -4,13 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/dashboard/dashboard_models.dart';
+import '../../theme/mantle_theme.dart';
 import '../../widgets/mantle_header.dart';
 import '../dashboard/dashboard_controller.dart';
-
-// Status colours for health indicators — semantic states the shadcn palette
-// doesn't carry. Used only for the up/down dots and load meters below.
-const _healthy = Color(0xFF22C55E);
-const _warn = Color(0xFFF59E0B);
 
 /// The landing dashboard: quick actions (chat / pending / settings) and Mantle's
 /// headline stats (spend, pending, brain, vectors, server health).
@@ -209,7 +205,7 @@ class _Stats extends StatelessWidget {
                       : '${trend >= 0 ? '+' : ''}${trend.toStringAsFixed(0)}% vs prior',
                   subColor: trend != null && trend > 0
                       ? scheme.mutedForeground
-                      : _healthy,
+                      : MantleColors.of(context).success(theme.brightness),
                 ),
               ),
               const SizedBox(width: 12),
@@ -337,8 +333,7 @@ class _ActionTile extends StatelessWidget {
                       ),
                       child: Text(
                         badge! > 99 ? '99+' : '$badge',
-                        style: TextStyle(
-                          fontSize: 11,
+                        style: theme.textTheme.small.copyWith(
                           fontWeight: FontWeight.w600,
                           color: scheme.destructiveForeground,
                         ),
@@ -471,14 +466,15 @@ class _Meter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
+    final status = MantleColors.of(context);
     final p = pct;
     final fill = p == null
         ? scheme.mutedForeground
         : p >= 90
             ? scheme.destructive
             : p >= 70
-                ? _warn
-                : _healthy;
+                ? status.warning(theme.brightness)
+                : status.success(theme.brightness);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -533,7 +529,7 @@ class _ServiceDot extends StatelessWidget {
     final color = up == null
         ? scheme.mutedForeground
         : up!
-            ? _healthy
+            ? MantleColors.of(context).success(theme.brightness)
             : scheme.destructive;
     return Row(
       mainAxisSize: MainAxisSize.min,

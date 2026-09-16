@@ -196,12 +196,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               ),
                             ),
                             GestureDetector(
+                              behavior: HitTestBehavior.opaque,
                               onTap: () =>
                                   ref.read(_provider.notifier).refresh(),
-                              child: Text(
-                                'Retry',
-                                style: theme.textTheme.small.copyWith(
-                                  color: theme.colorScheme.primary,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 8),
+                                child: Text(
+                                  'Retry',
+                                  style: theme.textTheme.small.copyWith(
+                                    color: theme.colorScheme.secondaryForeground,
+                                    fontWeight: FontWeight.w600,
+                                    decoration: TextDecoration.underline,
+                                  ),
                                 ),
                               ),
                             ),
@@ -555,7 +562,7 @@ class _StreamingBubble extends StatelessWidget {
                   title: 'Thinking',
                   child: Text(
                     active.reasoning,
-                    style: theme.textTheme.muted.copyWith(fontSize: 12),
+                    style: theme.textTheme.muted,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -625,7 +632,7 @@ class _TypingBubble extends ConsumerWidget {
                   title: 'Thinking',
                   child: Text(
                     active.reasoning,
-                    style: theme.textTheme.muted.copyWith(fontSize: 12),
+                    style: theme.textTheme.muted,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -695,7 +702,7 @@ class _LiveTallyText extends StatelessWidget {
       padding: const EdgeInsets.only(left: 10),
       child: Text(
         parts.join(' · '),
-        style: theme.textTheme.muted.copyWith(fontSize: 11),
+        style: theme.textTheme.muted,
       ),
     );
   }

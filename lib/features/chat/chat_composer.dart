@@ -446,11 +446,13 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   Widget _attachmentPreview(ShadThemeData theme) {
     final a = _attachment!;
     final scheme = theme.colorScheme;
+    // A flat accent card, like the inbox rows: every piece of text on it is
+    // accentForeground, the meta line tinted with opacity.
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: scheme.muted,
+        color: scheme.accent,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -466,7 +468,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                       color: scheme.background,
                       alignment: Alignment.center,
                       child: Icon(LucideIcons.fileText,
-                          size: 22, color: scheme.mutedForeground),
+                          size: 22, color: scheme.foreground),
                     ),
             ),
           ),
@@ -480,13 +482,16 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                   a.filename,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.small,
+                  style: theme.textTheme.small
+                      .copyWith(color: scheme.accentForeground),
                 ),
                 Text(
                   _attachmentBytes > 0
                       ? '${(_attachmentBytes / 1024).toStringAsFixed(0)} KB'
                       : (a.isImage ? 'Image' : 'File'),
-                  style: theme.textTheme.muted.copyWith(fontSize: 11),
+                  style: theme.textTheme.muted.copyWith(
+                    color: scheme.accentForeground.withValues(alpha: 0.7),
+                  ),
                 ),
               ],
             ),
@@ -495,7 +500,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
             onPressed: _clearAttachment,
             padding: const EdgeInsets.all(6),
             child: Icon(LucideIcons.x,
-                size: 16, color: scheme.mutedForeground),
+                size: 16, color: scheme.accentForeground),
           ),
         ],
       ),

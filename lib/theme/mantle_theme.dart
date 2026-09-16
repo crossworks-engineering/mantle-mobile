@@ -92,6 +92,23 @@ class MantleColors extends InheritedWidget {
     return list[(n - 1).clamp(0, list.length - 1)];
   }
 
+  /// Status colours — the web's `success` / `warning` / `info` roles. The
+  /// ported themes carry no such tokens (shadcn only has `destructive`), so
+  /// one set serves every theme, tuned per brightness. Fills only: use them
+  /// for meters, dots and badges, never as text on a themed surface.
+  Color success(Brightness b) =>
+      b == Brightness.dark ? _StatusColors.successDark : _StatusColors.successLight;
+  Color warning(Brightness b) =>
+      b == Brightness.dark ? _StatusColors.warningDark : _StatusColors.warningLight;
+  Color info(Brightness b) =>
+      b == Brightness.dark ? _StatusColors.infoDark : _StatusColors.infoLight;
+
+  /// Ink for text drawn ON a colour that is computed rather than themed (an
+  /// agent's slug-derived avatar fill): black or white by the fill's own
+  /// luminance, so the pairing rule holds for a fill no theme knows about.
+  static Color inkOn(Color fill) =>
+      fill.computeLuminance() > 0.45 ? _StatusColors.inkDark : _StatusColors.inkLight;
+
   static MantleColors of(BuildContext context) {
     final widget = context.dependOnInheritedWidgetOfExactType<MantleColors>();
     assert(widget != null, 'No MantleColors found in context');
@@ -100,4 +117,19 @@ class MantleColors extends InheritedWidget {
 
   @override
   bool updateShouldNotify(MantleColors oldWidget) => oldWidget.def.id != def.id;
+}
+
+/// The only colour literals outside the theme definitions. Status roles the
+/// web has as tokens but the ported themes do not carry, plus the two inks
+/// for computed fills. Kept here so `lib/features` stays literal-free (the
+/// style ratchet test counts).
+abstract final class _StatusColors {
+  static const successLight = Color(0xFF15803D);
+  static const successDark = Color(0xFF4ADE80);
+  static const warningLight = Color(0xFFB45309);
+  static const warningDark = Color(0xFFFBBF24);
+  static const infoLight = Color(0xFF1D4ED8);
+  static const infoDark = Color(0xFF60A5FA);
+  static const inkLight = Color(0xFFFFFFFF);
+  static const inkDark = Color(0xFF000000);
 }

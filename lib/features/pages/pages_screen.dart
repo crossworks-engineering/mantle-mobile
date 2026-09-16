@@ -229,7 +229,7 @@ class _PageRowTile extends StatelessWidget {
             if (row.icon != null && row.icon!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: Text(row.icon!, style: const TextStyle(fontSize: 15)),
+                child: Text(row.icon!, style: theme.textTheme.small),
               )
             else
               Padding(

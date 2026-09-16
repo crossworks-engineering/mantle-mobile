@@ -312,15 +312,18 @@ class _ColumnsBuilder extends MarkdownElementBuilder {
           for (final col in columns)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
+              // card + cardForeground with a border: reads on the muted
+              // assistant bubble AND on a page's plain background.
               child: Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.muted,
+                  color: theme.colorScheme.card,
+                  border: Border.all(color: theme.colorScheme.border),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: MantleMarkdown(
                   col.attributes['md'] ?? '',
-                  textColor: theme.colorScheme.foreground,
+                  textColor: theme.colorScheme.cardForeground,
                   selectable: false,
                 ),
               ),
@@ -382,10 +385,11 @@ MarkdownStyleSheet _styleSheet(ShadThemeData theme, Color text) {
   final body = t.p.copyWith(color: text);
 
   // No dedicated monospace family is bundled; fall back across platforms.
+  // One step below body on the scale (small), not a hand-picked size.
   final mono = body.copyWith(
     fontFamily: 'monospace',
     fontFamilyFallback: const ['Menlo', 'Courier New', 'monospace'],
-    fontSize: (body.fontSize ?? 14) - 1,
+    fontSize: t.small.fontSize,
   );
 
   return MarkdownStyleSheet(
@@ -405,7 +409,10 @@ MarkdownStyleSheet _styleSheet(ShadThemeData theme, Color text) {
     h4: body.copyWith(fontWeight: FontWeight.w600),
     h5: body.copyWith(fontWeight: FontWeight.w600),
     h6: body.copyWith(fontWeight: FontWeight.w600, color: scheme.mutedForeground),
-    code: mono.copyWith(backgroundColor: scheme.secondary),
+    code: mono.copyWith(
+      color: scheme.secondaryForeground,
+      backgroundColor: scheme.secondary,
+    ),
     codeblockPadding: const EdgeInsets.all(12),
     codeblockDecoration: BoxDecoration(
       color: scheme.background,

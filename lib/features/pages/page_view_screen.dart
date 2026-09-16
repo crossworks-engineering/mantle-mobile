@@ -74,7 +74,7 @@ class PageViewScreen extends ConsumerWidget {
                             padding: const EdgeInsets.only(right: 8, top: 2),
                             child: Text(
                               page.meta.icon!,
-                              style: const TextStyle(fontSize: 24),
+                              style: theme.textTheme.h3,
                             ),
                           ),
                         Expanded(
@@ -246,7 +246,7 @@ class _BacklinkRow extends StatelessWidget {
             if (link.icon != null && link.icon!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 6),
-                child: Text(link.icon!, style: const TextStyle(fontSize: 14)),
+                child: Text(link.icon!, style: theme.textTheme.small),
               )
             else
               Padding(

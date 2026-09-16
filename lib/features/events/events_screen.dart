@@ -419,7 +419,7 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: _remind == m ? scheme.primary : scheme.muted,
+                        color: _remind == m ? scheme.primary : scheme.secondary,
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
@@ -427,7 +427,7 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
                         style: theme.textTheme.small.copyWith(
                           color: _remind == m
                               ? scheme.primaryForeground
-                              : scheme.foreground,
+                              : scheme.secondaryForeground,
                         ),
                       ),
                     ),

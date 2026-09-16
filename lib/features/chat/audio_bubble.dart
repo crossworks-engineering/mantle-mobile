@@ -168,7 +168,7 @@ class _AudioBubbleState extends State<AudioBubble> {
                   const SizedBox(height: 6),
                   Text(
                     '${_fmt(_position)} / ${_fmt(_duration)}',
-                    style: widget.theme.textTheme.muted.copyWith(fontSize: 11),
+                    style: widget.theme.textTheme.muted,
                   ),
                 ],
               ),

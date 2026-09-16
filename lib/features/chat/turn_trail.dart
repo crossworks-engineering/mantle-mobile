@@ -95,7 +95,7 @@ class TurnTrail extends StatelessWidget {
                       child: Text(
                         formatElapsed(steps[i].elapsedMs!),
                         style: theme.textTheme.muted
-                            .copyWith(fontSize: 11, color: muted.withValues(alpha: 0.7)),
+                            .copyWith(color: muted.withValues(alpha: 0.7)),
                       ),
                     ),
                   ],
@@ -179,7 +179,7 @@ class ToolStatsLine extends StatelessWidget {
       if (stats.failed > 0) '${stats.failed} failed',
       if (stats.queued > 0) '${stats.queued} awaiting approval',
     ];
-    final style = theme.textTheme.muted.copyWith(fontSize: 11);
+    final style = theme.textTheme.muted;
     return Text(
       parts.join(' · '),
       style: stats.failed > 0

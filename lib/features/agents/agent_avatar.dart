@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../data/agents/agent.dart';
+import '../../theme/mantle_theme.dart';
 import '../../data/agents/agent_api.dart';
 
 /// A round agent avatar. If the agent has a generated avatar on Mantle, it
@@ -40,10 +41,13 @@ class AgentAvatar extends ConsumerWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      // A generated graphic, not themed text: the fill comes from the slug,
+      // so the ink is chosen by luminance and the glyph scales with the
+      // circle (the one place a size is not a scale entry).
       child: Text(
         agent.initials,
         style: TextStyle(
-          color: const Color(0xFFFFFFFF),
+          color: MantleColors.inkOn(color),
           fontSize: size * 0.42,
           fontWeight: FontWeight.w600,
           height: 1,

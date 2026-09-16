@@ -109,10 +109,7 @@ class AttachmentView extends StatelessWidget {
                 ),
                 Text(
                   _typeLabel,
-                  style: theme.textTheme.muted.copyWith(
-                    color: muted,
-                    fontSize: 11,
-                  ),
+                  style: theme.textTheme.muted.copyWith(color: muted),
                 ),
               ],
             ),

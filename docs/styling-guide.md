@@ -204,6 +204,26 @@ it, don't re-derive it.
   that opens a sheet. Nothing captures from the bottom of the screen except
   the chat composer.
 
+## Status colours and the two exceptions
+
+shadcn has only `destructive`; the ported themes carry no `success` /
+`warning` / `info`. Those three live on `MantleColors`
+(`MantleColors.of(context).success(theme.brightness)` and friends), one set
+for every theme, tuned per brightness. They are **fills only** (meters, dots,
+badges), never text on a themed surface.
+
+Two things are allowed to break the letter of the rules, both in
+`agent_avatar.dart` and both because the avatar is a generated graphic, not
+themed text: its fill is computed from the agent's slug, so its ink is chosen
+by luminance (`MantleColors.inkOn(fill)`), and its initials scale with the
+circle (`size * 0.42`) rather than sitting on the type scale.
+
+**These rules are held by `test/style_ratchet_test.dart`, not by this
+document.** It counts colour literals, numeric `fontSize:`, Material imports,
+hand-rolled ISO dates and inline alert dialogs across `lib/features` and
+`lib/widgets`, and every count is zero. To add one you have to raise the
+number in the test, in the same diff.
+
 ## Chat bubbles
 
 - **User** (inbound): align right, `bg primary`, `text primaryForeground`.

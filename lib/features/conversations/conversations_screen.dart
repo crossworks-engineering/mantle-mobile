@@ -184,8 +184,7 @@ class _ConversationTile extends StatelessWidget {
                             ),
                             child: Text(
                               c.unreadCount > 99 ? '99+' : '${c.unreadCount}',
-                              style: TextStyle(
-                                fontSize: 12,
+                              style: theme.textTheme.small.copyWith(
                                 fontWeight: FontWeight.w600,
                                 color: scheme.primaryForeground,
                               ),
