@@ -1,8 +1,10 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/auth/auth_repository.dart';
+import '../../data/auth/session_wipe.dart';
 import '../../data/auth/token_store.dart';
 import '../../data/server/server_config.dart';
+import '../agents/agent_controller.dart';
 
 part 'session_controller.g.dart';
 
@@ -37,9 +39,35 @@ class SessionController extends _$SessionController {
     state = const AsyncData(AuthStatus.loggedIn);
   }
 
-  /// Revokes the token and flips to `loggedOut`.
+  /// The user signs out: unpair push (needs the token), revoke the token,
+  /// then wipe every local trace and flip to `loggedOut`. Throws only when the
+  /// local token could not be cleared, in which case the session stays.
   Future<void> signOut() async {
+    final wipe = ref.read(sessionWipeProvider);
+    await wipe.unpairPush();
     await ref.read(authRepositoryProvider).logout();
+    await wipe.wipeLocal();
+    _forgetAccountState();
     state = const AsyncData(AuthStatus.loggedOut);
+  }
+
+  /// The server says the token is dead (a 401, or a redirect to login). Flip
+  /// to `loggedOut` at once so the router bounces, then wipe locally. No
+  /// server calls: this runs from inside the failed request. Idempotent —
+  /// a burst of failing requests wipes once.
+  Future<void> sessionInvalidated() async {
+    if (state.value != AuthStatus.loggedIn) return;
+    state = const AsyncData(AuthStatus.loggedOut);
+    try {
+      await ref.read(sessionWipeProvider).wipeLocal();
+    } catch (_) {
+      /* the token clear failed; build() will re-read it on next launch */
+    }
+    _forgetAccountState();
+  }
+
+  /// Caches keyed to the account, not the device.
+  void _forgetAccountState() {
+    ref.invalidate(agentControllerProvider);
   }
 }

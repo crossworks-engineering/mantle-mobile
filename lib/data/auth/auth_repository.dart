@@ -25,8 +25,16 @@ class AuthRepository {
     await _tokenStore.write(token);
   }
 
+  /// Revoke the token server-side, then clear it locally. The revoke is
+  /// best-effort: with no network the user must still be able to sign out of
+  /// the device, and the token expires on its own server-side. Clearing the
+  /// local copy is the part that must succeed, so its failure propagates.
   Future<void> logout() async {
-    await _api.mobileLogout();
+    try {
+      await _api.mobileLogout();
+    } catch (_) {
+      /* offline or already revoked — the local wipe still goes ahead */
+    }
     await _tokenStore.clear();
   }
 

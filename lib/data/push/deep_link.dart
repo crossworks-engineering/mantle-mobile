@@ -13,9 +13,11 @@ import 'package:flutter/services.dart';
 ///     launch details feed [offer], with payload→route translation for event
 ///     alarms (see local_notifications.dart).
 ///
-/// The root widget listens to [pending] and routes via go_router, then clears
-/// it. Singleton so the platform channel handler and the Android notifier share
-/// one queue.
+/// Every link passes through [sanitizeDeepLink] first: a push payload is
+/// data from the network, not a command, so only the app's own routes get
+/// through. The root widget listens to [pending] and routes via go_router,
+/// then clears it. Singleton so the platform channel handler and the Android
+/// notifier share one queue.
 class DeepLinkRouter {
   DeepLinkRouter._();
 
@@ -54,8 +56,60 @@ class DeepLinkRouter {
     }
   }
 
-  /// Queue a deep link for the root widget to consume. Ignores null/empty.
+  /// Queue a deep link for the root widget to consume. Anything that is not
+  /// one of the app's own routes is dropped ([sanitizeDeepLink]).
   void offer(String? link) {
-    if (link != null && link.isNotEmpty) pending.value = link;
+    final safe = sanitizeDeepLink(link);
+    if (safe != null) pending.value = safe;
   }
+}
+
+/// One segment of an id or slug: what Mantle mints (UUIDs, kebab slugs) and
+/// nothing that could be read as a path or query trick.
+const _seg = r'[A-Za-z0-9._~-]+';
+
+/// The routes a notification may open. Mirrors `app_router.dart`; a route
+/// added there is not reachable from a push until it is added here too.
+final List<RegExp> _allowedDeepLinks = [
+  RegExp(r'^/$'),
+  RegExp(r'^/chat$'),
+  RegExp('^/chat/$_seg\$'),
+  RegExp(r'^/pending$'),
+  RegExp(r'^/pages$'),
+  RegExp('^/pages/$_seg\$'),
+  RegExp(r'^/search$'),
+  RegExp(r'^/files$'),
+  RegExp('^/files/image/$_seg\$'),
+  RegExp(r'^/notes$'),
+  RegExp('^/notes/$_seg\$'),
+  RegExp(r'^/tasks$'),
+  RegExp(r'^/journal$'),
+  RegExp(r'^/events$'),
+  RegExp(r'^/settings$'),
+  RegExp(r'^/settings/(appearance|notifications)$'),
+];
+
+/// Reduce a link from a notification payload to a route this app owns, or
+/// null. Rules: it must be an absolute in-app path (no scheme, no host, no
+/// `//`), its path must match one of the app's routes exactly, and only the
+/// Files routes keep a query string (they take `?path=` / `?name=`).
+String? sanitizeDeepLink(String? link) {
+  if (link == null) return null;
+  final s = link.trim();
+  if (s.isEmpty || !s.startsWith('/') || s.startsWith('//')) return null;
+  if (s.contains('\\') || s.codeUnits.any((c) => c < 0x20 || c == 0x7f)) {
+    return null;
+  }
+  // Dot segments are checked on the raw text: Uri.parse folds `/a/../b` into
+  // `/b` before the path is visible, which is exactly the trick to refuse.
+  final rawPath = s.split(RegExp(r'[?#]')).first;
+  if (rawPath.split('/').any((seg) => seg == '.' || seg == '..')) return null;
+  final uri = Uri.tryParse(s);
+  if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
+  final path = uri.path;
+  if (!_allowedDeepLinks.any((r) => r.hasMatch(path))) return null;
+  if (path.startsWith('/files') && uri.hasQuery) {
+    return Uri(path: path, query: uri.query).toString();
+  }
+  return path;
 }

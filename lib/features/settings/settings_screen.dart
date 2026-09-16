@@ -64,15 +64,7 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   Text('Account', style: theme.textTheme.small),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ShadButton.outline(
-                      onPressed: () =>
-                          ref.read(sessionControllerProvider.notifier).signOut(),
-                      leading: const Icon(LucideIcons.logOut, size: 16),
-                      child: const Text('Sign out'),
-                    ),
-                  ),
+                  _SignOutRow(theme: theme),
                   const SizedBox(height: 24),
                   Center(
                     child: Text(
@@ -124,6 +116,90 @@ class _NavRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Sign out, behind a confirm: it ends the session on this device and wipes
+/// everything cached for the account (messages, queued turns, push keys,
+/// alarms). A failure to clear the token is the one thing that keeps the
+/// session, and it is shown inline.
+class _SignOutRow extends ConsumerStatefulWidget {
+  const _SignOutRow({required this.theme});
+
+  final ShadThemeData theme;
+
+  @override
+  ConsumerState<_SignOutRow> createState() => _SignOutRowState();
+}
+
+class _SignOutRowState extends ConsumerState<_SignOutRow> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _signOut() async {
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (ctx) => ShadDialog.alert(
+        title: const Text('Sign out?'),
+        description: const Text(
+          'This device forgets your session: cached messages, unsent '
+          'messages, push keys and event alarms are all removed.',
+        ),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ShadButton.destructive(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(sessionControllerProvider.notifier).signOut();
+      // The router redirects to /login; this widget is gone.
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = "Couldn't clear the session on this device. Try again.";
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ShadButton.outline(
+            onPressed: _busy ? null : _signOut,
+            leading: const Icon(LucideIcons.logOut, size: 16),
+            child: Text(_busy ? 'Signing out…' : 'Sign out'),
+          ),
+        ),
+        if (_error != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _error!,
+            style: theme.textTheme.small.copyWith(
+              color: theme.colorScheme.destructive,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

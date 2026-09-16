@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/lifecycle/app_lifecycle.dart';
+import '../../core/network/auth_failure.dart';
 import '../../core/network/dio_provider.dart';
 
 part 'conversation_stream.g.dart';
@@ -93,7 +94,7 @@ Stream<ConversationEvent> conversationEvents(Ref ref) async* {
       if (CancelToken.isCancel(e)) return; // provider disposed / app paused
       // A 401/redirect already triggered logout in the Dio interceptor, which
       // unmounts the chat/inbox → autoDisposes us; stop instead of hammering.
-      if (e.response?.statusCode == 401) return;
+      if (isAuthFailure(e)) return;
       // otherwise a transient network/server error — fall through to backoff
     } catch (_) {
       /* unexpected — fall through to backoff */

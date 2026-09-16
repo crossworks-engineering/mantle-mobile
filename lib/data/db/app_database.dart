@@ -84,6 +84,17 @@ class AppDatabase extends _$AppDatabase {
     );
   }
 
+  /// Drop everything that belongs to a signed-in user: the chat read cache
+  /// and the offline send-queue. Settings (server URL, theme) stay — they are
+  /// the device's, not the account's. Called when a session ends, so the next
+  /// login never sees, or sends, the previous account's data.
+  Future<void> clearUserData() {
+    return transaction(() async {
+      await delete(cachedMessages).go();
+      await delete(outboxTurns).go();
+    });
+  }
+
   // ─── Chat read cache ────────────────────────────────────────────────────
 
   /// Upsert a fetched latest-page's rows for one agent, then prune that

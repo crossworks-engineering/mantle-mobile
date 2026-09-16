@@ -131,6 +131,24 @@ class EventAlarms {
     }
   }
 
+  /// Cancel every alarm this app scheduled (recognised by the payload
+  /// prefix). Used when a session ends: an alarm for the previous account's
+  /// event must not ring for the next one. Never throws.
+  static Future<void> cancelAll() async {
+    try {
+      await _ensureInit();
+      final pending = await _plugin.pendingNotificationRequests();
+      for (final p in pending) {
+        final payload = p.payload;
+        if (payload != null && payload.startsWith(_payloadPrefix)) {
+          await _plugin.cancel(id: p.id);
+        }
+      }
+    } catch (_) {
+      /* best-effort, like sync */
+    }
+  }
+
   static Future<void> _schedule(
     String payload,
     EventRow event,

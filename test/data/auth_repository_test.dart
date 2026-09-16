@@ -43,4 +43,20 @@ void main() {
     verify(() => api.mobileLogout()).called(1);
     verify(() => store.clear()).called(1);
   });
+
+  test('logout still clears the local token when the revoke fails', () async {
+    when(() => api.mobileLogout()).thenThrow(Exception('offline'));
+    when(() => store.clear()).thenAnswer((_) async {});
+
+    await repo.logout();
+
+    verify(() => store.clear()).called(1);
+  });
+
+  test('logout propagates a failure to clear the local token', () async {
+    when(() => api.mobileLogout()).thenAnswer((_) async {});
+    when(() => store.clear()).thenThrow(Exception('keychain'));
+
+    await expectLater(repo.logout(), throwsA(isA<Exception>()));
+  });
 }

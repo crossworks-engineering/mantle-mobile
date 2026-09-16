@@ -86,4 +86,4 @@ final class ConversationEventsProvider
 }
 
 String _$conversationEventsHash() =>
-    r'913ae359bdbdd429b25e5cf2804cf71e8d0aaf7a';
+    r'6b981870cd06a97aa58b1d0a213bd2956fe4d8d2';

@@ -25,7 +25,8 @@ class DirectPushController extends _$DirectPushController {
       if (baseUrl.isEmpty || token == null || token.isEmpty) {
         throw const PushException('You need to be signed in to a server first.');
       }
-      await direct.start(baseUrl: baseUrl, token: token);
+      // The token stays in secure storage; the service reads it there.
+      await direct.start(baseUrl: baseUrl);
       return true;
     });
     // This is an auto-dispose provider; if it was disposed during the await

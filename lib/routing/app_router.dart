@@ -39,6 +39,9 @@ GoRouter goRouter(Ref ref) {
   return GoRouter(
     initialLocation: '/',
     refreshListenable: refresh,
+    // A route the app does not own (a stale link, a bad payload that slipped
+    // past the allowlist) lands here instead of go_router's unthemed page.
+    errorBuilder: (_, _) => const _NotFoundScreen(),
     redirect: (context, state) {
       final session = ref.read(sessionControllerProvider);
       final loc = state.matchedLocation;
@@ -111,6 +114,38 @@ GoRouter goRouter(Ref ref) {
       ),
     ],
   );
+}
+
+/// Shown for a location no route matches. Themed like every other screen,
+/// with the one action that always makes sense.
+class _NotFoundScreen extends StatelessWidget {
+  const _NotFoundScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Container(
+      color: theme.colorScheme.background,
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text("That page isn't here.", style: theme.textTheme.muted),
+                const SizedBox(height: 16),
+                ShadButton.outline(
+                  onPressed: () => context.go('/'),
+                  child: const Text('Go home'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Minimal Material-free splash shown while the session resolves.

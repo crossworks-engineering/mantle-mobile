@@ -1,10 +1,11 @@
 // SessionController: the app's auth gate. Real ServerConfig over in-memory
-// Drift; TokenStore and AuthRepository mocked.
+// Drift; TokenStore, AuthRepository and SessionWipe mocked.
 
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/auth/auth_repository.dart';
+import 'package:jackdaw/data/auth/session_wipe.dart';
 import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
@@ -15,15 +16,21 @@ class MockTokenStore extends Mock implements TokenStore {}
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 
+class MockSessionWipe extends Mock implements SessionWipe {}
+
 void main() {
   late AppDatabase db;
   late MockTokenStore tokenStore;
   late MockAuthRepository authRepo;
+  late MockSessionWipe wipe;
 
   setUp(() {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     tokenStore = MockTokenStore();
     authRepo = MockAuthRepository();
+    wipe = MockSessionWipe();
+    when(() => wipe.unpairPush()).thenAnswer((_) async {});
+    when(() => wipe.wipeLocal()).thenAnswer((_) async {});
   });
   tearDown(() => db.close());
 
@@ -33,6 +40,7 @@ void main() {
         appDatabaseProvider.overrideWithValue(db),
         tokenStoreProvider.overrideWithValue(tokenStore),
         authRepositoryProvider.overrideWithValue(authRepo),
+        sessionWipeProvider.overrideWithValue(wipe),
       ],
     );
     addTearDown(c.dispose);
@@ -71,14 +79,14 @@ void main() {
     await c.read(sessionControllerProvider.future); // settle to loggedOut
     await c
         .read(sessionControllerProvider.notifier)
-        .signIn(email: 'jason@schoeman.me', password: 'pw');
+        .signIn(email: 'owner@example.com', password: 'pw');
 
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
-    verify(() => authRepo.login(email: 'jason@schoeman.me', password: 'pw'))
+    verify(() => authRepo.login(email: 'owner@example.com', password: 'pw'))
         .called(1);
   });
 
-  test('signOut revokes and flips to loggedOut', () async {
+  test('signOut unpairs push, revokes, wipes, and flips to loggedOut', () async {
     await db.setSetting('server_base_url', 'https://m.example.com');
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
     when(() => authRepo.logout()).thenAnswer((_) async {});
@@ -88,6 +96,53 @@ void main() {
     await c.read(sessionControllerProvider.notifier).signOut();
 
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
-    verify(() => authRepo.logout()).called(1);
+    verifyInOrder([
+      () => wipe.unpairPush(),
+      () => authRepo.logout(),
+      () => wipe.wipeLocal(),
+    ]);
+  });
+
+  test('signOut keeps the session when the local wipe cannot clear the token',
+      () async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
+    when(() => authRepo.logout()).thenAnswer((_) async {});
+    when(() => wipe.wipeLocal()).thenThrow(Exception('keychain'));
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    await expectLater(
+      c.read(sessionControllerProvider.notifier).signOut(),
+      throwsA(isA<Exception>()),
+    );
+    expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+  });
+
+  test('sessionInvalidated flips to loggedOut and wipes locally, once', () async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    final n = c.read(sessionControllerProvider.notifier);
+    await n.sessionInvalidated();
+    await n.sessionInvalidated();
+
+    expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
+    verify(() => wipe.wipeLocal()).called(1);
+    verifyNever(() => wipe.unpairPush()); // no network from the 401 path
+    verifyNever(() => authRepo.logout());
+  });
+
+  test('sessionInvalidated while already logged out does nothing', () async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    when(() => tokenStore.read()).thenAnswer((_) async => null);
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future); // loggedOut
+    await c.read(sessionControllerProvider.notifier).sessionInvalidated();
+
+    verifyNever(() => wipe.wipeLocal());
   });
 }

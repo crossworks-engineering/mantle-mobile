@@ -33,9 +33,14 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
   }
 
   Future<void> _connect() async {
-    final url = _controller.text.trim();
-    if (url.isEmpty) {
+    if (_controller.text.trim().isEmpty) {
       setState(() => _error = 'Enter your Mantle server URL.');
+      return;
+    }
+    final url = canonicalServerUrl(_controller.text);
+    final problem = serverUrlProblem(url);
+    if (problem != null) {
+      setState(() => _error = problem);
       return;
     }
     setState(() {

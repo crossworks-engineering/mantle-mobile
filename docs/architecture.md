@@ -196,6 +196,31 @@ token is HMAC-signed like the session cookie but carries a `jti` + `k:'m'`;
 `getSessionUser()` and the gate accept it, so **every existing endpoint works
 with the mobile token, no per-route changes**. `mobile-logout` revokes by `jti`.
 
+**When a session ends** — the user signs out, or a request comes back 401 /
+redirected to `/login` (`core/network/auth_failure.dart` is the one
+definition, shared with the SSE stream and the direct-push isolate) — the
+device is wiped, not just the token (`data/auth/session_wipe.dart`): the chat
+read cache and the offline outbox (`AppDatabase.clearUserData`), the push
+keypair and subscription marker, every scheduled event alarm, and the
+direct-push foreground service. Sign-out also unpairs push server-side first,
+while the token is still valid; the 401 path makes no network calls (it runs
+inside the failed request) and is idempotent, so a burst of failures wipes
+once. Only a failure to clear the *token* keeps the session, and sign-out
+shows it inline.
+
+**Server address rules** (`serverUrlProblem`): `https://` anywhere;
+`http://` only for a private host (loopback, RFC 1918, link-local, `.local`,
+a bare LAN name); no credentials in the address. A typed address without a
+scheme is taken as `https://`. The probe does not follow redirects, so an
+address that only works by redirecting is reported unreachable rather than
+saved.
+
+**Deep links from notifications** pass `sanitizeDeepLink`: absolute in-app
+paths matching the router's own routes, nothing else. A route added to
+`app_router.dart` is not reachable from a push until it is added to that
+allowlist too; anything unmatched at the router lands on a themed
+not-found screen.
+
 ### Which address is "the server" (Mantle ≥ v0.200.0)
 
 Mantle's v0.200.0–v0.202.0 split carved the owner UI out of the server: a

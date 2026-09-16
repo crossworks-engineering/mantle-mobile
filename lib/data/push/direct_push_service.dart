@@ -4,11 +4,20 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import '../../core/network/auth_failure.dart';
+import '../auth/token_store.dart';
 import 'push_notifier.dart';
 
-// Keys shared with the foreground isolate via FlutterForegroundTask's data store.
+// Keys shared with the foreground isolate via FlutterForegroundTask's data
+// store. That store is plain SharedPreferences, so ONLY the server address
+// goes through it; the bearer is read by the isolate straight from secure
+// storage ([TokenStore.readDirect]).
 const _kBaseUrl = 'directPushBaseUrl';
-const _kToken = 'directPushToken';
+
+/// The key an earlier version used to hand the bearer to the isolate through
+/// the plain store. Scrubbed on every start and stop so an upgraded install
+/// does not keep a cleartext copy around.
+const _kLegacyToken = 'directPushToken';
 const _serviceId = 4242;
 
 /// The **direct connection** push transport (no-Google Android, §9.3). Runs a
@@ -34,10 +43,11 @@ class DirectPush {
     }
   }
 
-  /// Start the service with the current server URL + bearer token.
-  Future<void> start({required String baseUrl, required String token}) async {
+  /// Start the service against [baseUrl]. The isolate reads the bearer from
+  /// secure storage itself, so nothing secret is written here.
+  Future<void> start({required String baseUrl}) async {
+    await FlutterForegroundTask.removeData(key: _kLegacyToken);
     await FlutterForegroundTask.saveData(key: _kBaseUrl, value: baseUrl);
-    await FlutterForegroundTask.saveData(key: _kToken, value: token);
 
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
@@ -70,7 +80,12 @@ class DirectPush {
     );
   }
 
-  Future<void> stop() => FlutterForegroundTask.stopService();
+  /// Stop the service and forget everything it was given, so a stopped
+  /// service cannot auto-restart on boot against a session that has ended.
+  Future<void> stop() async {
+    await FlutterForegroundTask.stopService();
+    await FlutterForegroundTask.clearAllData();
+  }
 }
 
 /// Foreground-isolate entry point. Top-level + AOT-entry annotated.
@@ -108,8 +123,9 @@ class _DirectPushTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     final baseUrl = await FlutterForegroundTask.getData<String>(key: _kBaseUrl);
-    final token = await FlutterForegroundTask.getData<String>(key: _kToken);
+    final token = await TokenStore.readDirect();
     if (baseUrl == null || baseUrl.isEmpty || token == null || token.isEmpty) {
+      // Signed out (or never signed in): nothing to listen for.
       await FlutterForegroundTask.stopService();
       return;
     }
@@ -146,8 +162,9 @@ class _DirectPushTaskHandler extends TaskHandler {
         }
       } on DioException catch (e) {
         if (CancelToken.isCancel(e)) return;
-        if (e.response?.statusCode == 401) {
-          await FlutterForegroundTask.stopService(); // token invalid — give up
+        if (isAuthFailure(e)) {
+          // Token revoked or expired — give up rather than reconnect forever.
+          await FlutterForegroundTask.stopService();
           return;
         }
         /* transient — fall through to backoff */

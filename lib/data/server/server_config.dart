@@ -37,6 +37,73 @@ String normalizeBaseUrl(String url) {
   return u;
 }
 
+/// What a person typed → the address to probe: `https://` is assumed when no
+/// scheme is given (people type `mantle.example.com`), then normalized.
+String canonicalServerUrl(String input) {
+  var u = input.trim();
+  if (!RegExp(r'^[A-Za-z][A-Za-z0-9+.-]*://').hasMatch(u)) {
+    u = 'https://$u';
+  }
+  return normalizeBaseUrl(u);
+}
+
+/// Why [url] must not be used as the server address, or null when it may.
+///
+/// The bearer rides on every request, so a public server has to be reached
+/// over TLS. Plain `http://` is allowed only for addresses that stay on the
+/// user's own network ([isPrivateHost]): a dev box, a LAN name, a loopback
+/// tunnel. Credentials in the address are refused outright.
+String? serverUrlProblem(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.host.isEmpty) {
+    return "That doesn't look like a server address.";
+  }
+  if (uri.userInfo.isNotEmpty) {
+    return 'Leave the username and password out of the address.';
+  }
+  switch (uri.scheme) {
+    case 'https':
+      return null;
+    case 'http':
+      return isPrivateHost(uri.host)
+          ? null
+          : 'Use https:// for a server on the internet. Plain http:// only '
+              'works for a server on your own network.';
+    default:
+      return 'The address must start with https://.';
+  }
+}
+
+/// True for hosts that cannot be reached from the public internet: loopback,
+/// RFC 1918 and link-local ranges, `.local` / `.localhost` names, and bare
+/// single-label names (a LAN hostname).
+bool isPrivateHost(String host) {
+  final h = host.toLowerCase();
+  if (h == 'localhost' || h.endsWith('.localhost') || h.endsWith('.local')) {
+    return true;
+  }
+  if (!h.contains('.') && !h.contains(':')) return true; // bare LAN name
+  final v4 = RegExp(r'^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$')
+      .firstMatch(h);
+  if (v4 != null) {
+    final a = int.parse(v4.group(1)!);
+    final b = int.parse(v4.group(2)!);
+    if (a == 127 || a == 10) return true;
+    if (a == 192 && b == 168) return true;
+    if (a == 172 && b >= 16 && b <= 31) return true;
+    if (a == 169 && b == 254) return true;
+    return false;
+  }
+  final v6 = h.replaceAll(RegExp(r'^\[|\]$'), '');
+  if (v6 == '::1') return true;
+  if (v6.startsWith('fc') || v6.startsWith('fd')) return true; // fc00::/7
+  if (v6.startsWith('fe8') || v6.startsWith('fe9') ||
+      v6.startsWith('fea') || v6.startsWith('feb')) {
+    return true; // fe80::/10
+  }
+  return false;
+}
+
 /// What the setup screen found at the address the user typed.
 sealed class ServerProbe {
   const ServerProbe();
@@ -73,15 +140,22 @@ Future<ServerProbe> probeMantleServer(String url) async {
   if (await _isMantleBrain(base)) return ServerProbeBrain(base);
 
   final brain = await _brainAdvertisedByClientApp(base);
-  if (brain != null && brain != base && await _isMantleBrain(brain)) {
+  if (brain != null &&
+      brain != base &&
+      serverUrlProblem(brain) == null &&
+      await _isMantleBrain(brain)) {
     return ServerProbeClientApp(brain);
   }
   return const ServerProbeUnreachable();
 }
 
+/// Same redirect policy as the app client: a server that answers the probe
+/// with a 3xx (say, http → https) is NOT a brain at this address, otherwise
+/// the probe would pass on an address every later request fails on.
 Dio _probeDio(String baseUrl) => Dio(
   BaseOptions(
     baseUrl: baseUrl,
+    followRedirects: false,
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ),

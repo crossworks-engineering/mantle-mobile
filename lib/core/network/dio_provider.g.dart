@@ -10,38 +10,41 @@ part of 'dio_provider.dart';
 // ignore_for_file: type=lint, type=warning
 /// App-wide Dio for talking to Mantle. Base URL comes from [ServerConfig] (so
 /// it rebuilds when the server changes); the bearer token is injected per
-/// request. On an auth failure it clears the token and invalidates the session,
-/// so the router bounces to login.
+/// request. On an auth failure it ends the session (see
+/// [SessionController.sessionInvalidated]), so the router bounces to login
+/// and nothing of the account stays on the device.
 ///
-/// Auth failure = HTTP 401, OR a 3xx redirect to /login. The latter happens for
-/// a server-revoked-but-unexpired token: it clears Mantle's Edge gate (valid
-/// signature) but `requireOwner()` redirects it (see the Phase 1 notes). We
-/// disable redirect-following so we can see that and treat it as a logout.
+/// Auth failure = HTTP 401, OR a 3xx redirect whose path is `/login`
+/// ([isAuthFailure]). The latter happens for a server-revoked-but-unexpired
+/// token: it clears Mantle's Edge gate (valid signature) but `requireOwner()`
+/// redirects it. We disable redirect-following so we can see that.
 
 @ProviderFor(dio)
 final dioProvider = DioProvider._();
 
 /// App-wide Dio for talking to Mantle. Base URL comes from [ServerConfig] (so
 /// it rebuilds when the server changes); the bearer token is injected per
-/// request. On an auth failure it clears the token and invalidates the session,
-/// so the router bounces to login.
+/// request. On an auth failure it ends the session (see
+/// [SessionController.sessionInvalidated]), so the router bounces to login
+/// and nothing of the account stays on the device.
 ///
-/// Auth failure = HTTP 401, OR a 3xx redirect to /login. The latter happens for
-/// a server-revoked-but-unexpired token: it clears Mantle's Edge gate (valid
-/// signature) but `requireOwner()` redirects it (see the Phase 1 notes). We
-/// disable redirect-following so we can see that and treat it as a logout.
+/// Auth failure = HTTP 401, OR a 3xx redirect whose path is `/login`
+/// ([isAuthFailure]). The latter happens for a server-revoked-but-unexpired
+/// token: it clears Mantle's Edge gate (valid signature) but `requireOwner()`
+/// redirects it. We disable redirect-following so we can see that.
 
 final class DioProvider extends $FunctionalProvider<Dio, Dio, Dio>
     with $Provider<Dio> {
   /// App-wide Dio for talking to Mantle. Base URL comes from [ServerConfig] (so
   /// it rebuilds when the server changes); the bearer token is injected per
-  /// request. On an auth failure it clears the token and invalidates the session,
-  /// so the router bounces to login.
+  /// request. On an auth failure it ends the session (see
+  /// [SessionController.sessionInvalidated]), so the router bounces to login
+  /// and nothing of the account stays on the device.
   ///
-  /// Auth failure = HTTP 401, OR a 3xx redirect to /login. The latter happens for
-  /// a server-revoked-but-unexpired token: it clears Mantle's Edge gate (valid
-  /// signature) but `requireOwner()` redirects it (see the Phase 1 notes). We
-  /// disable redirect-following so we can see that and treat it as a logout.
+  /// Auth failure = HTTP 401, OR a 3xx redirect whose path is `/login`
+  /// ([isAuthFailure]). The latter happens for a server-revoked-but-unexpired
+  /// token: it clears Mantle's Edge gate (valid signature) but `requireOwner()`
+  /// redirects it. We disable redirect-following so we can see that.
   DioProvider._()
     : super(
         from: null,
@@ -75,4 +78,4 @@ final class DioProvider extends $FunctionalProvider<Dio, Dio, Dio>
   }
 }
 
-String _$dioHash() => r'f7cb4d0edf9cf73c8fc37226c26c49083d8d1832';
+String _$dioHash() => r'df0245bc359b9117447f6d5985e59c4cc6da3938';
