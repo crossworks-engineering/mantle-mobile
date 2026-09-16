@@ -42,9 +42,11 @@ is best-effort; the durable reminder is still the brain's push.
 
 ## Installing today
 
-There is no public TestFlight, no store listing and no APK download yet. The
-repo has no CI or release pipeline either. The only way to get Jackdaw onto a
-phone today is to build it from source with your own developer tooling.
+There is no public TestFlight, no store listing and no APK download yet, and
+no release pipeline. CI (`.github/workflows/verify.yml`) runs the analyzer,
+the tests, a generated-code check and both release builds on every push, but
+publishes nothing. The only way to get Jackdaw onto a phone today is to build
+it from source with your own developer tooling.
 
 ```bash
 brew install fvm                 # once, on macOS

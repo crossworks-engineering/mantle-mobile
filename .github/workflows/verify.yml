@@ -1,0 +1,76 @@
+# The gate. Every push and pull request runs what a careful developer runs by
+# hand before a commit: analyze, test, generated code up to date, and both
+# release builds compile. Nothing here signs or publishes.
+#
+# The Android build needs a google-services.json, which is git-ignored (the
+# real one is per Firebase project). CI uses the placeholder under tool/ci so
+# the Gradle plugin is satisfied; the app never runs here, so nothing reads it.
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: analyze, test, codegen, android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter --version
+
+      - run: flutter pub get
+
+      - name: Generated code is committed and current
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- '*.g.dart' \
+            || { echo '::error::Generated files are stale. Run: fvm dart run build_runner build'; exit 1; }
+
+      - run: flutter analyze
+
+      - run: flutter test
+
+      - name: Placeholder Firebase config
+        run: |
+          if [ ! -f android/app/google-services.json ]; then
+            cp tool/ci/google-services.ci.json android/app/google-services.json
+          fi
+
+      - name: Android release APK compiles
+        run: flutter build apk --release
+
+  ios:
+    name: ios build (no codesign)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: iOS release compiles
+        run: flutter build ios --release --no-codesign
