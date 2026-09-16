@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/pending/pending_models.dart';
+import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/confirm_dialog.dart';
 import 'pending_controller.dart';
 
 /// The agent-approval queue. One card per tool call awaiting a decision (tool
@@ -97,15 +99,6 @@ class PendingScreen extends ConsumerWidget {
   }
 }
 
-String _relativeTime(DateTime? t) {
-  if (t == null) return '';
-  final d = DateTime.now().difference(t);
-  if (d.inMinutes < 1) return 'now';
-  if (d.inMinutes < 60) return '${d.inMinutes}m';
-  if (d.inHours < 24) return '${d.inHours}h';
-  if (d.inDays < 7) return '${d.inDays}d';
-  return '${(d.inDays / 7).floor()}w';
-}
 
 class _PendingTile extends ConsumerWidget {
   const _PendingTile({required this.theme, required this.call});
@@ -151,7 +144,7 @@ class _PendingTile extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _relativeTime(call.createdAt),
+                  call.createdAt == null ? '' : formatWhen(call.createdAt!),
                   style: theme.textTheme.small.copyWith(
                     color: onAccent.withValues(alpha: 0.6),
                   ),
@@ -172,7 +165,16 @@ class _PendingTile extends ConsumerWidget {
               children: [
                 Expanded(
                   child: ShadButton.destructive(
-                    onPressed: () => notifier.reject(call.id),
+                    onPressed: () async {
+                      final ok = await confirmDestructive(
+                        context,
+                        title: 'Reject this request?',
+                        description:
+                            'The agent is told no and stops waiting on it.',
+                        action: 'Reject',
+                      );
+                      if (ok) await notifier.reject(call.id);
+                    },
                     child: const Text('Reject'),
                   ),
                 ),

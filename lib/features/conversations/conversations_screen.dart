@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/conversations/conversation_models.dart';
+import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
 import '../agents/agent_avatar.dart';
 import 'conversations_controller.dart';
@@ -85,15 +86,6 @@ class ConversationsScreen extends ConsumerWidget {
   }
 }
 
-String _relativeTime(DateTime? t) {
-  if (t == null) return '';
-  final d = DateTime.now().difference(t);
-  if (d.inMinutes < 1) return 'now';
-  if (d.inMinutes < 60) return '${d.inMinutes}m';
-  if (d.inHours < 24) return '${d.inHours}h';
-  if (d.inDays < 7) return '${d.inDays}d';
-  return '${(d.inDays / 7).floor()}w';
-}
 
 class _ConversationTile extends StatelessWidget {
   const _ConversationTile({required this.theme, required this.conversation});
@@ -152,7 +144,7 @@ class _ConversationTile extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          _relativeTime(c.lastAt),
+                          c.lastAt == null ? '' : formatWhen(c.lastAt!),
                           style: theme.textTheme.small.copyWith(
                             color: onAccent.withValues(
                               alpha: c.hasUnread ? 0.9 : 0.6,

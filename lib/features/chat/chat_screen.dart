@@ -284,11 +284,8 @@ class _AgentIdentity extends StatelessWidget {
               name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontFamily: 'BukhariScript',
-                fontSize: 24,
-                color: foreground,
-              ),
+              style: headerTitleStyle(ShadTheme.of(context))
+                  .copyWith(color: foreground),
             ),
           ),
         ],

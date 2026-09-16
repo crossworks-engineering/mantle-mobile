@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../widgets/confirm_dialog.dart';
 import '../../widgets/mantle_header.dart';
 import '../auth/session_controller.dart';
 import 'location_controller.dart';
@@ -138,27 +139,14 @@ class _SignOutRowState extends ConsumerState<_SignOutRow> {
   String? _error;
 
   Future<void> _signOut() async {
-    final confirmed = await showShadDialog<bool>(
-      context: context,
-      builder: (ctx) => ShadDialog.alert(
-        title: const Text('Sign out?'),
-        description: const Text(
-          'This device forgets your session: cached messages, unsent '
+    final confirmed = await confirmDestructive(
+      context,
+      title: 'Sign out?',
+      description: 'This device forgets your session: cached messages, unsent '
           'messages, push keys and event alarms are all removed.',
-        ),
-        actions: [
-          ShadButton.outline(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          ShadButton.destructive(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Sign out'),
-          ),
-        ],
-      ),
+      action: 'Sign out',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     setState(() {
       _busy = true;
       _error = null;

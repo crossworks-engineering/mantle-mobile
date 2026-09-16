@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/search/search_models.dart';
+import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
 import 'search_controller.dart';
 
@@ -233,14 +234,6 @@ class _Results extends StatelessWidget {
   }
 }
 
-String _updatedLabel(DateTime t) {
-  final diff = DateTime.now().difference(t);
-  if (diff.inMinutes < 1) return 'now';
-  if (diff.inHours < 1) return '${diff.inMinutes}m';
-  if (diff.inDays < 1) return '${diff.inHours}h';
-  if (diff.inDays < 7) return '${diff.inDays}d';
-  return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
-}
 
 class _ResultTile extends StatelessWidget {
   const _ResultTile({
@@ -303,7 +296,7 @@ class _ResultTile extends StatelessWidget {
             const SizedBox(width: 8),
             if (result.updatedAt != null)
               Text(
-                _updatedLabel(result.updatedAt!),
+                formatWhen(result.updatedAt!),
                 style: theme.textTheme.small.copyWith(color: muted),
               ),
           ],

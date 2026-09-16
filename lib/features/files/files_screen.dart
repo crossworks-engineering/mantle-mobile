@@ -10,6 +10,7 @@ import '../../data/files/files_api.dart' show FileUploadException;
 import '../../data/files/files_models.dart';
 import '../../data/server/server_config.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/confirm_dialog.dart';
 import 'files_controller.dart';
 
 /// One folder of the brain's file library: child folders first, then files.
@@ -88,40 +89,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   Future<void> _confirmDeleteFile(FileRow file) async {
     final notifier = ref.read(filesControllerProvider(widget.path).notifier);
-    final choice = await showShadSheet<String>(
-      context: context,
-      builder: (ctx) => ShadSheet(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: ShadButton.ghost(
-                  onPressed: () => Navigator.of(ctx).pop('delete'),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(LucideIcons.trash2,
-                          size: 18,
-                          color: ShadTheme.of(ctx).colorScheme.destructive),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Delete file',
-                        style: TextStyle(
-                            color: ShadTheme.of(ctx).colorScheme.destructive),
-                      ),
-                    ]),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final ok = await confirmDestructive(
+      context,
+      title: 'Delete file?',
+      description: '"${file.title}" is removed from your brain.',
+      action: 'Delete',
     );
-    if (choice == 'delete') await notifier.deleteFile(file.id);
+    if (ok) await notifier.deleteFile(file.id);
   }
 
   Future<void> _showFileDetails(FileRow f) async {

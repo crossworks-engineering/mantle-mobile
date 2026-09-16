@@ -181,6 +181,29 @@ Rule of thumb: **`accent` is the "card accent" you reach for; `primary` is the
 single pop on top of it; `muted`/`secondary` are the quiet ones.** Never tint a
 surface with one token and text it with another's foreground.
 
+## Shared conventions (one of each)
+
+Four things every screen used to do its own way. Each now has one home; use
+it, don't re-derive it.
+
+- **Header title.** `MantleHeaderTitle(text, wordmark: false)` for a
+  sub-screen, which draws with `headerTitleStyle(theme)` (`h4` in
+  `primaryForeground`). The chat header's agent name uses the same style.
+  The script face is the Jackdaw wordmark only; never set it on other text.
+- **Dates.** `lib/core/format/dates.dart`: `formatWhen` for a past instant
+  (`5m`, `3h`, `2d`, `18 Sep`), `formatDay` for a calendar day (`Today`,
+  `Tomorrow`, `Fri 18 Sep`), `formatDue` for a deadline (`In 3 days`,
+  `3 days overdue`). No screen formats a date by hand.
+- **Destructive confirm.** `confirmDestructive(context, title:, description:,
+  action:)` in `lib/widgets/confirm_dialog.dart` — a `ShadDialog.alert` with
+  Cancel and a red verb. Every delete, reject, reset and sign-out goes through
+  it. Never a one-tap ghost row in a sheet.
+- **Adding things.** A capture screen (Notes, Tasks, Journal) puts a quick-add
+  row directly under the header: `ShadInput` + a `ShadButton` with the plus
+  icon. A screen whose new item is a form (Events) puts a plus in the header
+  that opens a sheet. Nothing captures from the bottom of the screen except
+  the chat composer.
+
 ## Chat bubbles
 
 - **User** (inbound): align right, `bg primary`, `text primaryForeground`.

@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/tasks/tasks_models.dart';
+import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/confirm_dialog.dart';
 import 'tasks_controller.dart';
 
 /// The task list: quick-add on top, open tasks (tap the circle to check off),
@@ -47,39 +49,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
   Future<void> _confirmDelete(TaskRow task) async {
     final notifier = ref.read(tasksControllerProvider.notifier);
-    final choice = await showShadSheet<String>(
-      context: context,
-      builder: (ctx) => ShadSheet(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: ShadButton.ghost(
-                  onPressed: () => Navigator.of(ctx).pop('delete'),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(LucideIcons.trash2,
-                          size: 18, color: ShadTheme.of(ctx).colorScheme.destructive),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Delete task',
-                        style: TextStyle(
-                            color: ShadTheme.of(ctx).colorScheme.destructive),
-                      ),
-                    ]),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final ok = await confirmDestructive(
+      context,
+      title: 'Delete task?',
+      description: '"${task.title}" is removed from your brain.',
+      action: 'Delete',
     );
-    if (choice == 'delete') await notifier.delete(task.id);
+    if (ok) await notifier.delete(task.id);
   }
 
   @override
@@ -218,18 +194,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   }
 }
 
-String _dueLabel(DateTime due) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(due.year, due.month, due.day);
-  final diff = day.difference(today).inDays;
-  if (diff < -1) return '${-diff}d overdue';
-  if (diff == -1) return 'yesterday';
-  if (diff == 0) return 'today';
-  if (diff == 1) return 'tomorrow';
-  if (diff < 7) return 'in ${diff}d';
-  return '${due.year}-${due.month.toString().padLeft(2, '0')}-${due.day.toString().padLeft(2, '0')}';
-}
 
 class _TaskTile extends StatelessWidget {
   const _TaskTile({
@@ -297,7 +261,7 @@ class _TaskTile extends StatelessWidget {
                           ),
                         if (task.dueAt != null)
                           Text(
-                            _dueLabel(task.dueAt!),
+                            formatDue(task.dueAt!),
                             style: theme.textTheme.small.copyWith(
                               color: task.overdue ? scheme.destructive : muted,
                             ),

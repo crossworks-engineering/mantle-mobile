@@ -9,12 +9,13 @@ import 'package:record/record.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/journal/journal_models.dart';
+import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
 import 'journal_controller.dart';
 
 enum _VoiceState { idle, recording, transcribing }
 
-/// The journal: newest-first entries above a quick-capture composer. The mic
+/// The journal: a quick-capture composer above newest-first entries. The mic
 /// makes the phone the brain's capture device — tap to record, tap to stop;
 /// the recording transcribes server-side (the chat's STT pipeline) into the
 /// text field for a quick review before saving. Backed by
@@ -172,6 +173,18 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
               ),
             ],
           ),
+          _Composer(
+            theme: theme,
+            input: _input,
+            voice: _voice,
+            saving: _saving,
+            error: _error,
+            elapsedLabel: _elapsedLabel(),
+            onSave: _save,
+            onMic: _startRecording,
+            onStopRecording: _stopAndTranscribe,
+            onCancelRecording: _cancelRecording,
+          ),
           Expanded(
             child: SafeArea(
               top: false,
@@ -199,7 +212,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                 data: (entries) => entries.isEmpty
                     ? Center(
                         child: Text(
-                          'No entries yet. Speak or type one below.',
+                          'No entries yet. Speak or type one above.',
                           style: theme.textTheme.muted,
                         ),
                       )
@@ -212,33 +225,12 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
               ),
             ),
           ),
-          _Composer(
-            theme: theme,
-            input: _input,
-            voice: _voice,
-            saving: _saving,
-            error: _error,
-            elapsedLabel: _elapsedLabel(),
-            onSave: _save,
-            onMic: _startRecording,
-            onStopRecording: _stopAndTranscribe,
-            onCancelRecording: _cancelRecording,
-          ),
         ],
       ),
     );
   }
 }
 
-String _dateLabel(DateTime d) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(d.year, d.month, d.day);
-  final diff = today.difference(day).inDays;
-  if (diff == 0) return 'Today';
-  if (diff == 1) return 'Yesterday';
-  return '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-}
 
 class _EntryCard extends StatelessWidget {
   const _EntryCard({required this.theme, required this.entry});
@@ -266,7 +258,7 @@ class _EntryCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    _dateLabel(entry.displayDate),
+                    formatDay(entry.displayDate),
                     style: theme.textTheme.small.copyWith(
                       color: onAccent.withValues(alpha: 0.6),
                     ),
@@ -339,22 +331,9 @@ class _Composer extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
     return Container(
-      decoration: BoxDecoration(
-        color: scheme.background,
-        border: Border(top: BorderSide(color: scheme.border)),
-      ),
-      // Clear the keyboard when open, else the home indicator. There is no
-      // Scaffold to resize the body, so the composer pads itself (same as
-      // the chat composer).
-      padding: EdgeInsets.fromLTRB(
-        16,
-        10,
-        16,
-        10 +
-            (MediaQuery.viewInsetsOf(context).bottom == 0
-                ? MediaQuery.viewPaddingOf(context).bottom
-                : MediaQuery.viewInsetsOf(context).bottom),
-      ),
+      // Sits under the header like the Notes and Tasks quick-add rows, so
+      // the keyboard never covers it.
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -415,7 +394,7 @@ class _Composer extends StatelessWidget {
                 ),
                 ShadButton(
                   onPressed: saving ? null : onSave,
-                  child: const Icon(LucideIcons.check),
+                  child: const Icon(LucideIcons.plus),
                 ),
               ],
             ),

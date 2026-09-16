@@ -60,21 +60,23 @@ class MantleHeaderTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = ShadTheme.of(context).colorScheme;
+    final theme = ShadTheme.of(context);
     return Align(
       alignment: Alignment.centerLeft,
       child: wordmark
-          ? JackdawWordmark(color: scheme.primaryForeground)
+          ? JackdawWordmark(color: theme.colorScheme.primaryForeground)
           : Text(
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: scheme.primaryForeground,
-              ),
+              style: headerTitleStyle(theme),
             ),
     );
   }
 }
+
+/// The one style for a title in the primary header bar: the scale's `h4` in
+/// `primaryForeground`. Sub-screen titles and the chat's agent name share it;
+/// the script face is reserved for the Jackdaw wordmark itself.
+TextStyle headerTitleStyle(ShadThemeData theme) =>
+    theme.textTheme.h4.copyWith(color: theme.colorScheme.primaryForeground);

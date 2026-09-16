@@ -5,7 +5,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/events/event_alarms.dart';
 import '../../data/events/events_models.dart';
+import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/confirm_dialog.dart';
 import 'events_controller.dart';
 
 /// Upcoming events, soonest first, grouped by day. Each row shows the time,
@@ -31,33 +33,14 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
 
   Future<void> _confirmDelete(EventRow event) async {
     final notifier = ref.read(eventsControllerProvider.notifier);
-    final theme = ShadTheme.of(context);
-    final choice = await showShadSheet<String>(
-      context: context,
-      builder: (ctx) => ShadSheet(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: ShadButton.ghost(
-              onPressed: () => Navigator.of(ctx).pop('delete'),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(LucideIcons.trash2,
-                      size: 18, color: theme.colorScheme.destructive),
-                  const SizedBox(width: 12),
-                  Text('Delete event',
-                      style:
-                          TextStyle(color: theme.colorScheme.destructive)),
-                ]),
-              ),
-            ),
-          ),
-        ),
-      ),
+    final ok = await confirmDestructive(
+      context,
+      title: 'Delete event?',
+      description:
+          '"${event.title}" is removed, and its alarm on this phone with it.',
+      action: 'Delete',
     );
-    if (choice == 'delete') await notifier.delete(event.id);
+    if (ok) await notifier.delete(event.id);
   }
 
   @override
@@ -168,26 +151,11 @@ class _DayGroup {
   final List<EventRow> events;
 }
 
-String _dayLabel(DateTime local) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(local.year, local.month, local.day);
-  final diff = day.difference(today).inDays;
-  if (diff == 0) return 'Today';
-  if (diff == 1) return 'Tomorrow';
-  if (diff == -1) return 'Yesterday';
-  const week = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  final wd = week[local.weekday - 1];
-  final md = '${local.day} ${months[local.month - 1]}';
-  // "Fri 18 Sep" this year, "Fri 18 Sep 2027" once the year changes.
-  return local.year == now.year ? '$wd $md' : '$wd $md ${local.year}';
-}
 
 List<_DayGroup> _groupByDay(List<EventRow> events) {
   final groups = <_DayGroup>[];
   for (final e in events) {
-    final label = _dayLabel(e.startsAt.toLocal());
+    final label = formatDay(e.startsAt);
     if (groups.isEmpty || groups.last.label != label) {
       groups.add(_DayGroup(label, []));
     }

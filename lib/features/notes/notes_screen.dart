@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/notes/notes_models.dart';
+import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/confirm_dialog.dart';
 import 'notes_controller.dart';
 
 /// The notes list: quick-add on top, tag filter chips, then notes newest-
@@ -59,40 +61,13 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
 
   Future<void> _confirmDelete(NoteRow note) async {
     final notifier = ref.read(notesControllerProvider.notifier);
-    final choice = await showShadSheet<String>(
-      context: context,
-      builder: (ctx) => ShadSheet(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                child: ShadButton.ghost(
-                  onPressed: () => Navigator.of(ctx).pop('delete'),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(LucideIcons.trash2,
-                          size: 18,
-                          color: ShadTheme.of(ctx).colorScheme.destructive),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Delete note',
-                        style: TextStyle(
-                            color: ShadTheme.of(ctx).colorScheme.destructive),
-                      ),
-                    ]),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final ok = await confirmDestructive(
+      context,
+      title: 'Delete note?',
+      description: '"${note.title}" is removed from your brain.',
+      action: 'Delete',
     );
-    if (choice == 'delete') await notifier.delete(note.id);
+    if (ok) await notifier.delete(note.id);
   }
 
   @override
@@ -290,14 +265,6 @@ class _TagChip extends StatelessWidget {
   }
 }
 
-String _editedLabel(DateTime t) {
-  final diff = DateTime.now().difference(t);
-  if (diff.inMinutes < 1) return 'now';
-  if (diff.inHours < 1) return '${diff.inMinutes}m';
-  if (diff.inDays < 1) return '${diff.inHours}h';
-  if (diff.inDays < 7) return '${diff.inDays}d';
-  return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
-}
 
 class _NoteTile extends StatelessWidget {
   const _NoteTile({
@@ -353,7 +320,7 @@ class _NoteTile extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              _editedLabel(note.updatedAt),
+              formatWhen(note.updatedAt),
               style: theme.textTheme.small.copyWith(color: muted),
             ),
           ],

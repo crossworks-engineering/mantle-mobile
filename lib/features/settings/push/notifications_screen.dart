@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../data/push/push_api.dart';
+import '../../../widgets/confirm_dialog.dart';
 import '../../../widgets/mantle_header.dart';
 import 'direct_push_controller.dart';
 import 'push_controller.dart';
@@ -67,21 +68,14 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   }
 
   Future<void> _reset() async {
-    final confirmed = await showShadDialog<bool>(
-      context: context,
-      builder: (ctx) => ShadDialog.alert(
-        title: const Text('Reset push?'),
-        description: const Text(
-          'This rolls your push identity and disconnects every device. '
-          'You’ll need to Connect again on each one.',
-        ),
-        actions: [
-          ShadButton.outline(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-          ShadButton.destructive(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Reset')),
-        ],
-      ),
+    final confirmed = await confirmDestructive(
+      context,
+      title: 'Reset push?',
+      description: 'This rolls your push identity and disconnects every '
+          'device. You’ll need to Connect again on each one.',
+      action: 'Reset',
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     setState(() => _busyLabel = 'Resetting…');
     await ref.read(pushControllerProvider.notifier).reset();
     if (mounted) setState(() => _busyLabel = null);
