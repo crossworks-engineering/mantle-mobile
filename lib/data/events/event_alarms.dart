@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -27,16 +28,28 @@ class EventAlarms {
   EventAlarms._();
 
   /// The app-wide shared plugin (see local_notifications.dart — one init, one
-  /// tap handler for push display AND alarms).
+  /// tap handler for push display AND alarms). Tests swap in a mock through
+  /// [pluginForTesting]; the shared bootstrap is skipped for it.
   static FlutterLocalNotificationsPlugin get _plugin =>
-      localNotificationsPlugin;
+      pluginForTesting ?? localNotificationsPlugin;
+
+  @visibleForTesting
+  static FlutterLocalNotificationsPlugin? pluginForTesting;
+
   static bool _channelReady = false;
   static bool _exactAllowed = false;
 
   static const _payloadPrefix = kEventAlarmPayloadPrefix;
 
+  /// Forget the one-time init so a test starts clean.
+  @visibleForTesting
+  static void resetForTesting() {
+    _channelReady = false;
+    _exactAllowed = false;
+  }
+
   static Future<void> _ensureInit() async {
-    await ensureLocalNotificationsInit();
+    if (pluginForTesting == null) await ensureLocalNotificationsInit();
     if (_channelReady) return;
     tzdata.initializeTimeZones();
     final android = _plugin.resolvePlatformSpecificImplementation<
@@ -82,6 +95,33 @@ class EventAlarms {
     }
   }
 
+  /// What SHOULD be scheduled for [events] at [now]: payload → the event,
+  /// the instant it fires and its kind (`start` or `remind`). Done events
+  /// and past instants are left out; a reminder is only planned with a lead
+  /// time, a future instant, and one that differs from the start. Pure, so
+  /// the rule is testable without a plugin.
+  static Map<String, ({EventRow event, DateTime at, String kind})>
+      plannedAlarms(List<EventRow> events, {DateTime? now}) {
+    final n = (now ?? DateTime.now()).toUtc();
+    final wanted = <String, ({EventRow event, DateTime at, String kind})>{};
+    for (final e in events) {
+      if (e.done) continue;
+      if (e.startsAt.isAfter(n)) {
+        wanted[payloadFor(e.id, e.startsAt, 'start')] =
+            (event: e, at: e.startsAt, kind: 'start');
+      }
+      final remind = e.remindAt;
+      if (e.remindMinutesBefore > 0 &&
+          remind != null &&
+          remind.isAfter(n) &&
+          remind != e.startsAt) {
+        wanted[payloadFor(e.id, remind, 'remind')] =
+            (event: e, at: remind, kind: 'remind');
+      }
+    }
+    return wanted;
+  }
+
   /// Reconcile the OS's scheduled alarms with [events] (the latest upcoming
   /// window). Cancels stale schedules (event deleted/moved/marked done),
   /// keeps unchanged ones, schedules the rest. Never throws — alarms are
@@ -89,24 +129,7 @@ class EventAlarms {
   static Future<void> sync(List<EventRow> events) async {
     try {
       await _ensureInit();
-      final now = DateTime.now().toUtc();
-
-      // What SHOULD be scheduled: payload → (event, fire instant, kind).
-      final wanted = <String, (EventRow, DateTime, String)>{};
-      for (final e in events) {
-        if (e.done) continue;
-        if (e.startsAt.isAfter(now)) {
-          wanted[_payload(e.id, e.startsAt, 'start')] =
-              (e, e.startsAt, 'start');
-        }
-        final remind = e.remindAt;
-        if (e.remindMinutesBefore > 0 &&
-            remind != null &&
-            remind.isAfter(now) &&
-            remind != e.startsAt) {
-          wanted[_payload(e.id, remind, 'remind')] = (e, remind, 'remind');
-        }
-      }
+      final wanted = plannedAlarms(events);
 
       // What IS scheduled (ours only, recognized by the payload prefix).
       final pending = await _plugin.pendingNotificationRequests();
@@ -123,8 +146,8 @@ class EventAlarms {
 
       for (final entry in wanted.entries) {
         if (existing.contains(entry.key)) continue;
-        final (event, at, kind) = entry.value;
-        await _schedule(entry.key, event, at, kind);
+        final plan = entry.value;
+        await _schedule(entry.key, plan.event, plan.at, plan.kind);
       }
     } catch (_) {
       /* never let alarm bookkeeping break the caller */
@@ -191,7 +214,7 @@ class EventAlarms {
 
   /// Payload identifies one (event, instant, kind) schedule — a moved event
   /// produces a different payload, so reconcile treats it as new + stale.
-  static String _payload(String eventId, DateTime at, String kind) =>
+  static String payloadFor(String eventId, DateTime at, String kind) =>
       '$_payloadPrefix$eventId:${at.toUtc().millisecondsSinceEpoch}:$kind';
 
   /// Stable 31-bit notification id from the payload (FNV-1a — deterministic

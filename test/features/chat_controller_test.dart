@@ -7,6 +7,8 @@ import 'package:dio/dio.dart'
     show CancelToken, DioException, DioExceptionType, RequestOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
+import 'package:jackdaw/core/lifecycle/app_lifecycle.dart';
 import 'package:jackdaw/data/chat/chat_api.dart';
 import 'package:jackdaw/data/chat/chat_message.dart';
 import 'package:jackdaw/data/chat/chat_repository.dart';
@@ -226,6 +228,40 @@ void main() {
       isFalse,
     );
     verify(() => repo.flushOutbox(_slug)).called(1);
+  });
+
+  test('a foreground resume flushes the outbox and pulls the latest page; '
+      'staying resumed does not', () async {
+    stubHistory([_msg('o1', MessageDirection.outbound, 'hi')]);
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    // Build flushed nothing (empty outbox) and fetched history once.
+    verifyNever(() => repo.flushOutbox(any()));
+    verify(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).called(1);
+
+    final lifecycle = c.read(appLifecycleProvider.notifier);
+    lifecycle.set(AppLifecycleState.paused);
+    lifecycle.set(AppLifecycleState.resumed);
+    for (var i = 0; i < 6; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    verify(() => repo.flushOutbox(_slug)).called(1);
+    verify(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).called(1);
+
+    // resumed → resumed is not a return to the foreground.
+    lifecycle.set(AppLifecycleState.resumed);
+    for (var i = 0; i < 6; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+    verifyNever(() => repo.flushOutbox(any()));
   });
 
   test('a fully offline build with an empty cache but queued turns shows '
