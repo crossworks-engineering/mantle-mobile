@@ -1,8 +1,10 @@
+import 'package:flutter/services.dart' show TextInputAction;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../widgets/jackdaw_lockup.dart';
+import '../../widgets/secret_input.dart';
 
 import '../../data/auth/auth_api.dart';
 import '../../data/server/server_config.dart';
@@ -81,20 +83,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     style: theme.textTheme.muted,
                   ),
                   const SizedBox(height: 24),
-                  ShadInput(
-                    controller: _email,
-                    placeholder: const Text('you@example.com'),
-                    keyboardType: TextInputType.emailAddress,
-                    autocorrect: false,
-                    enabled: !_submitting,
-                  ),
-                  const SizedBox(height: 12),
-                  ShadInput(
-                    controller: _password,
-                    placeholder: const Text('Password'),
-                    obscureText: true,
-                    enabled: !_submitting,
-                    onSubmitted: (_) => _submit(),
+                  // One autofill group, hinted, so a password manager fills
+                  // both fields together; the eye on the password does not
+                  // interfere with that (it never touches the controller).
+                  AutofillGroup(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ShadInput(
+                          controller: _email,
+                          placeholder: const Text('you@example.com'),
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [
+                            AutofillHints.username,
+                            AutofillHints.email,
+                          ],
+                          autocorrect: false,
+                          enabled: !_submitting,
+                        ),
+                        const SizedBox(height: 12),
+                        SecretInput(
+                          controller: _password,
+                          placeholder: const Text('Password'),
+                          textInputAction: TextInputAction.done,
+                          enabled: !_submitting,
+                          onSubmitted: (_) => _submit(),
+                        ),
+                      ],
+                    ),
                   ),
                   if (_error != null) ...[
                     const SizedBox(height: 8),

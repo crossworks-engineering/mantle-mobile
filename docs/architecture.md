@@ -129,6 +129,7 @@ lib/
                      settings_screen.dart      — sections → subscreens
                      appearance_screen.dart    — mode + color picker + shuffle
   widgets/           mantle_header.dart         — shared primary header bar
+                     secret_input.dart          — masked field + show/hide eye
   routing/           app_router.dart           — go_router + redirect
   theme/             mantle_theme.dart          — theme builder + MantleColors
                      mantle_theme_def.dart      — the shape of one theme

@@ -130,8 +130,15 @@ height (see the chat composer in `chat_screen.dart`). Don't hand-tune a fixed
 
 ## Inputs — `ShadInput`
 
-- `placeholder` is a **Widget** (`Text`). Set `keyboardType`, `obscureText` for
-  passwords, `autocorrect: false` for credentials/URLs.
+- `placeholder` is a **Widget** (`Text`). Set `keyboardType`, and
+  `autocorrect: false` for credentials/URLs.
+- **Secrets never use a bare `obscureText`.** A password, app password, API
+  key or token field is [`SecretInput`](../lib/widgets/secret_input.dart):
+  masked by default, a 44pt eye inside the right edge that flips it to plain
+  text, named "Show password" / "Hide password" for screen readers, autofill
+  hints on so password managers still fill it. One widget, every secret.
+- Sign-in fields sit in one `AutofillGroup` with `AutofillHints.username` /
+  `email` on the email and the password hint on the secret.
 - Multiline (chat composer): `minLines` / `maxLines` + `textInputAction`.
 - Error display: a `Text` below the field — `theme.textTheme.small` +
   `colorScheme.destructive`. **No** inline banners or dialogs for field errors.
