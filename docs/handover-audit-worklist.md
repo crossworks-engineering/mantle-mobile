@@ -1,16 +1,17 @@
 # Handover: the audit worklist is done, bar the human item
 
 _Written 2026-09-16 at the end of the session that wrote the audit and did
-items 1 to 6; updated 2026-09-17 after items 7 to 11. Item 11 is not
-pushed. What remains is item 12, which needs a person and a phone._
+items 1 to 6; closed 2026-09-17 after items 7 to 11, all pushed with a
+green CI run. What remains is item 12, which needs a person and a phone._
 
 > ### Start here
 >
 > 1. Run the `mantle-recall` skill first (fleet, ssh aliases, the
 >    `jackdaw-ui-standards` map). Then this repo's `CLAUDE.md` and
->    `docs/styling-guide.md`; the guide's "Shared conventions" and "Status
->    colours" sections are new and are the rules items 5 and 6 established.
-> 2. `fvm flutter analyze && fvm flutter test` — expect clean and **201**
+>    `docs/styling-guide.md`; its "Shared conventions", "Status colours" and
+>    "Touch and screen readers" sections are the rules items 5, 6, 9 and 10
+>    established.
+> 2. `fvm flutter analyze && fvm flutter test` — expect clean and **241**
 >    passing. A failure before you touch anything is not yours.
 > 3. The audit is `docs/audit-2026-09-16.md`; the worklist at its end is the
 >    plan. Items 1 to 11 are done (commits `939d982` … `eaaff69`). This file
@@ -22,11 +23,11 @@ pushed. What remains is item 12, which needs a person and a phone._
 
 | What                     | State                                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Branch                   | `main`, everything pushed through `585cad6` (item 11 plus a hash fix). Item 10's own run went red on stale generated hashes; the fix is in. Push is Jason's call. |
+| Branch                   | `main`, level with origin. The audit work runs `939d982` … `c24d836`; a separate release session then landed `fb959cd` and `9d26bad` (Play helper `tool/play.py`, store graphics, build 21). Push is Jason's call. |
 | Tests                    | 154 → 241. Analyzer clean.                                                                            |
-| CI                       | `.github/workflows/verify.yml` exists but has never run (nothing pushed). The Android job uses `tool/ci/google-services.ci.json`; that placeholder was proven to build a release APK locally. |
+| CI                       | `.github/workflows/verify.yml` runs on every push: analyze, test, a generated-code diff, and no-codesign builds for both platforms (~18 min). Green on `585cad6` (run 35203682892). It went red once, on item 10's stale generated hashes; see Habits. |
 | Simulator                | An iPhone 17 (iOS 26) on the Mac has the app installed and **signed in to the dev brain**. `fvm flutter build ios --simulator --debug`, then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app` and `xcrun simctl launch booted crossworks.engineering.jackdaw`. The login survives reinstalls. Do NOT sign it out; a session cannot type credentials. |
-| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 11 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
+| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 11 of 12 ticked and a comment per item, including the CI red and its fix. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
 | Owner's scope rule       | No full editors for Pages or complex screens on the phone. Notes is the exception. Formulas, recall, tables, drawing: decide with Jason before any work. |
 
 ## Habits this repo expects (the ones that bit)
