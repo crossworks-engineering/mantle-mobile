@@ -1,0 +1,10 @@
+{
+  "contactFirstName": "Jason",
+  "contactLastName": "Schoeman",
+  "contactPhone": "+27760810777",
+  "contactEmail": "jason@crossworks.engineering",
+  "demoAccountRequired": true,
+  "demoAccountName": "reviewer@example.com",
+  "demoAccountPassword": "reviewer",
+  "notes": "Jackdaw connects to a Mantle server that the user runs. For review, use our public demo server, which holds fictional data and is read only.\n\n1. Open the app. On the \"Connect to Mantle\" screen enter: https://demo.mantle-ai.tech\n2. Tap Connect. On the Sign in screen enter the username and password above (the demo server accepts any username and password).\n3. Browse chat history, search, notes, pages, tasks, journal, files and events.\n\nBecause the demo server is read only, sending a new message or creating an item shows \"This is a read-only demo, changes are not saved.\" That is expected on the demo server only."
+}

@@ -1,0 +1,12 @@
+{
+  "versionString": "1.12.0",
+  "primaryCategory": "PRODUCTIVITY",
+  "name": "Jackdaw Mantle",
+  "subtitle": "Mantle brain in your pocket",
+  "privacyPolicyUrl": "https://mantle-ai.tech/privacy/",
+  "description": "Jackdaw is the phone app for a Mantle brain, the self-hosted memory you run on your own machine.\n\nMantle keeps your mail, notes, files, journals, tasks and events in one place and remembers all of it. Jackdaw is how you reach it from your phone.\n\nWHAT YOU CAN DO\n\nChat with your assistant. Replies stream in as they are written. Attach a photo, a file, a voice note or your location to any message.\n\nSearch everything. One search box over pages, notes, files, mail, tasks and events, with results that link straight to the item.\n\nRead and write on the go. Notes with tags, pages, tasks, a journal, and a files browser with camera and library upload.\n\nStay on time. Events fire an alarm on your phone at the exact minute, even with no signal. Reminders arrive as notifications.\n\nWork offline. Recent chat is cached. Messages you send without a connection queue up and go when you are back online.\n\nGet notified. When your assistant replies while the app is closed, a notification arrives. Its content is encrypted end to end. The relay that delivers it cannot read it.\n\nWHAT YOU NEED\n\nA Mantle brain. Mantle is open source and installs with one command on a Linux server you control. See https://mantle-ai.tech to set one up. On first launch Jackdaw asks for your server address, then your login.\n\nWHO OWNS THE DATA\n\nYou do. Jackdaw holds no account, no database and no analytics. Everything it shows lives on your server. The only outside service involved is the push relay, and it only ever sees encrypted notifications.\n\nJackdaw is made by Cross Works Engineering. Source is public.",
+  "keywords": "mantle,self-hosted,assistant,notes,memory,brain,chat,journal,tasks,files,private,ai",
+  "promotionalText": "Your self-hosted Mantle brain, on your phone. Chat, search, notes, files and reminders. Your data stays on your server.",
+  "supportUrl": "https://jackdaw.run",
+  "marketingUrl": "https://mantle-ai.tech"
+}
