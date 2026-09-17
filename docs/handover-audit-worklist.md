@@ -1,7 +1,7 @@
-# Handover: the audit worklist, items 9 to 11
+# Handover: the audit worklist, items 10 and 11
 
 _Written 2026-09-16 at the end of the session that wrote the audit and did
-items 1 to 6; updated 2026-09-17 after items 7 and 8. Items 7 and 8 are not
+items 1 to 6; updated 2026-09-17 after items 7, 8 and 9. Item 9 is not
 pushed. Pick up here._
 
 > ### Start here
@@ -13,9 +13,9 @@ pushed. Pick up here._
 > 2. `fvm flutter analyze && fvm flutter test` — expect clean and **201**
 >    passing. A failure before you touch anything is not yours.
 > 3. The audit is `docs/audit-2026-09-16.md`; the worklist at its end is the
->    plan. Items 1 to 8 are done (commits `939d982` … `491c747`). This file
+>    plan. Items 1 to 9 are done (commits `939d982` … `6615253`). This file
 >    is what the doc does not say: the judgement calls, the traps, and where
->    item 9 starts.
+>    item 10 starts.
 
 ---
 
@@ -23,11 +23,11 @@ pushed. Pick up here._
 
 | What                     | State                                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Branch                   | `main`, four commits ahead of origin (item 7, its doc, item 8, this doc). Items 1 to 6 and the CI fix are on origin, so CI has run; items 7 and 8 are **not pushed**. Push is Jason's call. |
-| Tests                    | 154 → 212. Analyzer clean.                                                                            |
+| Branch                   | `main`, two commits ahead of origin (item 9 and this doc). Items 1 to 8 are pushed (2026-09-17); their CI run was still in progress when this was written, check `gh run list`. Push is Jason's call. |
+| Tests                    | 154 → 213. Analyzer clean.                                                                            |
 | CI                       | `.github/workflows/verify.yml` exists but has never run (nothing pushed). The Android job uses `tool/ci/google-services.ci.json`; that placeholder was proven to build a release APK locally. |
 | Simulator                | An iPhone 17 (iOS 26) on the Mac has the app installed and **signed in to the dev brain**. `fvm flutter build ios --simulator --debug`, then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app` and `xcrun simctl launch booted crossworks.engineering.jackdaw`. The login survives reinstalls. Do NOT sign it out; a session cannot type credentials. |
-| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 8 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
+| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 9 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
 | Owner's scope rule       | No full editors for Pages or complex screens on the phone. Notes is the exception. Formulas, recall, tables, drawing: decide with Jason before any work. |
 
 ## Habits this repo expects (the ones that bit)
@@ -105,18 +105,35 @@ What landed, and the choices a later reader might question:
 - Seen on the simulator: the card, both versions, Clear cache end to end,
   the Change server confirm (cancelled, the simulator's sign-in is kept).
 
-## Items 9 to 11, briefly
+## Item 9 is done (`6615253`)
 
-Item 9 starts with the audit doc's "Layout and accessibility" list; the
-`ShadButton` size question is a theme-level one (`lib/theme/mantle_theme.dart`).
+- shadcn_ui 0.54 does allow it: `buttonSizesTheme.regular.height: 44` in
+  `lib/theme/mantle_theme.dart` makes every regular `ShadButton` 44pt.
+  Icon-only ghost buttons then get their width from padding (composer:
+  `horizontal: 11` around a 22 icon).
+- `HeaderAction(icon:, label:, onPressed:)` in `lib/widgets/mantle_header.dart`
+  replaced the 28 hand-built header ghost buttons. The label goes on the
+  `Icon` (`semanticLabel`), because `ShadButton` already announces itself as
+  a button but names nothing. Same trick on every other icon-only button.
+- Small taps grow by boxing, not by scaling the mark: `SizedBox(44×44,
+  Center(icon))` for the done circles and the Pages chevron; a 44-tall
+  container for the tag chips in the horizontal lists; **vertical padding**
+  for the reminder chips inside a `Wrap`, because a centred box there takes
+  the whole row (seen on the simulator, fixed).
+- The done-circle rows switched to `CrossAxisAlignment.center` so a 44 box
+  and a one- or two-line title sit together; the audit's "Overflow",
+  "Safe areas" and "Landscape" bullets were **not** in item 9 and remain.
+- Notes and Tasks quick-add rows are now `IntrinsicHeight` +
+  `stretch` (the guide's rule), because the 44 button no longer matched the
+  input. Journal's composer keeps `end` alignment on purpose: its input
+  grows to four lines.
+- The alarm rationale is a `ShadSheet` (`_AlarmRationaleSheet` in
+  `events_screen.dart`) behind `SettingsRepository.alarmRationaleShown`.
+  "Not now" is remembered too. Seen once on the simulator; the OS prompt did
+  not follow because the simulator had already granted notifications.
 
-9. **Tap targets and a11y.** The audit's list is in the doc under "Layout and
-   accessibility". Fix `ShadButton` size at the theme level once rather than
-   per call site if shadcn_ui 0.54 allows it; the small toggles need padding,
-   not bigger icons. Add `Semantics(label:)` to every icon-only button. Give
-   the Notes, Tasks and Search lists `keyboardDismissBehavior` and a bottom
-   inset. Put a one-screen rationale before `EventAlarms.requestPermissions`
-   (`events_screen.dart`, fired from `initState`).
+## Items 10 and 11, briefly
+
 10. **Parity that fits the phone.** Tasks due date and priority, Events edit
     and a real time picker, Journal edit/delete and rendering the assistant's
     `kind: 'gap'` questions. The APIs already accept most of this
@@ -145,5 +162,5 @@ Item 9 starts with the audit doc's "Layout and accessibility" list; the
 
 ```bash
 cd ~/Projects/jackdaw-mobile && fvm flutter analyze && fvm flutter test
-git log --oneline -13  # 491c747 feat(settings) … fd98307 docs: audit
+git log --oneline -15  # 6615253 a11y … fd98307 docs: audit
 ```

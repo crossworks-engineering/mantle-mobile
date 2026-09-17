@@ -203,6 +203,29 @@ it, don't re-derive it.
   icon. A screen whose new item is a form (Events) puts a plus in the header
   that opens a sheet. Nothing captures from the bottom of the screen except
   the chat composer.
+- **Header actions.** `HeaderAction(icon:, label:, onPressed:)` for every
+  icon in a header's trailing slot. Never a hand-built `ShadButton.ghost`
+  there.
+
+## Touch and screen readers
+
+- **44pt.** Every regular `ShadButton` is 44pt tall from the theme
+  (`buttonSizesTheme` in `mantle_theme.dart`); an icon-only ghost button
+  gets its width from `padding` (11 around a 22 icon, 14 around 16). A
+  `GestureDetector` tap grows by boxing, not by a bigger mark:
+  `SizedBox(width: 44, height: 44, child: Center(icon))`, a 44-tall container
+  around a chip in a horizontal list, or vertical padding around a chip
+  inside a `Wrap` (a centred box there takes the whole row).
+- **A name on every icon.** An icon-only control carries `semanticLabel:` on
+  its `Icon` (a `ShadButton` announces the role, not the name) or a
+  `Semantics(button: true, label:)` around a `GestureDetector`. Selected
+  chips add `selected:`.
+- **Keyboard.** A list that sits under a text field pads its tail by
+  `MediaQuery.viewInsetsOf(context).bottom` and sets
+  `keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag`.
+- **Permission prompts.** One screen of ours before the OS asks (see the
+  alarm rationale sheet in `events_screen.dart`), remembered so it shows
+  once.
 
 ## Status colours and the two exceptions
 
