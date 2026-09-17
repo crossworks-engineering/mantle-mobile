@@ -152,7 +152,6 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(journalControllerProvider);
 
     return Container(
@@ -162,14 +161,17 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           MantleHeader(
             leading: const MantleHeaderTitle('Journal', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.refreshCw,
+                label: 'Refresh',
+                size: 18,
                 onPressed: () =>
                     ref.read(journalControllerProvider.notifier).refresh(),
-                child: Icon(LucideIcons.refreshCw, size: 18, color: fg),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),
@@ -390,11 +392,14 @@ class _Composer extends StatelessWidget {
                 ShadButton.ghost(
                   onPressed: onMic,
                   child: Icon(LucideIcons.mic,
-                      size: 20, color: scheme.foreground),
+                      size: 20,
+                      color: scheme.foreground,
+                      semanticLabel: 'Dictate an entry'),
                 ),
                 ShadButton(
                   onPressed: saving ? null : onSave,
-                  child: const Icon(LucideIcons.plus),
+                  child: const Icon(LucideIcons.plus,
+                      semanticLabel: 'Save entry'),
                 ),
               ],
             ),

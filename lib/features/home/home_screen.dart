@@ -26,21 +26,15 @@ class HomeScreen extends ConsumerWidget {
           MantleHeader(
             leading: const MantleHeaderTitle('Jackdaw'),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.search,
+                label: 'Search',
                 onPressed: () => context.push('/search'),
-                child: Icon(
-                  LucideIcons.search,
-                  size: 20,
-                  color: theme.colorScheme.primaryForeground,
-                ),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.settings,
+                label: 'Settings',
                 onPressed: () => context.push('/settings'),
-                child: Icon(
-                  LucideIcons.settings,
-                  size: 20,
-                  color: theme.colorScheme.primaryForeground,
-                ),
               ),
             ],
           ),

@@ -62,7 +62,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(tasksControllerProvider);
 
     return Container(
@@ -72,34 +71,42 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
           MantleHeader(
             leading: const MantleHeaderTitle('Tasks', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.refreshCw,
+                label: 'Refresh',
+                size: 18,
                 onPressed: () =>
                     ref.read(tasksControllerProvider.notifier).refresh(),
-                child: Icon(LucideIcons.refreshCw, size: 18, color: fg),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ShadInput(
-                    controller: _input,
-                    placeholder: const Text('Add a task…'),
-                    onSubmitted: (_) => _add(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ShadButton(
-                  onPressed: _adding ? null : _add,
-                  child: const Icon(LucideIcons.plus),
-                ),
-              ],
+            // The add button tracks the input's height (guide: a button
+            // beside an input is as tall as the input).
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                    Expanded(
+                      child: ShadInput(
+                        controller: _input,
+                        placeholder: const Text('Add a task…'),
+                        onSubmitted: (_) => _add(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ShadButton(
+                      onPressed: _adding ? null : _add,
+                      child: const Icon(LucideIcons.plus, semanticLabel: 'Add task'),
+                    ),
+                ],
+              ),
             ),
           ),
           if (_error != null)
@@ -153,7 +160,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                     );
                   }
                   return ListView(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                    // The tail rides above the keyboard, and a drag puts
+                    // the keyboard away.
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      12, 4, 12, 24 + MediaQuery.viewInsetsOf(context).bottom,
+                    ),
                     children: [
                       for (final t in open)
                         _TaskTile(
@@ -224,22 +237,34 @@ class _TaskTile extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onLongPress: onLongPress,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onToggle,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(4, 2, 10, 2),
-                child: Icon(
-                  task.done ? LucideIcons.circleCheckBig : LucideIcons.circle,
-                  size: 20,
-                  color: task.done ? muted : scheme.primary,
+            // A 44pt box around the 20pt circle: the target grows, the
+            // mark does not.
+            Semantics(
+              button: true,
+              label: task.done ? 'Mark not done' : 'Mark done',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onToggle,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: Icon(
+                      task.done
+                          ? LucideIcons.circleCheckBig
+                          : LucideIcons.circle,
+                      size: 20,
+                      color: task.done ? muted : scheme.primary,
+                    ),
+                  ),
                 ),
               ),
             ),
+            const SizedBox(width: 2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

@@ -74,7 +74,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(notesControllerProvider);
 
     return Container(
@@ -84,34 +83,42 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
           MantleHeader(
             leading: const MantleHeaderTitle('Notes', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.refreshCw,
+                label: 'Refresh',
+                size: 18,
                 onPressed: () =>
                     ref.read(notesControllerProvider.notifier).refresh(),
-                child: Icon(LucideIcons.refreshCw, size: 18, color: fg),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ShadInput(
-                    controller: _input,
-                    placeholder: const Text('Capture a note…'),
-                    onSubmitted: (_) => _add(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ShadButton(
-                  onPressed: _adding ? null : _add,
-                  child: const Icon(LucideIcons.plus),
-                ),
-              ],
+            // The add button tracks the input's height (guide: a button
+            // beside an input is as tall as the input).
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                    Expanded(
+                      child: ShadInput(
+                        controller: _input,
+                        placeholder: const Text('Capture a note…'),
+                        onSubmitted: (_) => _add(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ShadButton(
+                      onPressed: _adding ? null : _add,
+                      child: const Icon(LucideIcons.plus, semanticLabel: 'Add note'),
+                    ),
+                ],
+              ),
             ),
           ),
           if (_error != null)
@@ -160,7 +167,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     children: [
                       if (s.tags.isNotEmpty)
                         SizedBox(
-                          height: 40,
+                          height: 44,
                           child: ListView(
                             scrollDirection: Axis.horizontal,
                             padding:
@@ -194,8 +201,14 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                               )
                             : ListView(
                                 controller: _scroll,
-                                padding:
-                                    const EdgeInsets.fromLTRB(12, 4, 12, 24),
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                padding: EdgeInsets.fromLTRB(
+                                  12,
+                                  4,
+                                  12,
+                                  24 + MediaQuery.viewInsetsOf(context).bottom,
+                                ),
                                 children: [
                                   for (final n in s.notes)
                                     _NoteTile(
@@ -244,20 +257,32 @@ class _TagChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 6, top: 4, bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? scheme.primary : scheme.secondary,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color:
-                selected ? scheme.primaryForeground : scheme.secondaryForeground,
+    // The pill stays small; the 44pt box it sits in is the target.
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          margin: const EdgeInsets.only(right: 6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: selected ? scheme.primary : scheme.secondary,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              label,
+              style: theme.textTheme.small.copyWith(
+                color: selected
+                    ? scheme.primaryForeground
+                    : scheme.secondaryForeground,
+              ),
+            ),
           ),
         ),
       ),

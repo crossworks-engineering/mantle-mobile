@@ -159,7 +159,6 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(filesControllerProvider(widget.path));
 
     return Container(
@@ -169,15 +168,18 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           MantleHeader(
             leading: MantleHeaderTitle(_title, wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.refreshCw,
+                label: 'Refresh',
+                size: 18,
                 onPressed: () => ref
                     .read(filesControllerProvider(widget.path).notifier)
                     .refresh(),
-                child: Icon(LucideIcons.refreshCw, size: 18, color: fg),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),

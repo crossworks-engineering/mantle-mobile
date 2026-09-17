@@ -46,6 +46,14 @@ abstract final class MantleTheme {
       colorScheme: brightness == Brightness.dark ? def.dark : def.light,
       radius: BorderRadius.all(Radius.circular(def.radius)),
       textTheme: _textTheme(),
+      // Every regular button is a 44pt target (shadcn's default is 40). Set
+      // once here rather than per call site; `lg` stays for the rare big one.
+      buttonSizesTheme: const ShadButtonSizesTheme(
+        regular: ShadButtonSizeTheme(
+          height: 44,
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        ),
+      ),
     );
   }
 

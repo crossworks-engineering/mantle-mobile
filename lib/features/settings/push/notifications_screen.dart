@@ -97,9 +97,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           MantleHeader(
             leading: const MantleHeaderTitle('Notifications', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: scheme.primaryForeground),
               ),
             ],
           ),
@@ -397,7 +398,10 @@ class _DeviceRow extends StatelessWidget {
           Expanded(child: Text(device.label ?? device.platform, style: theme.textTheme.p)),
           ShadButton.ghost(
             onPressed: onUnpair,
-            child: Icon(LucideIcons.trash2, size: 16, color: scheme.mutedForeground),
+            child: Icon(LucideIcons.trash2,
+                size: 16,
+                color: scheme.mutedForeground,
+                semanticLabel: 'Unpair this device'),
           ),
         ],
       ),

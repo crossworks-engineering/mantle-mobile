@@ -134,7 +134,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final s = ref.watch(searchControllerProvider);
     final notifier = ref.read(searchControllerProvider.notifier);
 
@@ -145,9 +144,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           MantleHeader(
             leading: const MantleHeaderTitle('Search', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),
@@ -163,7 +163,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
           SizedBox(
-            height: 40,
+            height: 44,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -218,7 +218,10 @@ class _Results extends StatelessWidget {
       );
     }
     return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: EdgeInsets.fromLTRB(
+        12, 4, 12, 24 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
       children: [
         for (final r in state.results)
           _ResultTile(theme: theme, result: r, onTap: () => onOpen(r)),
@@ -322,21 +325,32 @@ class _FilterChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 6, top: 4, bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? scheme.primary : scheme.secondary,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: theme.textTheme.small.copyWith(
-            color: selected
-                ? scheme.primaryForeground
-                : scheme.secondaryForeground,
+    // The pill stays small; the 44pt box it sits in is the target.
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          margin: const EdgeInsets.only(right: 6),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: selected ? scheme.primary : scheme.secondary,
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              label,
+              style: theme.textTheme.small.copyWith(
+                color: selected
+                    ? scheme.primaryForeground
+                    : scheme.secondaryForeground,
+              ),
+            ),
           ),
         ),
       ),

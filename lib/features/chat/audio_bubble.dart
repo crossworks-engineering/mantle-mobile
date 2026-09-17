@@ -127,19 +127,32 @@ class _AudioBubbleState extends State<AudioBubble> {
         ),
         child: Row(
           children: [
-            GestureDetector(
-              onTap: _toggle,
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: scheme.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _playing ? LucideIcons.pause : LucideIcons.play,
-                  size: 18,
-                  color: scheme.primaryForeground,
+            // The circle stays 36 so the bubble keeps its shape; the hit
+            // box around it is the 44pt target.
+            Semantics(
+              button: true,
+              label: _playing ? 'Pause' : 'Play',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggle,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _playing ? LucideIcons.pause : LucideIcons.play,
+                        size: 18,
+                        color: scheme.primaryForeground,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -45,7 +45,6 @@ class _PagesScreenState extends ConsumerState<PagesScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(pagesControllerProvider);
 
     return Container(
@@ -55,14 +54,17 @@ class _PagesScreenState extends ConsumerState<PagesScreen> {
           MantleHeader(
             leading: const MantleHeaderTitle('Pages', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.refreshCw,
+                label: 'Refresh',
+                size: 18,
                 onPressed: () =>
                     ref.read(pagesControllerProvider.notifier).refresh(),
-                child: Icon(LucideIcons.refreshCw, size: 18, color: fg),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),
@@ -205,27 +207,35 @@ class _PageRowTile extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: () => context.push('/pages/${row.id}'),
       child: Padding(
-        padding: EdgeInsets.fromLTRB(12.0 + depth * 18, 2, 12, 2),
+        padding: EdgeInsets.fromLTRB(4.0 + depth * 18, 0, 12, 0),
         child: Row(
           children: [
-            // Chevron toggles the branch; a leaf gets a dot for alignment.
+            // Chevron toggles the branch in a 44pt box; a leaf gets the same
+            // width so titles line up.
             if (hasChildren)
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onToggle,
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Icon(
-                    isCollapsed
-                        ? LucideIcons.chevronRight
-                        : LucideIcons.chevronDown,
-                    size: 15,
-                    color: scheme.mutedForeground,
+              Semantics(
+                button: true,
+                label: isCollapsed ? 'Expand' : 'Collapse',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onToggle,
+                  child: SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Center(
+                      child: Icon(
+                        isCollapsed
+                            ? LucideIcons.chevronRight
+                            : LucideIcons.chevronDown,
+                        size: 15,
+                        color: scheme.mutedForeground,
+                      ),
+                    ),
                   ),
                 ),
               )
             else
-              const SizedBox(width: 27),
+              const SizedBox(width: 44, height: 44),
             if (row.icon != null && row.icon!.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 6),

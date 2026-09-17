@@ -369,8 +369,10 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         Row(
           children: [
             _circleIcon(LucideIcons.paperclip, muted,
+                label: 'Attach a photo or file',
                 onPressed: _sending ? null : _openAttachMenu),
             _circleIcon(LucideIcons.mic, muted,
+                label: 'Record a voice message',
                 onPressed: _sending ? null : _startRecording),
             const Spacer(),
             if (_sending) ...[
@@ -378,12 +380,14 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
               const SizedBox(width: 8),
               ShadButton.destructive(
                 onPressed: _stop,
-                child: const Icon(LucideIcons.square, size: 16),
+                child: const Icon(LucideIcons.square,
+                    size: 16, semanticLabel: 'Stop the reply'),
               ),
             ] else
               ShadButton(
                 onPressed: _send,
-                child: const Icon(LucideIcons.arrowUp, size: 18),
+                child: const Icon(LucideIcons.arrowUp,
+                    size: 18, semanticLabel: 'Send'),
               ),
           ],
         ),
@@ -396,7 +400,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     return Row(
       children: [
         _circleIcon(LucideIcons.x, scheme.destructive,
-            onPressed: _cancelRecording),
+            label: 'Cancel recording', onPressed: _cancelRecording),
         const SizedBox(width: 4),
         Expanded(
           child: Row(
@@ -420,7 +424,8 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         const SizedBox(width: 8),
         ShadButton(
           onPressed: _stopAndSendRecording,
-          child: const Icon(LucideIcons.arrowUp, size: 18),
+          child: const Icon(LucideIcons.arrowUp,
+              size: 18, semanticLabel: 'Send the recording'),
         ),
       ],
     );
@@ -437,15 +442,18 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     );
   }
 
+  /// A round 44pt icon action (the theme sets the height; the padding makes
+  /// the width match), named for screen readers.
   Widget _circleIcon(
     IconData icon,
     Color color, {
+    required String label,
     required VoidCallback? onPressed,
   }) {
     return ShadButton.ghost(
       onPressed: onPressed,
-      padding: const EdgeInsets.all(8),
-      child: Icon(icon, size: 22, color: color),
+      padding: const EdgeInsets.symmetric(horizontal: 11),
+      child: Icon(icon, size: 22, color: color, semanticLabel: label),
     );
   }
 
@@ -504,9 +512,11 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
           ),
           ShadButton.ghost(
             onPressed: _clearAttachment,
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: Icon(LucideIcons.x,
-                size: 16, color: scheme.accentForeground),
+                size: 16,
+                color: scheme.accentForeground,
+                semanticLabel: 'Remove attachment'),
           ),
         ],
       ),

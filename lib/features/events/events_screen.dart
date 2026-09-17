@@ -8,6 +8,7 @@ import '../../data/events/events_models.dart';
 import '../../core/format/dates.dart';
 import '../../widgets/mantle_header.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../settings/settings_repository.dart';
 import 'events_controller.dart';
 
 /// Upcoming events, soonest first, grouped by day. Each row shows the time,
@@ -26,9 +27,27 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   @override
   void initState() {
     super.initState();
-    // First visit: secure what alarms need (iOS notification permission,
-    // Android 12+ exact-alarm grant; inexact fallback when declined).
-    Future.microtask(EventAlarms.requestPermissions);
+    Future.microtask(_secureAlarms);
+  }
+
+  /// Secure what alarms need (iOS notification permission, Android 12+
+  /// exact-alarm grant; inexact fallback when declined). The first time, a
+  /// one-screen rationale comes before the OS prompt, because a cold
+  /// permission dialog on a list of events explains nothing; "Not now" is
+  /// remembered, and the phone's Settings remain the way back in.
+  Future<void> _secureAlarms() async {
+    final settings = ref.read(settingsRepositoryProvider);
+    if (await settings.alarmRationaleShown()) {
+      await EventAlarms.requestPermissions();
+      return;
+    }
+    if (!mounted) return;
+    final go = await showShadSheet<bool>(
+      context: context,
+      builder: (_) => const _AlarmRationaleSheet(),
+    );
+    await settings.setAlarmRationaleShown();
+    if (go == true) await EventAlarms.requestPermissions();
   }
 
   Future<void> _confirmDelete(EventRow event) async {
@@ -47,7 +66,6 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(eventsControllerProvider);
 
     return Container(
@@ -57,21 +75,25 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
           MantleHeader(
             leading: const MantleHeaderTitle('Events', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.plus,
+                label: 'Add event',
                 onPressed: () => showShadSheet<void>(
                   context: context,
                   builder: (_) => const AddEventSheet(),
                 ),
-                child: Icon(LucideIcons.plus, size: 20, color: fg),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.refreshCw,
+                label: 'Refresh',
+                size: 18,
                 onPressed: () =>
                     ref.read(eventsControllerProvider.notifier).refresh(),
-                child: Icon(LucideIcons.refreshCw, size: 18, color: fg),
               ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),
@@ -213,24 +235,32 @@ class _EventTile extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onLongPress: onLongPress,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onToggle,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(4, 2, 10, 2),
-                child: Icon(
-                  event.done
-                      ? LucideIcons.circleCheckBig
-                      : LucideIcons.circle,
-                  size: 20,
-                  color: event.done ? muted : scheme.primary,
+            Semantics(
+              button: true,
+              label: event.done ? 'Mark not done' : 'Mark done',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onToggle,
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(
+                    child: Icon(
+                      event.done
+                          ? LucideIcons.circleCheckBig
+                          : LucideIcons.circle,
+                      size: 20,
+                      color: event.done ? muted : scheme.primary,
+                    ),
+                  ),
                 ),
               ),
             ),
+            const SizedBox(width: 2),
             // Fixed time column so titles line up down the list; tabular
             // digits so 08:00 and 11:30 take the same width.
             SizedBox(
@@ -413,21 +443,35 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
               spacing: 6,
               children: [
                 for (final m in _remindChoices)
-                  GestureDetector(
-                    onTap: () => setState(() => _remind = m),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _remind == m ? scheme.primary : scheme.secondary,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        m == 0 ? 'at start' : '${m}m before',
-                        style: theme.textTheme.small.copyWith(
-                          color: _remind == m
-                              ? scheme.primaryForeground
-                              : scheme.secondaryForeground,
+                  Semantics(
+                    button: true,
+                    selected: _remind == m,
+                    label: m == 0 ? 'At start' : '$m minutes before',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _remind = m),
+                      // The pill is ~32 tall; the padding around it makes
+                      // the 44pt target (a centred box would take the
+                      // Wrap's whole row).
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _remind == m
+                                ? scheme.primary
+                                : scheme.secondary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            m == 0 ? 'at start' : '${m}m before',
+                            style: theme.textTheme.small.copyWith(
+                              color: _remind == m
+                                  ? scheme.primaryForeground
+                                  : scheme.secondaryForeground,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -451,6 +495,49 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
               ),
             ),
             const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The one screen before the OS asks: what alarms do, and that the phone
+/// will ask for permission next. Pops `true` to go on, `false` for not now.
+class _AlarmRationaleSheet extends StatelessWidget {
+  const _AlarmRationaleSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return ShadSheet(
+      title: const Text('Ring for your events?'),
+      description: const Text(
+        'Jackdaw can sound an alarm on this phone when an event starts, '
+        'even with no signal. If your phone asks, allow notifications. You '
+        "can change this any time in the phone's Settings.",
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ShadButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Continue'),
+            ),
+            const SizedBox(height: 8),
+            ShadButton.outline(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Not now'),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Reminders from your assistant still arrive as messages either way.',
+              style: theme.textTheme.muted,
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

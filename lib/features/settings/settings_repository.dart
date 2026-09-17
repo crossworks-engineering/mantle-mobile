@@ -22,6 +22,7 @@ class SettingsRepository {
   static const _randomAtKey = 'random_theme_at_ms';
   static const _locationSharingKey = 'location_sharing';
   static const _accountEmailKey = 'account_email';
+  static const _alarmRationaleKey = 'alarm_rationale_shown';
 
   /// Default random-rotation cadence (12 hours), mirroring the web app.
   static const Duration defaultRandomInterval = Duration(hours: 12);
@@ -100,6 +101,14 @@ class SettingsRepository {
 
   /// Forget the account (the session ended). An empty value reads as null.
   Future<void> clearAccountEmail() => _db.setSetting(_accountEmailKey, '');
+
+  /// Whether the events screen has shown its alarm rationale once (before
+  /// the OS permission prompt). Device-level: it is about this phone.
+  Future<bool> alarmRationaleShown() async =>
+      await _db.getSetting(_alarmRationaleKey) == 'true';
+
+  Future<void> setAlarmRationaleShown() =>
+      _db.setSetting(_alarmRationaleKey, 'true');
 }
 
 @Riverpod(keepAlive: true)

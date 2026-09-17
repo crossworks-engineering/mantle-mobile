@@ -31,13 +31,10 @@ class SettingsScreen extends ConsumerWidget {
           MantleHeader(
             leading: const MantleHeaderTitle('Settings', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(
-                  LucideIcons.arrowLeft,
-                  size: 20,
-                  color: scheme.primaryForeground,
-                ),
               ),
             ],
           ),

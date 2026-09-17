@@ -45,6 +45,33 @@ class MantleHeader extends StatelessWidget {
   }
 }
 
+/// An icon-only action for the header's trailing slot: a ghost button in
+/// `primaryForeground`, 44pt tall from the theme, and named for screen
+/// readers by [label] (the icon carries it, the button supplies the role).
+class HeaderAction extends StatelessWidget {
+  const HeaderAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.size = 20,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = ShadTheme.of(context).colorScheme.primaryForeground;
+    return ShadButton.ghost(
+      onPressed: onPressed,
+      child: Icon(icon, size: size, color: fg, semanticLabel: label),
+    );
+  }
+}
+
 /// Title for the leading slot of a [MantleHeader], in `primaryForeground`.
 ///
 /// [wordmark] (default) draws the Jackdaw brand mark itself and ignores [text]

@@ -285,9 +285,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               behavior: HitTestBehavior.opaque,
                               onTap: () =>
                                   ref.read(_provider.notifier).refresh(),
-                              child: Padding(
+                              child: Container(
+                                constraints:
+                                    const BoxConstraints(minHeight: 44),
+                                alignment: Alignment.center,
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 8),
+                                    horizontal: 8),
                                 child: Text(
                                   'Retry',
                                   style: theme.textTheme.small.copyWith(
@@ -348,9 +351,10 @@ class _ChatHeader extends ConsumerWidget {
         foreground: fg,
       ),
       trailing: [
-        ShadButton.ghost(
+        HeaderAction(
+          icon: LucideIcons.arrowLeft,
+          label: 'Back',
           onPressed: () => context.pop(),
-          child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
         ),
       ],
     );
@@ -564,20 +568,30 @@ class _Bubble extends StatelessWidget {
                     Text('  ·  ',
                         style: theme.textTheme.small
                             .copyWith(color: scheme.mutedForeground)),
-                    GestureDetector(
-                      onTap: onRetry,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(LucideIcons.refreshCw,
-                              size: 13, color: scheme.primary),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Retry',
-                            style: theme.textTheme.small
-                                .copyWith(color: scheme.primary),
+                    Semantics(
+                      button: true,
+                      label: 'Retry send',
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onRetry,
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 44),
+                          alignment: Alignment.center,
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.refreshCw,
+                                  size: 13, color: scheme.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Retry',
+                                style: theme.textTheme.small
+                                    .copyWith(color: scheme.primary),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ],

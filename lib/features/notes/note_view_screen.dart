@@ -35,7 +35,6 @@ class NoteViewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(noteViewControllerProvider(noteId));
 
     return Container(
@@ -49,13 +48,16 @@ class NoteViewScreen extends ConsumerWidget {
             ),
             trailing: [
               if (async.value != null)
-                ShadButton.ghost(
+                HeaderAction(
+                  icon: LucideIcons.pencil,
+                  label: 'Edit',
+                  size: 18,
                   onPressed: () => _edit(context, ref, async.value!),
-                  child: Icon(LucideIcons.pencil, size: 18, color: fg),
                 ),
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),

@@ -27,7 +27,6 @@ class FileImageScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
 
     return Container(
       color: scheme.background,
@@ -36,9 +35,10 @@ class FileImageScreen extends ConsumerWidget {
           MantleHeader(
             leading: MantleHeaderTitle(name ?? 'Image', wordmark: false),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),

@@ -54,6 +54,12 @@ void main() {
     expect(await repo.accountEmail(), isNull);
   });
 
+  test('alarm rationale is unshown until marked', () async {
+    expect(await repo.alarmRationaleShown(), isFalse);
+    await repo.setAlarmRationaleShown();
+    expect(await repo.alarmRationaleShown(), isTrue);
+  });
+
   test('random mode defaults to off with the default interval', () async {
     expect(await repo.randomThemeEnabled(), isFalse);
     expect(await repo.randomInterval(), SettingsRepository.defaultRandomInterval);

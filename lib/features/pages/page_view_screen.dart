@@ -21,7 +21,6 @@ class PageViewScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fg = scheme.primaryForeground;
     final async = ref.watch(pageContentProvider(pageId));
 
     return Container(
@@ -34,9 +33,10 @@ class PageViewScreen extends ConsumerWidget {
               wordmark: false,
             ),
             trailing: [
-              ShadButton.ghost(
+              HeaderAction(
+                icon: LucideIcons.arrowLeft,
+                label: 'Back',
                 onPressed: () => context.pop(),
-                child: Icon(LucideIcons.arrowLeft, size: 20, color: fg),
               ),
             ],
           ),
@@ -236,12 +236,17 @@ class _BacklinkRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
     final navigable = link.type == 'page';
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: navigable ? () => context.push('/pages/${link.id}') : null,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
+    return Semantics(
+      link: navigable,
+      label: link.title,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: navigable ? () => context.push('/pages/${link.id}') : null,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Row(
           children: [
             if (link.icon != null && link.icon!.isNotEmpty)
               Padding(
@@ -264,7 +269,8 @@ class _BacklinkRow extends StatelessWidget {
                     : theme.textTheme.p.copyWith(color: scheme.foreground),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
