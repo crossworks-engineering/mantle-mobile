@@ -1,6 +1,7 @@
 // MantleMarkdown renders GFM into themed widgets without throwing.
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/features/chat/markdown/mantle_markdown.dart';
@@ -9,11 +10,13 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 Future<void> _pump(WidgetTester tester, String markdown) async {
   await tester.pumpWidget(
-    MantleColors(
-      def: MantleTheme.defFor(MantleTheme.defaultId),
-      child: ShadApp(
-        theme: MantleTheme.light(MantleTheme.defaultId),
-        home: MantleMarkdown(markdown),
+    ProviderScope(
+      child: MantleColors(
+        def: MantleTheme.defFor(MantleTheme.defaultId),
+        child: ShadApp(
+          theme: MantleTheme.light(MantleTheme.defaultId),
+          home: MantleMarkdown(markdown),
+        ),
       ),
     ),
   );

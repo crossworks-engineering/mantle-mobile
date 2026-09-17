@@ -3,6 +3,7 @@
 // render through MantleMarkdown like the surrounding suite.
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/features/chat/markdown/mantle_markdown.dart';
@@ -41,11 +42,13 @@ List<md.Element> _byTag(List<md.Node> nodes, String tag) {
 
 Future<void> _pump(WidgetTester tester, String markdown) async {
   await tester.pumpWidget(
-    MantleColors(
-      def: MantleTheme.defFor(MantleTheme.defaultId),
-      child: ShadApp(
-        theme: MantleTheme.light(MantleTheme.defaultId),
-        home: MantleMarkdown(markdown),
+    ProviderScope(
+      child: MantleColors(
+        def: MantleTheme.defFor(MantleTheme.defaultId),
+        child: ShadApp(
+          theme: MantleTheme.light(MantleTheme.defaultId),
+          home: MantleMarkdown(markdown),
+        ),
       ),
     ),
   );

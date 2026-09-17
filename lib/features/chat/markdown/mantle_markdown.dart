@@ -1,13 +1,15 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../theme/mantle_theme.dart';
 import 'code_highlight.dart';
+import 'mantle_refs.dart';
 import 'mantle_syntax.dart';
+import 'ref_widgets.dart';
 
 /// Renders an assistant reply (Mantle's GFM-superset markdown) into themed
 /// Flutter widgets.
@@ -15,15 +17,19 @@ import 'mantle_syntax.dart';
 /// Phase 1: standard GitHub-flavored markdown. Phase 2: Mantle's custom
 /// containers (`:::callouts`, `:::aside`, `:::columns`) and inline colour spans
 /// (`==highlight==`, `[text]{color=chart-N}`) — parsed by mantle_syntax.dart and
-/// rendered by the builders below. Every style comes from [ShadTheme] tokens, so
-/// light/dark and the host bubble colour drive the output (no hardcoded
-/// colours). Images and math are later phases — see docs/architecture.md.
-class MantleMarkdown extends StatelessWidget {
+/// rendered by the builders below. Phase 5: the reference links the page
+/// export invents (`page:`, `mention:`, `media:`, `draw:`) become chips and
+/// authed images (mantle_refs.dart + ref_widgets.dart), and every other href
+/// routes in-app, to the web, or to the OS. Every style comes from [ShadTheme]
+/// tokens, so light/dark and the host bubble colour drive the output (no
+/// hardcoded colours). See docs/architecture.md.
+class MantleMarkdown extends ConsumerWidget {
   const MantleMarkdown(
     this.data, {
     super.key,
     this.textColor,
     this.selectable = true,
+    this.softLineBreak = true,
     this.imageBuilder,
   });
 
@@ -38,29 +44,38 @@ class MantleMarkdown extends StatelessWidget {
   /// renders inside containers turn this off (no nested selection areas).
   final bool selectable;
 
-  /// Renders `![alt](src)` images. Null (the default, chat bubbles) leaves
-  /// image handling to the markdown package; the page viewer passes a builder
-  /// that fetches Mantle file nodes through the authed client (an `Image`
-  /// widget can't send the bearer header).
+  /// Whether a single newline inside a paragraph is a line break. True for
+  /// chat replies and notes, where the author's newlines are deliberate;
+  /// FALSE for a page: the server's export hard-wraps prose at the width it
+  /// was authored in, and the web joins those lines back into a paragraph,
+  /// so the phone must too or every page reads as ragged verse.
+  final bool softLineBreak;
+
+  /// Renders `![alt](src)` images. The default, [MantleImage], fetches
+  /// Mantle file nodes and drawings through the authed client (an `Image`
+  /// widget can't send the bearer header) and loads plain http(s) directly.
   final Widget Function(Uri uri, String? title, String? alt)? imageBuilder;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
     return MarkdownBody(
       data: data,
       selectable: selectable,
-      softLineBreak: true,
+      softLineBreak: softLineBreak,
       // GitHub-flavored base (tables, strikethrough, task lists, autolinks).
       extensionSet: md.ExtensionSet.gitHubFlavored,
-      // Mantle's custom dialect on top.
+      // Mantle's custom dialect on top. Order matters: the reference syntax
+      // must see `[label](page:…)` before the stock link syntax does.
       blockSyntaxes: const [MantleFenceSyntax(), MathBlockSyntax()],
       inlineSyntaxes: [
+        RefInlineSyntax(),
         HighlightInlineSyntax(),
         ColorSpanInlineSyntax(),
         MathInlineSyntax(),
       ],
       builders: {
+        kRefTag: RefBuilder(),
         kCalloutTag: _CalloutBuilder(),
         kAsideTag: _AsideBuilder(),
         kColumnsTag: _ColumnsBuilder(),
@@ -70,24 +85,19 @@ class MantleMarkdown extends StatelessWidget {
         'code': _CodeBuilder(),
       },
       styleSheet: _styleSheet(theme, textColor ?? theme.colorScheme.foreground),
-      onTapLink: (_, href, _) => _openLink(href),
-      imageBuilder: imageBuilder,
+      onTapLink: (_, href, _) => openMarkdownLink(context, ref, href),
+      imageBuilder: imageBuilder ??
+          (uri, title, alt) => MantleImage(uri: uri, alt: alt),
     );
   }
 }
 
-/// Opens external links; relative/internal links (`/…`, `#…`) are left for a
-/// later phase (in-app routing into Mantle resources).
-Future<void> _openLink(String? href) async {
-  if (href == null) return;
-  final uri = Uri.tryParse(href);
-  if (uri == null) return;
-  const external = {'http', 'https', 'mailto'};
-  if (!external.contains(uri.scheme)) return;
-  if (await canLaunchUrl(uri)) {
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-}
+/// The enclosing [MantleMarkdown]'s line-break policy, for the nested renders
+/// inside callouts, asides and columns (a container inside a page must join
+/// wrapped lines exactly as the page around it does).
+bool _softBreak(BuildContext context) =>
+    context.findAncestorWidgetOfExactType<MantleMarkdown>()?.softLineBreak ??
+    true;
 
 int _chartIndex(String? token) =>
     int.tryParse((token ?? 'chart-1').split('-').last) ?? 1;
@@ -158,10 +168,18 @@ class _CodeBuilder extends MarkdownElementBuilder {
     final source = element.textContent.endsWith('\n')
         ? element.textContent.substring(0, element.textContent.length - 1)
         : element.textContent;
-    final base = (preferredStyle ?? parentStyle ?? const TextStyle()).copyWith(
+    // Built fresh, not copied from the `code` style: that style carries the
+    // INLINE code chip's background, and a copy would paint it behind every
+    // highlighted token. A fenced block already sits on its own decoration.
+    final inherited = preferredStyle ?? parentStyle;
+    final base = TextStyle(
       fontFamily: 'monospace',
       fontFamilyFallback: const ['Menlo', 'Courier New', 'monospace'],
+      fontSize: inherited?.fontSize,
+      color: ShadTheme.of(context).colorScheme.foreground,
+      height: inherited?.height,
     );
+    if (language == 'mermaid') return _legacyDiagram(context, source, base);
     final span = highlightedCode(context, source, language, baseStyle: base);
     if (span == null) return null; // unknown language → default rendering
     // A custom `code` builder REPLACES the package's padded scroller, and the
@@ -173,6 +191,41 @@ class _CodeBuilder extends MarkdownElementBuilder {
       child: Text.rich(span),
     );
   }
+}
+
+/// A legacy ```mermaid fence. The Mermaid engine was retired on the web
+/// (drawings replaced it) and stored docs still carry the source; the phone
+/// shows it as plain code under a caption saying what it is, rather than as
+/// an unexplained block of arrows.
+Widget _legacyDiagram(BuildContext context, String source, TextStyle base) {
+  final theme = ShadTheme.of(context);
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: Row(
+          children: [
+            Icon(LucideIcons.workflow,
+                size: 14, color: theme.colorScheme.mutedForeground),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Diagram (legacy Mermaid) — rendered on the web',
+                style: theme.textTheme.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.all(12),
+        child: Text(source,
+            style: base.copyWith(color: theme.colorScheme.mutedForeground)),
+      ),
+    ],
+  );
 }
 
 // ── Block builders ─────────────────────────────────────────────────────────
@@ -212,6 +265,7 @@ class _CalloutBuilder extends MarkdownElementBuilder {
               element.attributes['md'] ?? '',
               textColor: theme.colorScheme.foreground,
               selectable: false,
+              softLineBreak: _softBreak(context),
             ),
           ),
         ],
@@ -290,6 +344,7 @@ class _AsideBuilder extends MarkdownElementBuilder {
         element.attributes['md'] ?? '',
         textColor: theme.colorScheme.foreground,
         selectable: false,
+        softLineBreak: _softBreak(context),
       ),
     );
   }
@@ -334,6 +389,7 @@ class _ColumnsBuilder extends MarkdownElementBuilder {
                   col.attributes['md'] ?? '',
                   textColor: theme.colorScheme.cardForeground,
                   selectable: false,
+                  softLineBreak: _softBreak(context),
                 ),
               ),
             ),

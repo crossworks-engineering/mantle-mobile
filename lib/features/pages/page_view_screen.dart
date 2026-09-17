@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../../data/chat/chat_api.dart' show fileBytesProvider;
 import '../../data/pages/pages_models.dart';
 import '../../widgets/mantle_header.dart';
 import '../chat/markdown/mantle_markdown.dart';
@@ -122,11 +121,13 @@ class PageViewScreen extends ConsumerWidget {
                         style: theme.textTheme.muted,
                       )
                     else
+                      // Images (`media:` / `draw:` / http) and the reference
+                      // chips are MantleMarkdown's own defaults now.
                       MantleMarkdown(
                         page.markdown,
                         textColor: scheme.foreground,
-                        imageBuilder: (uri, title, alt) =>
-                            _PageImage(uri: uri, alt: alt),
+                        // The export hard-wraps prose; join it as the web does.
+                        softLineBreak: false,
                       ),
                     if (page.backlinks.isNotEmpty) ...[
                       const SizedBox(height: 24),
@@ -152,73 +153,6 @@ class PageViewScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// An image inside page content. Mantle file embeds export as
-/// `![alt](/api/files/files/<nodeId>?raw=1)` — a plain `Image.network` can't
-/// send the bearer, so those fetch through the authed [fileBytesProvider].
-/// Absolute http(s) sources render directly; anything else falls back to a
-/// small chip.
-class _PageImage extends ConsumerWidget {
-  const _PageImage({required this.uri, this.alt});
-
-  final Uri uri;
-  final String? alt;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = ShadTheme.of(context);
-    final segments = uri.path.split('/').where((s) => s.isNotEmpty).toList();
-    // `/api/files/files/<nodeId>` → authed byte fetch.
-    if (segments.length >= 4 &&
-        segments[0] == 'api' &&
-        segments[1] == 'files' &&
-        segments[2] == 'files') {
-      final nodeId = segments[3];
-      final bytes = ref.watch(fileBytesProvider(nodeId));
-      final data = bytes.value;
-      if (data == null) {
-        return _placeholder(theme, loading: bytes.isLoading);
-      }
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.memory(data, fit: BoxFit.contain),
-      );
-    }
-    if (uri.scheme == 'http' || uri.scheme == 'https') {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.network(
-          uri.toString(),
-          fit: BoxFit.contain,
-          errorBuilder: (_, _, _) => _placeholder(theme),
-        ),
-      );
-    }
-    return _placeholder(theme);
-  }
-
-  Widget _placeholder(ShadThemeData theme, {bool loading = false}) {
-    final scheme = theme.colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: scheme.muted,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.image, size: 15, color: scheme.mutedForeground),
-          const SizedBox(width: 6),
-          Text(
-            loading ? 'Loading image…' : (alt?.isNotEmpty == true ? alt! : 'Image'),
-            style: theme.textTheme.muted,
           ),
         ],
       ),

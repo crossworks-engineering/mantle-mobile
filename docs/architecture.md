@@ -82,6 +82,7 @@ lib/
     dashboard/       dashboard_models.dart    — summary + health models
                      dashboard_api.dart       — GET /api/dashboard/summary, /api/health
     pages/           pages_api.dart, pages_models.dart      — index/meta/markdown/backlinks
+    nodes/           nodes_api.dart           — GET /api/nodes/{id} (type resolver), draw SVG
     notes/           notes_api.dart, notes_models.dart      — CRUD + tag facets
     search/          search_api.dart, search_models.dart    — GET /api/search hits
     files/           files_api.dart, files_models.dart      — folders/files/upload
@@ -109,7 +110,7 @@ lib/
     dashboard/       dashboard_controller.dart — summary + best-effort health
     home/            home_screen.dart          — landing dashboard (stats + actions)
     pages/           pages_controller.dart, pages_screen.dart (tree),
-                     page_view_screen.dart     — markdown + authed images + links
+                     page_view_screen.dart     — markdown, chips, images, backlinks
     notes/           notes_controller.dart, notes_screen.dart,
                      note_view_screen.dart     — markdown view + edit sheet
     search/          search_controller.dart (debounce + stale guard),
@@ -387,6 +388,29 @@ the bubble colour drive it). User messages stay plain `Text`. Built in phases:
    colour map is the active theme's own `code-*` inks, so
    highlighting follows light/dark and every colour theme. Unknown
    languages and inline code fall through to the default stylesheet path.
+   A ```mermaid fence (the retired diagram engine; stored docs still carry
+   the source) renders as plain code under a "legacy diagram" caption.
+5. **Reference links and link routing (done)** — the page export invents
+   round-trip syntaxes for editor-only nodes: `[Title](page:<id>)` (child
+   page), `[label](mention:node|entity:<id>)`, `[name](media:<fileId>)`
+   (file embed), `![alt](media:<fileId>)` (uploaded image), `![alt](draw:<id>)`
+   (drawing). [`markdown/mantle_refs.dart`](../lib/features/chat/markdown/mantle_refs.dart)
+   (`RefInlineSyntax`, registered BEFORE the stock link syntax) lifts them
+   into `mantleRef` elements; [`markdown/ref_widgets.dart`](../lib/features/chat/markdown/ref_widgets.dart)
+   renders chips (page → `/pages/<id>`; node mention → resolved by type via
+   `GET /api/nodes/{id}` then routed like search results; entity mention → a
+   name tag, not tappable; file → the image screen for pictures, else the
+   web permalink until the file opener lands; drawing → the web) and images
+   (`media:` through the authed `fileBytesProvider`, `draw:` through
+   `GET /api/draws/{id}/svg`, http(s) direct; a failed fetch is an alt-text
+   chip, never a spinner). Every other href goes through `MantleLink.parse`:
+   http/https/mailto to the OS, `/pages/<id>` and `/notes/<id>` in-app,
+   `/n/<id>` resolved by type, any other brain path to the web against the
+   configured server, `#anchors` rendered as plain words. Chips and images
+   carry `Semantics(button, label, excludeSemantics)` so a screen reader
+   hears "Open page X" once. Inline widgets inside a selectable paragraph
+   are real widgets (tap works) but sit in a `SelectableText`, so the tests
+   find them by semantics label and scroll them into view first.
 
 ### Attachments & voice
 
@@ -584,9 +608,17 @@ screen) and live under `/pages`, `/tasks`, `/journal`.
   Content: **`GET /api/export/{id}?format=md`** — the HTTP twin of the MCP
   `export_node` tool — so the client renders markdown with the same
   `MantleMarkdown` the chat uses and needs **no ProseMirror renderer**.
-  In-content images resolve via the authed files route (Bearer header, same as
-  chat attachments); links open externally via `url_launcher` (the Android
-  `<queries>` manifest entries make `canLaunchUrl` truthful on Android 11+).
+  "Renders correctly" therefore means: every construct mantle's
+  `doc-to-markdown.ts` can emit has a phone-side builder, including the
+  round-trip syntaxes it invents for editor-only nodes (see "Reference
+  links" under Rendering assistant replies). The proof is the **golden
+  page** — dev brain page `90971a5c-95b3-4365-aac6-b070f7108eb5`, one of
+  every node — whose server export is checked in as
+  [`test/fixtures/golden_page.md`](../test/fixtures/golden_page.md) and
+  asserted construct by construct in
+  [`test/features/page_view_test.dart`](../test/features/page_view_test.dart).
+  The export covers the COMMITTED doc only; a page with a body and a draft
+  shows the body, a draft-only page says so instead of "empty".
   Backlinks come from `GET /api/pages/{id}/backlinks`.
 - **Tasks** (capture-first). `GET/POST /api/tasks`, `PATCH /api/tasks/{id}`
   (`status: open|done`), `DELETE`. Server orders open → done, due-date asc,
