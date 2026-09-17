@@ -46,7 +46,7 @@ final class ThemeModeControllerProvider
 }
 
 String _$themeModeControllerHash() =>
-    r'b41ef505deae25d96c2a133479e4a3961525c614';
+    r'54f7f1cc2df71aed64a8768947d51b74fa48d5b5';
 
 /// Owns the app's theme mode: loads it from [SettingsRepository] on build and
 /// writes through on every change, so the choice survives restarts. Exposed as

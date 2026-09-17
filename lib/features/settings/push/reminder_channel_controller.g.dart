@@ -52,7 +52,7 @@ final class ReminderChannelControllerProvider
 }
 
 String _$reminderChannelControllerHash() =>
-    r'ff7304f8948f9ce06ba23a68c2266cd980b9dc36';
+    r'e68dfab31fcf73550a2b3950f492a50986e1919a';
 
 /// Loads + sets where event reminders are delivered ('telegram' | 'mobile').
 ///

@@ -45,7 +45,7 @@ final class TasksControllerProvider
   TasksController create() => TasksController();
 }
 
-String _$tasksControllerHash() => r'd9655004333b8c2254dbc56ef9add22dcee90f92';
+String _$tasksControllerHash() => r'e14601cfbc3214d7b60ef3f89478ee4450d0921e';
 
 /// Owns the task list (first page, server-sorted: open before done, due date
 /// asc, then recency). Check-off and quick-add are optimistic — the list

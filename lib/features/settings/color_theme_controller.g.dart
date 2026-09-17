@@ -46,7 +46,7 @@ final class ColorThemeControllerProvider
 }
 
 String _$colorThemeControllerHash() =>
-    r'af3df972d6f20c2c52d93af97d9707b09801b442';
+    r'd796888a6986846b484007d91e843173ecbd4cea';
 
 /// Owns the selected color-theme id (one of `kMantleThemes`). Loads it from
 /// [SettingsRepository] on build and writes through on change, so the choice

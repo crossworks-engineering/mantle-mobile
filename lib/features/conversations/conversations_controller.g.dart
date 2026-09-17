@@ -53,7 +53,7 @@ final class ConversationsControllerProvider
 }
 
 String _$conversationsControllerHash() =>
-    r'de981140ead58ecb21b01174e0a2d008a6543206';
+    r'0e7dc7af0682370bc0ced3c465e0bb373fcfd317';
 
 /// Owns the conversations inbox. Loads on build; [markRead] zeroes an agent's
 /// unread optimistically then persists. ChatController invalidates this after a

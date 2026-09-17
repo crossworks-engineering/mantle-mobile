@@ -48,7 +48,7 @@ final class PendingControllerProvider
   PendingController create() => PendingController();
 }
 
-String _$pendingControllerHash() => r'61eca09f1a3d4314e52ebd7c8c3adcd94e71d886';
+String _$pendingControllerHash() => r'45e3bbbd103a58af9f0387f07f1339d892119a00';
 
 /// Owns the agent-approval queue. Loads the pending list on build; [approve] /
 /// [reject] optimistically drop the row then persist via PATCH, reconciling on

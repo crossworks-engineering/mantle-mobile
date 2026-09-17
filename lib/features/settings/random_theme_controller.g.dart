@@ -40,7 +40,7 @@ final class RandomThemeControllerProvider
 }
 
 String _$randomThemeControllerHash() =>
-    r'87419873d99b55d7eb8c511ec679f85b69839327';
+    r'25dc3051283d797d94ea6fbc89f89363408ffff1';
 
 /// Owns whether random-rotation mode is on and its cadence. Persists both;
 /// the actual reshuffling is driven by [RandomThemeScheduler].

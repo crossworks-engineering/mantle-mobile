@@ -43,7 +43,7 @@ final class DashboardControllerProvider
 }
 
 String _$dashboardControllerHash() =>
-    r'bc0e4a28e7a4114ad79a9803a29333d4780f8c4d';
+    r'd42d0c68517486ea6e7bb6760a2dbdad811ced8c';
 
 /// Loads the landing dashboard: the summary metrics (required) plus live system
 /// health (best-effort — an older Mantle or a degraded host shouldn't blank the

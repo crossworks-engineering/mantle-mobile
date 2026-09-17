@@ -46,7 +46,7 @@ final class LocationControllerProvider
 }
 
 String _$locationControllerHash() =>
-    r'35a146423dc58bb18ec8801be73618ee21fd2239';
+    r'24cab977d778005720af184fdac429af3e17c5bd';
 
 /// Owns the "share location with messages" opt-in. Enabling it first requests
 /// the OS *when-in-use* permission and only persists `true` if granted; on

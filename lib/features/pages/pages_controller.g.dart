@@ -45,7 +45,7 @@ final class PagesControllerProvider
   PagesController create() => PagesController();
 }
 
-String _$pagesControllerHash() => r'9058e012a5be4e830b71d76a8d523c0cfa4604bf';
+String _$pagesControllerHash() => r'28cd522ec84129815d247e98f2b0908414f3f2f5';
 
 /// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
 /// flat rows — the screen builds the tree); [search] swaps in the server's
