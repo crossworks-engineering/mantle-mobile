@@ -23,18 +23,25 @@ class TasksScreen extends ConsumerStatefulWidget {
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
   final _input = TextEditingController();
+  // An empty + focuses the field (see notes_screen.dart).
+  final _inputFocus = FocusNode();
   bool _adding = false;
   String? _error;
 
   @override
   void dispose() {
     _input.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
   Future<void> _add() async {
     final title = _input.text.trim();
-    if (title.isEmpty || _adding) return;
+    if (_adding) return;
+    if (title.isEmpty) {
+      _inputFocus.requestFocus();
+      return;
+    }
     setState(() {
       _adding = true;
       _error = null;
@@ -105,6 +112,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                     Expanded(
                       child: ShadInput(
                         controller: _input,
+                        focusNode: _inputFocus,
                         placeholder: const Text('Add a task…'),
                         onSubmitted: (_) => _add(),
                       ),

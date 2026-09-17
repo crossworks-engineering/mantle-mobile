@@ -32,6 +32,8 @@ class JournalScreen extends ConsumerStatefulWidget {
 
 class _JournalScreenState extends ConsumerState<JournalScreen> {
   final _input = TextEditingController();
+  // An empty + focuses the field (see notes_screen.dart).
+  final _inputFocus = FocusNode();
   final _recorder = AudioRecorder();
   var _voice = _VoiceState.idle;
   Timer? _ticker;
@@ -44,6 +46,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
     _ticker?.cancel();
     _recorder.dispose();
     _input.dispose();
+    _inputFocus.dispose();
     super.dispose();
   }
 
@@ -51,7 +54,11 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
   Future<void> _save() async {
     final body = _input.text.trim();
-    if (body.isEmpty || _saving) return;
+    if (_saving) return;
+    if (body.isEmpty) {
+      _inputFocus.requestFocus();
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -181,6 +188,7 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
           _Composer(
             theme: theme,
             input: _input,
+            inputFocus: _inputFocus,
             voice: _voice,
             saving: _saving,
             error: _error,
@@ -512,6 +520,7 @@ class _Composer extends StatelessWidget {
   const _Composer({
     required this.theme,
     required this.input,
+    required this.inputFocus,
     required this.voice,
     required this.saving,
     required this.error,
@@ -524,6 +533,7 @@ class _Composer extends StatelessWidget {
 
   final ShadThemeData theme;
   final TextEditingController input;
+  final FocusNode inputFocus;
   final _VoiceState voice;
   final bool saving;
   final String? error;
@@ -587,6 +597,7 @@ class _Composer extends StatelessWidget {
                 Expanded(
                   child: ShadInput(
                     controller: input,
+                    focusNode: inputFocus,
                     placeholder: const Text('What happened?'),
                     minLines: 1,
                     maxLines: 4,

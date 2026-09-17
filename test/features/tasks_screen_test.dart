@@ -8,6 +8,7 @@ import 'package:jackdaw/data/tasks/tasks_api.dart';
 import 'package:jackdaw/data/tasks/tasks_models.dart';
 import 'package:jackdaw/features/tasks/tasks_screen.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../helpers/pump_screen.dart';
 
@@ -66,6 +67,19 @@ void main() {
     verify(() => api.setDone('a', done: true)).called(1);
     // Optimistic: both rows now sit under Done.
     expect(find.bySemanticsLabel('Mark not done'), findsNWidgets(2));
+  });
+
+  testWidgets('an empty + focuses the field instead of doing nothing',
+      (tester) async {
+    await pump(tester);
+    final input = tester.widget<ShadInput>(find.byType(ShadInput).first);
+    expect(input.focusNode!.hasFocus, isFalse);
+
+    await tester.tap(find.bySemanticsLabel('Add task'));
+    await tester.pumpAndSettle();
+
+    expect(input.focusNode!.hasFocus, isTrue);
+    verifyNever(() => api.create(any(), dueAt: any(named: 'dueAt')));
   });
 
   testWidgets('a tap on the row opens the edit sheet, prefilled',

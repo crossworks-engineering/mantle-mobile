@@ -22,6 +22,9 @@ class NotesScreen extends ConsumerStatefulWidget {
 
 class _NotesScreenState extends ConsumerState<NotesScreen> {
   final _input = TextEditingController();
+  // An empty + focuses the field: the row reads as a search bar at a
+  // glance, and a button that does nothing looks broken (seen on the phone).
+  final _inputFocus = FocusNode();
   final _scroll = ScrollController();
   bool _adding = false;
   String? _error;
@@ -39,13 +42,18 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   @override
   void dispose() {
     _input.dispose();
+    _inputFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
   Future<void> _add() async {
     final title = _input.text.trim();
-    if (title.isEmpty || _adding) return;
+    if (_adding) return;
+    if (title.isEmpty) {
+      _inputFocus.requestFocus();
+      return;
+    }
     setState(() {
       _adding = true;
       _error = null;
@@ -109,6 +117,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                     Expanded(
                       child: ShadInput(
                         controller: _input,
+                        focusNode: _inputFocus,
                         placeholder: const Text('Capture a note…'),
                         onSubmitted: (_) => _add(),
                       ),
