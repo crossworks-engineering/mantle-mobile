@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart' show TextInputAction;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../widgets/jackdaw_lockup.dart';
@@ -8,10 +9,12 @@ import '../../widgets/secret_input.dart';
 
 import '../../data/auth/auth_api.dart';
 import '../../data/server/server_config.dart';
+import 'scan_sign_in_screen.dart';
 import 'session_controller.dart';
 
-/// Email + password sign-in against `POST /api/auth/mobile-login`. On success
-/// the session flips to `loggedIn` and the router moves to home.
+/// Email + password sign-in against `POST /api/auth/mobile-login`, or a scan
+/// of the web app's sign-in QR ([ScanSignInScreen]). On success the session
+/// flips to `loggedIn` and the router moves to home.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -131,6 +134,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ShadButton.outline(
+                      onPressed:
+                          _submitting ? null : () => context.push('/scan'),
+                      leading: const Icon(LucideIcons.scanLine, size: 16),
+                      child: const Text('Scan a sign-in code'),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   Center(
                     child: ShadButton.link(
                       onPressed: _submitting

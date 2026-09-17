@@ -4,7 +4,9 @@
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jackdaw/data/auth/auth_api.dart';
 import 'package:jackdaw/data/auth/auth_repository.dart';
+import 'package:jackdaw/data/auth/pairing_payload.dart';
 import 'package:jackdaw/data/auth/session_wipe.dart';
 import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
@@ -87,6 +89,46 @@ void main() {
     // Settings shows who is signed in from this.
     expect(await db.getSetting('account_email'), 'owner@example.com');
     expect(await c.read(accountEmailProvider.future), 'owner@example.com');
+  });
+
+  test('signInWithPairing sets the server from the QR, claims, flips to '
+      'loggedIn and remembers the email', () async {
+    // Fresh install: no server yet.
+    when(() => tokenStore.read()).thenAnswer((_) async => null);
+    when(() => authRepo.claimPairing(any()))
+        .thenAnswer((_) async => 'owner@example.com');
+
+    final c = makeContainer();
+    expect(await c.read(sessionControllerProvider.future),
+        AuthStatus.needsServer);
+    await c.read(sessionControllerProvider.notifier).signInWithPairing(
+          const PairingPayload(server: 'https://qr.example.com', code: 'c1'),
+        );
+
+    expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+    expect(await db.getSetting('server_base_url'), 'https://qr.example.com');
+    verify(() => authRepo.claimPairing('c1')).called(1);
+    expect(await c.read(accountEmailProvider.future), 'owner@example.com');
+  });
+
+  test('signInWithPairing keeps the server but not the session when the '
+      'code is refused', () async {
+    when(() => tokenStore.read()).thenAnswer((_) async => null);
+    when(() => authRepo.claimPairing(any())).thenThrow(AuthException('no'));
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    await expectLater(
+      c.read(sessionControllerProvider.notifier).signInWithPairing(
+            const PairingPayload(server: 'https://qr.example.com', code: 'c1'),
+          ),
+      throwsA(isA<AuthException>()),
+    );
+
+    expect(await db.getSetting('server_base_url'), 'https://qr.example.com');
+    // The server is set, so the gate lands on login, not setup.
+    expect(await c.read(sessionControllerProvider.future), AuthStatus.loggedOut);
+    expect(await c.read(accountEmailProvider.future), isNull);
   });
 
   test('signOut unpairs push, revokes, wipes, and flips to loggedOut', () async {

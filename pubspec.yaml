@@ -65,6 +65,7 @@ dependencies:
   # the Kotlin plugin itself when android.builtInKotlin=false.
   file_picker: ^13.1.0
   record: ^7.1.0
+  mobile_scanner: ^7.4.2
   mime: ^2.0.0
   just_audio: ^0.10.5
   sodium: ^4.0.2+1

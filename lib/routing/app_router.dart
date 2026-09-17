@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../features/auth/login_screen.dart';
+import '../features/auth/scan_sign_in_screen.dart';
 import '../features/auth/server_setup_screen.dart';
 import '../features/auth/session_controller.dart';
 import '../features/chat/chat_screen.dart';
@@ -52,13 +53,15 @@ GoRouter goRouter(Ref ref) {
 
       // On error, fall back to setup (let the user re-enter the server).
       final status = session.value ?? AuthStatus.needsServer;
+      // The QR scan signs in from either signed-out state: it names the
+      // brain itself, so it is reachable before a server is set.
       switch (status) {
         case AuthStatus.needsServer:
-          return loc == '/setup' ? null : '/setup';
+          return loc == '/setup' || loc == '/scan' ? null : '/setup';
         case AuthStatus.loggedOut:
-          return loc == '/login' ? null : '/login';
+          return loc == '/login' || loc == '/scan' ? null : '/login';
         case AuthStatus.loggedIn:
-          const transient = {'/splash', '/setup', '/login'};
+          const transient = {'/splash', '/setup', '/login', '/scan'};
           return transient.contains(loc) ? '/' : null;
       }
     },
@@ -66,6 +69,7 @@ GoRouter goRouter(Ref ref) {
       GoRoute(path: '/splash', builder: (_, _) => const _SplashScreen()),
       GoRoute(path: '/setup', builder: (_, _) => const ServerSetupScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/scan', builder: (_, _) => const ScanSignInScreen()),
       GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/chat', builder: (_, _) => const ConversationsScreen()),
       GoRoute(

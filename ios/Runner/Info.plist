@@ -36,7 +36,7 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Jackdaw lets you take a photo to attach to a message for your assistant.</string>
+	<string>Jackdaw uses the camera to take a photo for your assistant and to scan the sign-in code shown by the web app.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Jackdaw attaches your location to a message so your assistant has context about where a request is coming from. Location is only used while you are using the app.</string>
 	<key>NSMicrophoneUsageDescription</key>

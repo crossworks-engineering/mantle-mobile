@@ -1,14 +1,18 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../widgets/jackdaw_lockup.dart';
 
 import '../../data/server/server_config.dart';
+import 'scan_sign_in_screen.dart';
 import 'session_controller.dart';
 
 /// First-run screen: which Mantle server are we talking to? Validates the URL
-/// by hitting the public `GET /api/version` before saving it.
+/// by hitting the public `GET /api/version` before saving it. Or scan the web
+/// app's sign-in QR, which names the server and signs in in one go
+/// ([ScanSignInScreen]).
 class ServerSetupScreen extends ConsumerStatefulWidget {
   const ServerSetupScreen({super.key});
 
@@ -122,6 +126,17 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                     child: ShadButton(
                       onPressed: _checking ? null : _connect,
                       child: Text(_checking ? 'Connecting…' : 'Connect'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Or skip the typing: the web app's QR names the server
+                  // and signs the phone in.
+                  SizedBox(
+                    width: double.infinity,
+                    child: ShadButton.outline(
+                      onPressed: _checking ? null : () => context.push('/scan'),
+                      leading: const Icon(LucideIcons.scanLine, size: 16),
+                      child: const Text('Scan a sign-in code'),
                     ),
                   ),
                 ],

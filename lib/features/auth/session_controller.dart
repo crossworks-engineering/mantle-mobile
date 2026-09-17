@@ -1,6 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/auth/auth_repository.dart';
+import '../../data/auth/pairing_payload.dart';
 import '../../data/auth/session_wipe.dart';
 import '../../data/auth/token_store.dart';
 import '../../data/server/server_config.dart';
@@ -40,6 +41,26 @@ class SessionController extends _$SessionController {
     await ref.read(authRepositoryProvider).login(email: email, password: password);
     await ref.read(settingsRepositoryProvider).setAccountEmail(email);
     ref.invalidate(accountEmailProvider);
+    state = const AsyncData(AuthStatus.loggedIn);
+  }
+
+  /// Sign in from a scanned [PairingPayload]: the QR names the brain, so the
+  /// server is set from it first (replacing whatever was typed, if anything),
+  /// then the code is claimed for a bearer. Throws [AuthException] when the
+  /// code is refused; the server stays set so the person can still type a
+  /// password, and the router lands on login. Flips to `loggedIn` on success.
+  Future<void> signInWithPairing(PairingPayload payload) async {
+    final current = ref.read(serverConfigProvider).value;
+    if (current != payload.server) {
+      await ref.read(serverConfigProvider.notifier).setUrl(payload.server);
+    }
+    final email = await ref.read(authRepositoryProvider).claimPairing(
+      payload.code,
+    );
+    if (email != null && email.isNotEmpty) {
+      await ref.read(settingsRepositoryProvider).setAccountEmail(email);
+      ref.invalidate(accountEmailProvider);
+    }
     state = const AsyncData(AuthStatus.loggedIn);
   }
 

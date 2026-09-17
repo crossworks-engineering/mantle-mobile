@@ -25,6 +25,18 @@ class AuthRepository {
     await _tokenStore.write(token);
   }
 
+  /// Sign in with a pairing code scanned from the web app: same token, same
+  /// storage as [login]; the device label says how it got here. Returns the
+  /// account email when the server sends one.
+  Future<String?> claimPairing(String code) async {
+    final claim = await _api.claimPairing(
+      code: code,
+      deviceName: '${_deviceName()} · paired by QR',
+    );
+    await _tokenStore.write(claim.token);
+    return claim.email;
+  }
+
   /// Revoke the token server-side, then clear it locally. The revoke is
   /// best-effort: with no network the user must still be able to sign out of
   /// the device, and the token expires on its own server-side. Clearing the
