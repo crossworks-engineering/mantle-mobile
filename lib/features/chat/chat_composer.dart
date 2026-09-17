@@ -152,11 +152,10 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   Future<void> _pickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         type: FileType.custom,
         allowedExtensions: _docExtensions,
       );
-      final file = result?.files.singleOrNull;
       final path = file?.path;
       if (file == null || path == null) return;
       final mime = lookupMimeType(file.name) ?? 'application/octet-stream';

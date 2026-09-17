@@ -77,8 +77,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   Future<void> _pickDocument() async {
     try {
-      final result = await FilePicker.platform.pickFiles();
-      final file = result?.files.singleOrNull;
+      final file = await FilePicker.pickFile();
       final path = file?.path;
       if (file == null || path == null) return;
       await _upload(path, file.name);

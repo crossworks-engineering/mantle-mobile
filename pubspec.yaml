@@ -59,10 +59,11 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_svg: ^2.3.0
   image_picker: ^1.2.2
-# Pinned to 8.x: 11.x relies on AGP 9 built-in Kotlin, which this app doesn't
-# enable yet (android/gradle.properties) — on-device result is a jar with no
-# plugin classes and a registrant compile error.
-  file_picker: ^8.3.7
+  # Was pinned to 8.x: 11.x relied on AGP 9 built-in Kotlin, which this app
+  # doesn't enable (android/gradle.properties), so the Android plugin jar came
+  # out empty. Fixed upstream in 12.0.0-beta.3: android_file_picker applies
+  # the Kotlin plugin itself when android.builtInKotlin=false.
+  file_picker: ^13.1.0
   record: ^7.1.0
   mime: ^2.0.0
   just_audio: ^0.10.5
@@ -78,7 +79,11 @@ dependencies:
   battery_plus: ^7.0.0
   flutter_math_fork: ^0.7.4
   re_highlight: ^0.0.3
-  package_info_plus: ^9.0.1
+  # 10.x because file_picker 13 needs win32 6 and 9.x holds win32 at 5.
+  # If a build ever fails with "cannot find symbol PackageInfoPlugin" in
+  # GeneratedPluginRegistrant, delete build/package_info_plus and rebuild:
+  # a stale module build dir from an older version left an empty jar once.
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:
