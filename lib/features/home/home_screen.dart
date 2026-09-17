@@ -197,9 +197,10 @@ class _Stats extends StatelessWidget {
                   sub: trend == null
                       ? 'vs prior 7d'
                       : '${trend >= 0 ? '+' : ''}${trend.toStringAsFixed(0)}% vs prior',
+                  // Text on the card: the role's ink, not its fill.
                   subColor: trend != null && trend > 0
                       ? scheme.mutedForeground
-                      : MantleColors.of(context).success(theme.brightness),
+                      : MantleColors.of(context).successInk(theme.brightness),
                 ),
               ),
               const SizedBox(width: 12),

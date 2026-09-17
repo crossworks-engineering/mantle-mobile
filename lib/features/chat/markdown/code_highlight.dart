@@ -31,10 +31,13 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../theme/mantle_theme.dart';
 
 /// Syntax highlighting for fenced code blocks (` ```dart ` …) via
-/// re_highlight (a pure-Dart highlight.js port). The colour map is built from
-/// the ACTIVE theme's tokens — foreground + the chart ramp — so highlighted
-/// code follows light/dark and every one of the 42 colour themes instead of
-/// shipping a fixed palette.
+/// re_highlight (a pure-Dart highlight.js port). The colour map is the ACTIVE
+/// theme's own code palette — the web's `code-keyword` / `code-string` /
+/// `code-number` / `code-title` / `code-variable` inks, ported per theme — so
+/// a code block on the phone is coloured exactly as the same block on the web,
+/// in light and dark, for every colour theme. The five inks are solved
+/// against the neutral surfaces (code sits on `muted`), so they are legible by
+/// construction; chart colours are 3:1 data ink and are not used for text here.
 ///
 /// A curated common set, NOT `languages/all.dart` — the full ~190-grammar
 /// registry ground the kernel compile to a crawl (30+ min test builds).
@@ -84,60 +87,65 @@ TextSpan? highlightedCode(
   if (_highlight.getLanguage(lang) == null) return null; // aliases resolve too
 
   final theme = ShadTheme.of(context);
-  final colors = MantleColors.of(context);
-  final b = theme.brightness;
-  Color chart(int n) => colors.chart(b, n);
+  final code = MantleColors.of(context).tokens(theme.brightness);
   final muted = theme.colorScheme.mutedForeground;
 
-  // highlight.js scope → themed style. Chart-ramp assignments follow the
-  // usual highlight-theme groupings (keywords/strings/numbers/titles/meta).
+  // highlight.js scope → the web's five code inks, grouped the way
+  // mantle's `.code-view` hljs rules group them: keyword (brand hue), string,
+  // number/literal, title/section, variable/attribute.
+  final keyword = TextStyle(color: code.codeKeyword, fontWeight: FontWeight.w600);
+  final string = TextStyle(color: code.codeString);
+  final number = TextStyle(color: code.codeNumber);
+  final title = TextStyle(color: code.codeTitle);
+  final variable = TextStyle(color: code.codeVariable);
+  final comment = TextStyle(color: muted, fontStyle: FontStyle.italic);
   final styles = <String, TextStyle>{
     'root': baseStyle,
-    'keyword': TextStyle(color: chart(1), fontWeight: FontWeight.w600),
-    'built_in': TextStyle(color: chart(2)),
-    'type': TextStyle(color: chart(2)),
-    'literal': TextStyle(color: chart(4)),
-    'number': TextStyle(color: chart(4)),
+    'keyword': keyword,
+    'built_in': title,
+    'type': title,
+    'literal': number,
+    'number': number,
     'operator': baseStyle,
     'punctuation': baseStyle,
-    'property': TextStyle(color: chart(2)),
-    'regexp': TextStyle(color: chart(3)),
-    'string': TextStyle(color: chart(3)),
-    'char.escape': TextStyle(color: chart(4)),
+    'property': variable,
+    'regexp': string,
+    'string': string,
+    'char.escape': number,
     'subst': baseStyle,
-    'symbol': TextStyle(color: chart(4)),
+    'symbol': number,
     'variable': baseStyle,
-    'variable.language': TextStyle(color: chart(1)),
-    'variable.constant': TextStyle(color: chart(4)),
-    'title': TextStyle(color: chart(5)),
-    'title.class': TextStyle(color: chart(2)),
-    'title.function': TextStyle(color: chart(5)),
+    'variable.language': keyword,
+    'variable.constant': number,
+    'title': title,
+    'title.class': title,
+    'title.function': title,
     'params': baseStyle,
-    'comment': TextStyle(color: muted, fontStyle: FontStyle.italic),
+    'comment': comment,
     'doctag': TextStyle(color: muted),
-    'meta': TextStyle(color: chart(4)),
+    'meta': number,
     'meta.prompt': TextStyle(color: muted),
-    'section': TextStyle(color: chart(5), fontWeight: FontWeight.w600),
-    'tag': TextStyle(color: chart(1)),
-    'name': TextStyle(color: chart(1)),
-    'attr': TextStyle(color: chart(2)),
-    'attribute': TextStyle(color: chart(2)),
-    'bullet': TextStyle(color: chart(4)),
-    'code': TextStyle(color: chart(3)),
+    'section': TextStyle(color: code.codeTitle, fontWeight: FontWeight.w600),
+    'tag': keyword,
+    'name': keyword,
+    'attr': variable,
+    'attribute': variable,
+    'bullet': number,
+    'code': string,
     'emphasis': const TextStyle(fontStyle: FontStyle.italic),
     'strong': const TextStyle(fontWeight: FontWeight.w700),
-    'formula': TextStyle(color: chart(4)),
-    'link': TextStyle(color: chart(2)),
-    'quote': TextStyle(color: muted, fontStyle: FontStyle.italic),
-    'selector-tag': TextStyle(color: chart(1)),
-    'selector-id': TextStyle(color: chart(5)),
-    'selector-class': TextStyle(color: chart(2)),
-    'selector-attr': TextStyle(color: chart(2)),
-    'selector-pseudo': TextStyle(color: chart(3)),
-    'template-tag': TextStyle(color: chart(1)),
-    'template-variable': TextStyle(color: chart(4)),
-    'addition': TextStyle(color: chart(3)),
-    'deletion': TextStyle(color: theme.colorScheme.destructive),
+    'formula': number,
+    'link': title,
+    'quote': comment,
+    'selector-tag': keyword,
+    'selector-id': title,
+    'selector-class': variable,
+    'selector-attr': variable,
+    'selector-pseudo': string,
+    'template-tag': keyword,
+    'template-variable': number,
+    'addition': string,
+    'deletion': TextStyle(color: code.destructiveInk),
   };
 
   try {

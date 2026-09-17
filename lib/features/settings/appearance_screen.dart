@@ -25,6 +25,9 @@ class AppearanceScreen extends ConsumerWidget {
         ref.watch(colorThemeControllerProvider).value ?? MantleTheme.defaultId;
     final random = ref.watch(randomThemeControllerProvider).value;
     final randomOn = random?.enabled ?? false;
+    final brainId = ref.watch(brainColorThemeProvider).value;
+    final followsBrain =
+        ref.watch(colorThemeFollowsBrainProvider).value ?? false;
 
     return Container(
       color: scheme.background,
@@ -134,6 +137,50 @@ class AppearanceScreen extends ConsumerWidget {
                   ShadCard(
                     child: Column(
                       children: [
+                        // The brain's own theme, as the web shows it: the
+                        // phone follows it until a theme below is picked.
+                        if (brainId != null)
+                          _Tappable(
+                            onTap: () {
+                              if (randomOn) {
+                                ref
+                                    .read(randomThemeControllerProvider.notifier)
+                                    .setEnabled(false);
+                              }
+                              ref
+                                  .read(colorThemeControllerProvider.notifier)
+                                  .followBrain();
+                            },
+                            child: Row(
+                              children: [
+                                _Swatches(
+                                  colors: MantleTheme.defFor(brainId)
+                                      .forBrightness(theme.brightness)
+                                      .swatches,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text("Brain's theme",
+                                          style: theme.textTheme.p),
+                                      Text(
+                                        '${MantleTheme.defFor(brainId).label} · set on the web',
+                                        style: theme.textTheme.muted,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (followsBrain)
+                                  Icon(LucideIcons.check,
+                                      size: 18, color: scheme.primary),
+                              ],
+                            ),
+                          ),
+                        if (brainId != null)
+                          Container(height: 1, color: scheme.border),
                         for (final def in kMantleThemes)
                           _Tappable(
                             onTap: () {
@@ -149,12 +196,18 @@ class AppearanceScreen extends ConsumerWidget {
                             },
                             child: Row(
                               children: [
-                                _Swatches(colors: def.swatches),
+                                // This mode's swatches, so the picker shows
+                                // the theme you would get, not its light half.
+                                _Swatches(
+                                  colors: def
+                                      .forBrightness(theme.brightness)
+                                      .swatches,
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                     child: Text(def.label,
                                         style: theme.textTheme.p)),
-                                if (def.id == selectedId)
+                                if (def.id == selectedId && !followsBrain)
                                   Icon(LucideIcons.check,
                                       size: 18, color: scheme.primary),
                               ],

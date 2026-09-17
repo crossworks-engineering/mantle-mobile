@@ -45,6 +45,12 @@ jobs:
           git diff --exit-code -- '*.g.dart' \
             || { echo '::error::Generated files are stale. Run: fvm dart run build_runner build'; exit 1; }
 
+      - name: Theme port is current
+        # lib/theme/mantle_themes.g.dart is generated from the copy of mantle's
+        # theme sources under tool/themes/ (not by build_runner). A stale port
+        # fails here; freshness of the copy itself is the themes-upstream job.
+        run: dart run tool/generate_themes.dart --check
+
       - run: flutter analyze
 
       - run: flutter test
@@ -74,3 +80,30 @@ jobs:
 
       - name: iOS release compiles
         run: flutter build ios --release --no-codesign
+
+  themes-upstream:
+    # The copy of mantle's theme sources under tool/themes/ must match what
+    # mantle main ships, or a theme changed on the web is silently missing on
+    # the phone. Fails the build on drift: run tool/sync_themes.sh, commit the
+    # regenerated port. mantle is public, so this is a plain shallow checkout.
+    name: theme sources match mantle main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/checkout@v5
+        with:
+          repository: crossworks-engineering/mantle
+          ref: main
+          path: .mantle
+          sparse-checkout: |
+            packages/share-ui/styles/themes.css
+            packages/share-ui/src/lib/theme-registry.gen.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Compare
+        run: |
+          diff -u tool/themes/themes.css .mantle/packages/share-ui/styles/themes.css \
+            && diff -u tool/themes/theme-registry.gen.ts .mantle/packages/share-ui/src/lib/theme-registry.gen.ts \
+            || { echo '::error::tool/themes/ is behind mantle main. Run: tool/sync_themes.sh, then commit.'; exit 1; }

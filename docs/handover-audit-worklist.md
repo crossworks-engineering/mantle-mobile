@@ -194,14 +194,14 @@ back, the file_picker pin). None of it can be done from a simulator.
   uses. The wordmark keeps the script. Jason has seen the screenshot and
   did not object; if it comes up, the reason is one header style, and the
   script face reads as a brand mark, which an agent name is not.
-- **Status colours are one set for all 43 themes.** Neither shadcn nor the
-  web's `globals.css` carries `success`/`warning`/`info` tokens (checked:
-  zero matches), so per-theme values do not exist to port. They live in
-  `lib/theme/mantle_theme.dart` as `MantleColors.success(brightness)` etc.
-  The theme generator (`tool/generate_themes.dart`) still points at the
-  pre-split path `~/Projects/mantle/apps/web`; the sources now live in the
-  jackdaw repo under `client/web/app/globals.css` and
-  `packages/web-ui/src/lib/themes.ts`. Fix the path before regenerating.
+- **Status colours are per theme since 2026-09-17.** The earlier note here
+  ("one set for all 43 themes; neither shadcn nor `globals.css` carries
+  them") described the pre-split web. mantle's theme system now emits
+  `success`/`warning`/`info` (+ `-foreground`, `-ink`), the primary and
+  destructive inks and a `code-*` palette per theme, and the phone ports all
+  of it (`docs/architecture.md`, "Theming"). The generator reads a checked-in
+  copy of mantle's `themes.css` under `tool/themes/`, refreshed by
+  `tool/sync_themes.sh`; CI fails on drift in either direction.
 
 ## Verify quickly
 

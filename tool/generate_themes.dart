@@ -1,174 +1,198 @@
-// Theme generator — ports Mantle's web color themes to the mobile app.
+// Theme generator — ports Mantle's web colour themes to the mobile app.
 //
-// Reads the web repo (default: ~/Projects/mantle/apps/web):
-//   • lib/themes.ts   — the theme registry (id, label, swatches, order)
-//   • app/globals.css — per-theme tokens (oklch / hex / hsl) for light + dark
-// and emits lib/theme/mantle_themes.g.dart: a const list of MantleThemeDef,
-// one per theme, with light/dark ShadColorScheme, chart ramps, radius, and the
-// three picker swatches. Colors are converted to sRGB at generation time so the
-// app does no runtime color math.
+// Source: the two GENERATED files mantle's own theme pipeline emits from its
+// authored seeds (mantle `packages/share-ui/themes/seeds.mjs`):
+//   • styles/themes.css              — every token, per theme, light + dark
+//   • src/lib/theme-registry.gen.ts  — id, label, order, picker swatches
+// A copy of both is checked in under tool/themes/ (`tool/sync_themes.sh`
+// refreshes it from a mantle checkout and records the commit). This
+// generator reads that copy, so a build never depends on a second repo, and
+// CI can regenerate and diff.
+//
+// Output: lib/theme/mantle_themes.g.dart — a const list of MantleThemeDef
+// (shape in lib/theme/mantle_theme_def.dart), one per theme, in registry
+// order, with every token converted to sRGB at generation time so the app does
+// no colour math at runtime.
 //
 // Run from the repo root:
-//   fvm dart run tool/generate_themes.dart [path-to-apps/web]
-//
-// Re-run whenever the web themes change. The output is committed.
+//   fvm dart run tool/generate_themes.dart            # write the .g.dart
+//   fvm dart run tool/generate_themes.dart --check    # exit 1 if it is stale
+//   fvm dart run tool/generate_themes.dart --from <path-to-share-ui>
 import 'dart:io';
 import 'dart:math' as math;
 
+const _fixtureDir = 'tool/themes';
+const _outPath = 'lib/theme/mantle_themes.g.dart';
+
 void main(List<String> args) {
-  final webDir = args.isNotEmpty
-      ? args.first
-      : '${Platform.environment['HOME']}/Projects/mantle/apps/web';
-  final themesTs = File('$webDir/lib/themes.ts');
-  final globalsCss = File('$webDir/app/globals.css');
-  if (!themesTs.existsSync() || !globalsCss.existsSync()) {
-    stderr.writeln('✗ Could not find themes.ts / globals.css under $webDir');
-    stderr.writeln('  Pass the path to apps/web as the first argument.');
+  final check = args.contains('--check');
+  final fromIdx = args.indexOf('--from');
+  final shareUi = fromIdx >= 0 && fromIdx + 1 < args.length
+      ? args[fromIdx + 1]
+      : null;
+
+  final cssFile = File(
+    shareUi == null ? '$_fixtureDir/themes.css' : '$shareUi/styles/themes.css',
+  );
+  final registryFile = File(
+    shareUi == null
+        ? '$_fixtureDir/theme-registry.gen.ts'
+        : '$shareUi/src/lib/theme-registry.gen.ts',
+  );
+  if (!cssFile.existsSync() || !registryFile.existsSync()) {
+    stderr.writeln('✗ Could not find themes.css / theme-registry.gen.ts at');
+    stderr.writeln('  ${cssFile.path}');
+    stderr.writeln('  ${registryFile.path}');
+    stderr.writeln('  Run tool/sync_themes.sh, or pass --from <share-ui dir>.');
     exit(1);
   }
 
-  final registry = _parseRegistry(themesTs.readAsStringSync());
-  final blocks = _parseCssBlocks(globalsCss.readAsStringSync());
+  final source = File('$_fixtureDir/SOURCE').existsSync()
+      ? File('$_fixtureDir/SOURCE').readAsStringSync().trim()
+      : 'unrecorded';
+  final output = generate(
+    registryTs: registryFile.readAsStringSync(),
+    themesCss: cssFile.readAsStringSync(),
+    source: source,
+  );
 
-  // clean-slate lives in :root / .dark; every other theme inherits from it and
-  // overrides via [data-color-theme="id"] / .dark[data-color-theme="id"].
-  final baseLight = blocks[':root'] ?? {};
-  final baseDark = blocks['.dark'] ?? {};
+  final dest = File(_outPath);
+  if (check) {
+    final current = dest.existsSync() ? dest.readAsStringSync() : '';
+    if (current != output) {
+      stderr.writeln(
+        '✗ $_outPath is stale against $_fixtureDir. '
+        'Run: fvm dart run tool/generate_themes.dart',
+      );
+      exit(1);
+    }
+    stdout.writeln('✅ $_outPath matches $_fixtureDir');
+    return;
+  }
+  dest.writeAsStringSync(output);
+  stdout.writeln('✅ wrote $_outPath');
+}
+
+/// The whole generated file, as a string. Pure: the test suite calls it too.
+String generate({
+  required String registryTs,
+  required String themesCss,
+  required String source,
+}) {
+  final registry = parseRegistry(registryTs);
+  final blocks = parseCssBlocks(themesCss);
+
+  // clean-slate is the baseline: it lives in `:root, .light` / `.dark`. Every
+  // other theme's block is emitted complete by mantle's generator, but the
+  // baseline is still layered underneath so a token that ever goes missing
+  // from a block inherits rather than turning magenta.
+  final baseLight = blocks[':root'] ?? const {};
+  final baseDark = blocks['.dark'] ?? const {};
   if (baseLight.isEmpty || baseDark.isEmpty) {
-    stderr.writeln('✗ Could not parse :root / .dark base blocks.');
-    exit(1);
+    throw StateError('Could not parse the :root / .dark baseline blocks.');
   }
 
   final defs = <String>[];
-  var mismatches = 0;
   for (final entry in registry) {
     final id = entry.id;
-    final light = {...baseLight, ...?blocks['[data-color-theme="$id"]']};
-    final dark = {...baseDark, ...?blocks['.dark[data-color-theme="$id"]']};
-    // clean-slate has no override block — it *is* the base.
-    final lightTokens = id == 'clean-slate' ? baseLight : light;
-    final darkTokens = id == 'clean-slate' ? baseDark : dark;
-
-    // Sanity check: the registry's first swatch is the light primary. Warn if
-    // our conversion drifts noticeably (helps catch a broken color parse).
-    final primary = _toArgb(lightTokens['--primary']!);
-    final swatch0 = _toArgb(entry.swatches[0]);
-    if (_dist(primary, swatch0) > 12) {
-      mismatches++;
-      stderr.writeln('  ⚠ $id: primary ${_hex(primary)} vs swatch ${_hex(swatch0)}');
+    final light = id == 'clean-slate'
+        ? baseLight
+        : {...baseLight, ...?blocks['[data-color-theme="$id"]']};
+    final dark = id == 'clean-slate'
+        ? baseDark
+        : {...baseDark, ...?blocks['.dark[data-color-theme="$id"]']};
+    if (id != 'clean-slate' &&
+        (blocks['[data-color-theme="$id"]'] == null ||
+            blocks['.dark[data-color-theme="$id"]'] == null)) {
+      throw StateError('Theme "$id" is in the registry but has no CSS block.');
     }
-
-    defs.add(_emitDef(entry, lightTokens, darkTokens));
+    defs.add(_emitDef(entry, light, dark));
   }
 
   final out = StringBuffer()
     ..writeln('// GENERATED by tool/generate_themes.dart — do not edit by hand.')
-    ..writeln('// Source: $webDir {lib/themes.ts, app/globals.css}')
+    ..writeln('// Source: mantle packages/share-ui @ $source')
+    ..writeln('//         (tool/themes/themes.css + theme-registry.gen.ts)')
     ..writeln('// Re-run: fvm dart run tool/generate_themes.dart')
     ..writeln('//')
     ..writeln('// ignore_for_file: lines_longer_than_80_chars')
     ..writeln("import 'package:flutter/widgets.dart';")
     ..writeln("import 'package:shadcn_ui/shadcn_ui.dart';")
     ..writeln()
-    ..writeln('/// One ported web color theme: light + dark [ShadColorScheme],')
-    ..writeln('/// the chart ramps, corner radius, and the picker swatches.')
-    ..writeln('@immutable')
-    ..writeln('class MantleThemeDef {')
-    ..writeln('  const MantleThemeDef({')
-    ..writeln('    required this.id,')
-    ..writeln('    required this.label,')
-    ..writeln('    required this.radius,')
-    ..writeln('    required this.swatches,')
-    ..writeln('    required this.light,')
-    ..writeln('    required this.dark,')
-    ..writeln('    required this.lightChart,')
-    ..writeln('    required this.darkChart,')
-    ..writeln('  });')
+    ..writeln("import 'mantle_theme_def.dart';")
     ..writeln()
-    ..writeln('  final String id;')
-    ..writeln('  final String label;')
-    ..writeln('  final double radius;')
-    ..writeln('  /// Three preview colors (primary, accent, background) for the picker.')
-    ..writeln('  final List<Color> swatches;')
-    ..writeln('  final ShadColorScheme light;')
-    ..writeln('  final ShadColorScheme dark;')
-    ..writeln('  final List<Color> lightChart;')
-    ..writeln('  final List<Color> darkChart;')
-    ..writeln('}')
+    ..writeln("export 'mantle_theme_def.dart';")
     ..writeln()
-    ..writeln('/// All ported themes, in the web registry order. First is the default.')
-    ..writeln('const List<MantleThemeDef> kMantleThemes = [')
+    ..writeln('/// Every web colour theme, in the web registry order.')
+    ..writeln('const List<MantleThemeDef> kGeneratedThemes = [')
     ..writeln(defs.join('\n'))
     ..writeln('];');
-
-  final dest = File('lib/theme/mantle_themes.g.dart');
-  dest.writeAsStringSync(out.toString());
-  stdout.writeln('✅ wrote ${dest.path} — ${registry.length} themes'
-      '${mismatches > 0 ? " ($mismatches swatch warnings)" : ""}');
+  return out.toString();
 }
 
-// ── Registry (themes.ts) ─────────────────────────────────────────────────────
+// ── Registry (theme-registry.gen.ts) ─────────────────────────────────────────
 
-class _Entry {
-  _Entry(this.id, this.label, this.swatches);
+class RegistryEntry {
+  RegistryEntry(this.id, this.label, this.lightSwatches, this.darkSwatches);
   final String id;
   final String label;
-  final List<String> swatches;
+  final List<String> lightSwatches;
+  final List<String> darkSwatches;
 }
 
-List<_Entry> _parseRegistry(String ts) {
-  // Match: { id: "x", label: "Y", swatches: ["a", "b", "c"] }
-  final re = RegExp(
-    r'\{\s*id:\s*"([^"]+)",\s*label:\s*"([^"]+)",\s*swatches:\s*\[([^\]]+)\]',
+/// Parses the generated registry: objects of the form
+/// `{ id: 'x', label: 'X', swatches: { light: ['#…','#…','#…'], dark: […] } }`.
+List<RegistryEntry> parseRegistry(String ts) {
+  final entry = RegExp(
+    r"id:\s*'([^']+)',\s*label:\s*'([^']+)',\s*swatches:\s*\{\s*"
+    r"light:\s*\[([^\]]*)\],\s*dark:\s*\[([^\]]*)\]",
+    dotAll: true,
   );
-  final entries = <_Entry>[];
-  for (final m in re.allMatches(ts)) {
-    final swatches = RegExp('"([^"]+)"')
-        .allMatches(m.group(3)!)
-        .map((s) => s.group(1)!)
-        .toList();
-    entries.add(_Entry(m.group(1)!, m.group(2)!, swatches));
-  }
+  List<String> list(String s) => RegExp(r"'([^']+)'")
+      .allMatches(s)
+      .map((m) => m.group(1)!)
+      .toList();
+  final entries = [
+    for (final m in entry.allMatches(ts))
+      RegistryEntry(
+        m.group(1)!,
+        m.group(2)!,
+        list(m.group(3)!),
+        list(m.group(4)!),
+      ),
+  ];
+  if (entries.isEmpty) throw StateError('No themes found in the registry.');
   return entries;
 }
 
-// ── CSS blocks (globals.css) ─────────────────────────────────────────────────
+// ── CSS blocks (themes.css) ──────────────────────────────────────────────────
 
-/// selector → { '--token': 'value' }. Only the theme selectors we care about
-/// are kept. Line-based (the theme blocks are flat, column-0 selectors) so it's
-/// immune to nested at-rules (@layer / @theme / @media) elsewhere in the file.
-Map<String, Map<String, String>> _parseCssBlocks(String css) {
+/// `selector { --token: value; … }` → `{ firstSelector: { '--token': value } }`.
+/// Keyed by the FIRST selector of a comma list, so `:root, .light` reads as
+/// `:root` and `[data-color-theme="x"], [data-color-theme="x"] .light` as
+/// `[data-color-theme="x"]`. `@theme inline { … }` is skipped.
+Map<String, Map<String, String>> parseCssBlocks(String css) {
   final blocks = <String, Map<String, String>>{};
-  Map<String, String>? current;
-  for (final raw in css.split('\n')) {
-    final line = raw.trim();
-    if (current == null) {
-      if (!line.endsWith('{')) continue;
-      final selector = line.substring(0, line.length - 1).trim();
-      final wanted = selector == ':root' ||
-          selector == '.dark' ||
-          selector.contains('data-color-theme');
-      if (wanted) current = blocks[selector] = {};
-    } else {
-      if (line.startsWith('}')) {
-        current = null;
-        continue;
-      }
-      final i = line.indexOf(':');
-      if (i < 0) continue;
-      final key = line.substring(0, i).trim();
-      if (!key.startsWith('--')) continue;
-      var value = line.substring(i + 1).trim();
-      if (value.endsWith(';')) value = value.substring(0, value.length - 1).trim();
-      current[key] = value;
+  final block = RegExp(r'([^{}]+)\{([^{}]*)\}', multiLine: true);
+  for (final m in block.allMatches(css)) {
+    var selector = m.group(1)!.trim();
+    // Drop any leading comment.
+    selector = selector.replaceAll(RegExp(r'/\*.*?\*/', dotAll: true), '').trim();
+    if (selector.isEmpty || selector.startsWith('@')) continue;
+    final key = selector.split(',').first.trim();
+    final tokens = <String, String>{};
+    for (final d in RegExp(r'(--[\w-]+)\s*:\s*([^;]+);').allMatches(m.group(2)!)) {
+      tokens[d.group(1)!] = d.group(2)!.trim();
     }
+    if (tokens.isNotEmpty) blocks[key] = tokens;
   }
   return blocks;
 }
 
-// ── Emit one MantleThemeDef ──────────────────────────────────────────────────
+// ── Emission ─────────────────────────────────────────────────────────────────
 
-const _schemeTokens = <String, String>{
+/// ShadColorScheme field → web token.
+const _schemeTokens = {
   'background': '--background',
   'foreground': '--foreground',
   'card': '--card',
@@ -190,43 +214,69 @@ const _schemeTokens = <String, String>{
   'ring': '--ring',
 };
 
-String _emitDef(_Entry e, Map<String, String> light, Map<String, String> dark) {
-  String scheme(Map<String, String> t) {
-    final b = StringBuffer('ShadColorScheme(\n');
+/// MantleModeTokens field → web token, beyond the scheme.
+const _extraTokens = {
+  'primaryInk': '--primary-ink',
+  'destructiveInk': '--destructive-ink',
+  'success': '--success',
+  'successForeground': '--success-foreground',
+  'successInk': '--success-ink',
+  'warning': '--warning',
+  'warningForeground': '--warning-foreground',
+  'warningInk': '--warning-ink',
+  'info': '--info',
+  'infoForeground': '--info-foreground',
+  'infoInk': '--info-ink',
+  'codeKeyword': '--code-keyword',
+  'codeString': '--code-string',
+  'codeNumber': '--code-number',
+  'codeTitle': '--code-title',
+  'codeVariable': '--code-variable',
+};
+
+/// The tokens the port carries, for the drift test to enumerate.
+Map<String, String> get portedTokens => {..._schemeTokens, ..._extraTokens};
+
+String _emitDef(
+  RegistryEntry e,
+  Map<String, String> light,
+  Map<String, String> dark,
+) {
+  String mode(Map<String, String> t, List<String> swatches) {
+    final b = StringBuffer('MantleModeTokens(\n');
+    b.writeln('      scheme: ShadColorScheme(');
     _schemeTokens.forEach((field, token) {
+      b.writeln('        $field: ${_color(t[token])},');
+    });
+    // No web token for selection; mirror accent (matches shadcn's own base).
+    b.writeln('        selection: ${_color(t['--accent'])},');
+    b.writeln('      ),');
+    b.writeln('      swatches: [${swatches.map(_color).join(', ')}],');
+    final charts = [for (var i = 1; i <= 5; i++) _color(t['--chart-$i'])];
+    b.writeln('      chart: [${charts.join(', ')}],');
+    _extraTokens.forEach((field, token) {
       b.writeln('      $field: ${_color(t[token])},');
     });
-    // No web token for selection; mirror accent (matches the hand-written base).
-    b.writeln('      selection: ${_color(t['--accent'])},');
     b.write('    )');
     return b.toString();
   }
 
-  String charts(Map<String, String> t) {
-    final cs = [for (var i = 1; i <= 5; i++) _color(t['--chart-$i'])];
-    return '[${cs.join(', ')}]';
-  }
-
   final radiusPx = _radiusPx(light['--radius'] ?? dark['--radius']);
-  final sw = e.swatches.map((s) => _color(s)).join(', ');
 
   return '''
   MantleThemeDef(
     id: '${e.id}',
     label: '${e.label}',
     radius: $radiusPx,
-    swatches: [$sw],
-    light: ${scheme(light)},
-    dark: ${scheme(dark)},
-    lightChart: ${charts(light)},
-    darkChart: ${charts(dark)},
+    light: ${mode(light, e.lightSwatches)},
+    dark: ${mode(dark, e.darkSwatches)},
   ),''';
 }
 
-/// `Color(0xAARRGGBB)` literal for a CSS color string (falls back to opaque
+/// `Color(0xAARRGGBB)` literal for a CSS colour string (falls back to opaque
 /// magenta so a parse miss is glaringly visible rather than silent).
 String _color(String? css) =>
-    'Color(0x${(_toArgb(css ?? '') ?? 0xFFFF00FF).toRadixString(16).padLeft(8, '0').toUpperCase()})';
+    'Color(0x${(toArgb(css ?? '') ?? 0xFFFF00FF).toRadixString(16).padLeft(8, '0').toUpperCase()})';
 
 double _radiusPx(String? rem) {
   if (rem == null) return 8;
@@ -236,9 +286,11 @@ double _radiusPx(String? rem) {
   return (m.group(2) == 'px') ? v : v * 16; // rem → px (1rem = 16)
 }
 
-// ── Color parsing → 0xAARRGGBB ───────────────────────────────────────────────
+// ── Colour parsing → 0xAARRGGBB ──────────────────────────────────────────────
+// themes.css is all 6-digit hex today (mantle's generator normalises), but the
+// oklch / hsl / rgb paths stay so a hand-edited value still ports.
 
-int? _toArgb(String raw) {
+int? toArgb(String raw) {
   var s = raw.trim();
   if (s.isEmpty) return null;
   if (s.startsWith('#')) return _hexArgb(s);
@@ -296,8 +348,7 @@ int _hslArgb(String s) {
   return _argb(hue(p, q, h + 1 / 3), hue(p, q, h), hue(p, q, h - 1 / 3), a);
 }
 
-/// OKLCH → OKLab → linear sRGB → gamma sRGB. (The web stores most tokens as
-/// oklch(L C H), L in [0,1], C chroma, H degrees, optional `/ alpha`.)
+/// OKLCH → OKLab → linear sRGB → gamma sRGB.
 int _oklchArgb(String s) {
   final n = _numbers(s);
   final l = n[0], c = n[1], hDeg = n.length > 2 ? n[2] : 0.0;
@@ -320,17 +371,4 @@ int _oklchArgb(String s) {
   }
 
   return _argb(gamma(r), gamma(g), gamma(b), a);
-}
-
-// ── Small helpers for the swatch sanity check ────────────────────────────────
-
-String _hex(int? argb) =>
-    argb == null ? 'none' : '#${(argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
-
-double _dist(int? a, int? b) {
-  if (a == null || b == null) return 999;
-  final dr = ((a >> 16) & 0xFF) - ((b >> 16) & 0xFF);
-  final dg = ((a >> 8) & 0xFF) - ((b >> 8) & 0xFF);
-  final db = (a & 0xFF) - (b & 0xFF);
-  return math.sqrt((dr * dr + dg * dg + db * db).toDouble());
 }

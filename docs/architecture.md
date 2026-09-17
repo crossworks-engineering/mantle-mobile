@@ -121,7 +121,8 @@ lib/
     events/          events_controller.dart, events_screen.dart (+ add sheet)
     pending/         pending_controller.dart, pending_screen.dart — approvals
     settings/        theme_mode_controller.dart, settings_repository.dart
-                     color_theme_controller.dart  — selected color theme id
+                     color_theme_controller.dart  — colour theme id to paint
+                     brain_appearance_sync.dart   — follows the brain's theme
                      random_theme_controller.dart — shuffle mode + scheduler
                      location_controller.dart     — location sharing opt-in
                      push/                        — push enrollment screens
@@ -130,7 +131,8 @@ lib/
   widgets/           mantle_header.dart         — shared primary header bar
   routing/           app_router.dart           — go_router + redirect
   theme/             mantle_theme.dart          — theme builder + MantleColors
-                     mantle_themes.g.dart       — generated: all 42 color themes
+                     mantle_theme_def.dart      — the shape of one theme
+                     mantle_themes.g.dart       — generated: every web theme
   main.dart          ShadApp.router root
 ```
 
@@ -381,8 +383,8 @@ the bubble colour drive it). User messages stay plain `Text`. Built in phases:
    with a known language render through `code_highlight.dart` (re_highlight):
    a **curated ~26-language set** — importing `languages/all.dart` (~190
    grammars) blew test-bundle kernel compiles past 30 minutes — with the
-   colour map built from the active theme's chart ramp + tokens, so
-   highlighting follows light/dark and all 42 colour themes. Unknown
+   colour map is the active theme's own `code-*` inks, so
+   highlighting follows light/dark and every colour theme. Unknown
    languages and inline code fall through to the default stylesheet path.
 
 ### Attachments & voice
@@ -476,38 +478,67 @@ fallback, in [`data/chat/chat_repository.dart`](../lib/data/chat/chat_repository
 
 ## Theming (color themes)
 
-The app ships the **Jackdaw** theme plus all **42 of Mantle web's color themes**
-(Clean Slate, Claude, Cosmic Night, …), each with light + dark variants, plus
-the existing light/dark/system **mode** toggle. Two independent axes: *mode*
-(when to be dark) and *color theme* (which palette).
+The app paints **every colour theme the web has** — 43 today, including the
+brand themes `jackdaw`, `jackdaw-harvest` and `pinnacle` — each with light +
+dark variants, plus the light/dark/system **mode** toggle. Two independent
+axes: *mode* (when to be dark) and *color theme* (which palette). Nothing is
+hand-written on the phone: the brand themes are authored once, in mantle's
+seeds, and reach the phone through the same port as every other theme.
 
-- **Jackdaw is the default** and is the one theme NOT generated. It is
-  hand-written in [`theme/jackdaw_theme.dart`](../lib/theme/jackdaw_theme.dart)
-  from the app's own mark (brown `#2D1500`, cream `#FDE7BC`) and prepended to
-  `kMantleThemes` by `mantle_theme.dart`. It lives outside the generated file
-  because `generate_themes.dart` rewrites that wholesale.
-
+- **Source of truth.** mantle `packages/share-ui/themes/seeds.mjs` (authored)
+  → mantle's generator → `styles/themes.css` + `src/lib/theme-registry.gen.ts`
+  (generated). A copy of those two generated files is checked in under
+  [`tool/themes/`](../tool/themes/) with the mantle commit recorded in
+  `tool/themes/SOURCE`; [`tool/sync_themes.sh`](../tool/sync_themes.sh)
+  refreshes the copy from a mantle checkout and regenerates.
 - **Generated registry.** [`tool/generate_themes.dart`](../tool/generate_themes.dart)
-  reads the web repo (`apps/web/lib/themes.ts` + `app/globals.css` — ⚠️ that
-  path moved when the clients split out of the mantle monorepo on 2026-08-13;
-  the generator has not been repointed and will not run as written), converts
-  every token from oklch/hex/hsl → sRGB, and emits
-  [`theme/mantle_themes.g.dart`](../lib/theme/mantle_themes.g.dart): a const
-  `kMantleThemes` list of `MantleThemeDef` (id, label, radius, picker swatches,
-  light/dark `ShadColorScheme`, chart ramps). Re-run it when web themes change —
-  it is **not** part of `build_runner`. Output is committed.
+  reads that copy and emits
+  [`theme/mantle_themes.g.dart`](../lib/theme/mantle_themes.g.dart): the const
+  `kGeneratedThemes` list of `MantleThemeDef` (shape in
+  [`theme/mantle_theme_def.dart`](../lib/theme/mantle_theme_def.dart): id,
+  label, radius, and per mode a `ShadColorScheme`, the picker swatches, the
+  `chart-1..5` ramp, the `primary`/`destructive` inks, the `success` /
+  `warning` / `info` roles as fill + `-foreground` + ink, and the five
+  `code-*` inks). `--check` regenerates in memory and fails on drift. It is
+  **not** part of `build_runner`; the output is committed.
+- **Two CI gates** (`verify.yml`): the port must match the copy
+  (`generate_themes.dart --check`), and the copy must match mantle `main`
+  (the `themes-upstream` job, a sparse checkout of the two files). Either
+  drifting fails the build, so a theme changed on the web cannot be missing on
+  the phone without someone noticing.
+  [`test/theme/theme_port_test.dart`](../test/theme/theme_port_test.dart)
+  proves the same thing offline, token by token.
 - **Building a theme.** `MantleTheme.light(id)` / `.dark(id)` look the def up and
   build a `ShadThemeData` (shared text scale + per-theme radius). `MantleColors`
-  is an `InheritedWidget` placed above `ShadApp` that exposes the active theme's
-  `chart-1..5` ramp to the markdown renderer (charts have no shadcn home).
+  is an `InheritedWidget` placed above `ShadApp` that exposes the tokens
+  beyond the scheme — chart ramp, status fills and inks, code palette — to
+  the markdown renderer, the code highlighter and the status meters.
+- **Fill vs ink.** The web's contract, kept here: a fill (`success`) sits behind
+  its own `successForeground` (meters, dots, badges); an ink (`successInk`)
+  is the same role solved for text or an icon on a themed surface. Never a
+  fill as text. Callouts tint with the fill and draw their icon in the ink,
+  exactly as the web's callout view does.
 - **Selection + persistence.** `ColorThemeController` (mirrors
-  `ThemeModeController`) holds the selected id, persisted by `SettingsRepository`
-  (`color_theme` key, falls back to default if a stored id was removed from web).
+  `ThemeModeController`) holds the id to paint, resolved by
+  `SettingsRepository.colorTheme()` in order: a theme picked on this phone
+  (`color_theme`), else the brain's own theme (`brain_color_theme`), else
+  the default. A pick no longer in the registry is skipped, not defaulted.
+- **The brain's theme.** The colour theme is system-wide on the web, stored on
+  the anchor owner's profile and served by the public `GET /api/appearance`.
+  `BrainAppearanceSync` (keepAlive, watched from the app root like the alarm
+  sync) reads it on sign-in and on every foreground resume and stores
+  `colorTheme`, so a theme set on the web shows on the phone the next time it
+  comes to the front. The Appearance screen shows it as "Brain's theme" at the
+  top of the picker; picking any other theme is a local override, and tapping
+  the brain row again clears it. Changing server clears the stored brain
+  theme (it was the old server's). A brain theme the phone has no port for
+  paints the default until the next regenerate.
 - **Random rotation.** `RandomThemeController` owns the on/off + cadence
   (hour…week); `RandomThemeScheduler` (keepAlive, watched once from the app root)
   reshuffles on the interval and catches up on resume using a persisted
   `last-random-at` timestamp — only while foregrounded (a timer is pointless when
-  suspended). A manual pick turns rotation off. UI:
+  suspended). A shuffle is a local pick (it overrides the brain); a manual pick
+  turns rotation off. UI:
   [`features/settings/appearance_screen.dart`](../lib/features/settings/appearance_screen.dart).
 
 App icon is likewise generated, not hand-cut:

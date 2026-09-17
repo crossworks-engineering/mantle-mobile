@@ -17,6 +17,7 @@ class SettingsRepository {
 
   static const _themeModeKey = 'theme_mode';
   static const _colorThemeKey = 'color_theme';
+  static const _brainColorThemeKey = 'brain_color_theme';
   static const _randomThemeKey = 'random_theme_enabled';
   static const _randomIntervalKey = 'random_theme_interval_ms';
   static const _randomAtKey = 'random_theme_at_ms';
@@ -42,16 +43,46 @@ class SettingsRepository {
     return _db.setSetting(_themeModeKey, mode.name);
   }
 
-  /// The selected color-theme id, falling back to the default if unset or no
-  /// longer present in the registry (e.g. a theme removed from the web app).
+  /// The colour theme to paint, resolved in order: a theme picked on this
+  /// phone ([colorThemeOverride]), else the brain's system-wide theme
+  /// ([brainColorTheme], what the web shows), else the default. An id no
+  /// longer in the registry (a theme retired on the web) is skipped at each
+  /// step, so a stale pick falls through to the brain rather than to the
+  /// default.
   Future<String> colorTheme() async {
-    final raw = await _db.getSetting(_colorThemeKey);
-    final exists = raw != null && kMantleThemes.any((t) => t.id == raw);
-    return exists ? raw : MantleTheme.defaultId;
+    final picked = await colorThemeOverride();
+    if (picked != null) return picked;
+    final brain = await brainColorTheme();
+    if (brain != null) return brain;
+    return MantleTheme.defaultId;
   }
 
-  /// Persists the selected color-theme [id].
+  /// The theme picked on this phone, or null when the phone follows the
+  /// brain. Only a known id counts.
+  Future<String?> colorThemeOverride() async {
+    final raw = await _db.getSetting(_colorThemeKey);
+    return MantleTheme.has(raw) ? raw : null;
+  }
+
+  /// Persists a theme picked on this phone. From now on it wins over the
+  /// brain's theme until [clearColorThemeOverride].
   Future<void> setColorTheme(String id) => _db.setSetting(_colorThemeKey, id);
+
+  /// Forget the phone's own pick: the brain's theme shows again.
+  Future<void> clearColorThemeOverride() => _db.setSetting(_colorThemeKey, '');
+
+  /// The brain's system-wide colour theme as last read from
+  /// `GET /api/appearance`, or null when unknown or not a theme the phone
+  /// has. It belongs to the SERVER, not the account: it survives sign-out and
+  /// is cleared when the phone changes server.
+  Future<String?> brainColorTheme() async {
+    final raw = await _db.getSetting(_brainColorThemeKey);
+    return MantleTheme.has(raw) ? raw : null;
+  }
+
+  /// Remember the brain's theme (null / unknown clears it).
+  Future<void> setBrainColorTheme(String? id) =>
+      _db.setSetting(_brainColorThemeKey, id ?? '');
 
   /// Whether random-rotation mode is on (default off).
   Future<bool> randomThemeEnabled() async =>

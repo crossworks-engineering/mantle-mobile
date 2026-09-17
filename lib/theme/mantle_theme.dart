@@ -1,34 +1,24 @@
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'jackdaw_theme.dart';
-// Twice on purpose: unprefixed for the MantleThemeDef type, prefixed for the
-// generated list, whose name this file reuses for the combined registry below.
-import 'mantle_themes.g.dart' hide kMantleThemes;
-import 'mantle_themes.g.dart' as generated;
+import 'mantle_themes.g.dart';
 
-export 'jackdaw_theme.dart' show kJackdawTheme;
-export 'mantle_themes.g.dart' show MantleThemeDef;
+export 'mantle_theme_def.dart';
 
-/// Every theme the picker offers: the app's own [kJackdawTheme] first, then the
-/// themes ported from the web registry.
-///
-/// The Jackdaw entry is prepended here rather than added to
-/// `mantle_themes.g.dart`, because `tool/generate_themes.dart` rewrites that
-/// file from scratch and would drop it.
-const List<MantleThemeDef> kMantleThemes = [
-  kJackdawTheme,
-  ...generated.kMantleThemes,
-];
+/// Every theme the picker offers: the web's registry, in the web's order, as
+/// ported by `tool/generate_themes.dart` into `mantle_themes.g.dart`. The
+/// phone adds nothing of its own: the brand themes (`jackdaw`,
+/// `jackdaw-harvest`, `pinnacle`) are authored once, in mantle's seeds, and
+/// arrive here through the same port as every other theme.
+const List<MantleThemeDef> kMantleThemes = kGeneratedThemes;
 
-/// Builds [ShadThemeData] for any theme in [kMantleThemes] — the app's own
-/// [kJackdawTheme] plus the themes ported from the web registry, whose colour
-/// values live in `mantle_themes.g.dart` (produced by
-/// `tool/generate_themes.dart`). This class only adds the shared text scale and
-/// looks themes up.
+/// Builds [ShadThemeData] for any theme in [kMantleThemes]. This class only
+/// adds the shared text scale and looks themes up; the colour values live in
+/// the generated file.
 abstract final class MantleTheme {
-  /// The baseline theme id — used when nothing is stored or a persisted id is
-  /// no longer in the registry. The app's own brand theme.
+  /// The baseline theme id — used when nothing is stored, no brain theme is
+  /// known, or a persisted id is no longer in the registry. The brand theme
+  /// (the web's own default is `clean-slate`; the phone opens on its brand).
   static const String defaultId = 'jackdaw';
 
   /// The theme definition for [id], falling back to the default if unknown.
@@ -37,13 +27,17 @@ abstract final class MantleTheme {
         orElse: () => kMantleThemes.firstWhere((t) => t.id == defaultId),
       );
 
+  /// Whether [id] names a theme in the registry.
+  static bool has(String? id) =>
+      id != null && kMantleThemes.any((t) => t.id == id);
+
   static ShadThemeData light(String id) => _build(defFor(id), Brightness.light);
   static ShadThemeData dark(String id) => _build(defFor(id), Brightness.dark);
 
   static ShadThemeData _build(MantleThemeDef def, Brightness brightness) {
     return ShadThemeData(
       brightness: brightness,
-      colorScheme: brightness == Brightness.dark ? def.dark : def.light,
+      colorScheme: def.forBrightness(brightness).scheme,
       radius: BorderRadius.all(Radius.circular(def.radius)),
       textTheme: _textTheme(),
       // Every regular button is a 44pt target (shadcn's default is 40). Set
@@ -83,39 +77,50 @@ abstract final class MantleTheme {
   }
 }
 
-/// Exposes the active theme's `chart-1..chart-5` ramp to the widget tree. Unlike
-/// the [ShadColorScheme] tokens (which ShadApp threads through automatically),
-/// the chart colors have no shadcn home — the markdown renderer reads them from
-/// here for callout accents, asides, and colour spans. Placed above `ShadApp`
-/// so every route can resolve it.
+/// Exposes the active theme's tokens beyond [ShadColorScheme] to the widget
+/// tree: the chart ramp, the status roles (success / warning / info, each as a
+/// fill, its `-foreground`, and its ink), the primary and destructive inks,
+/// and the code palette. ShadApp threads the scheme through automatically;
+/// these have no shadcn home, so they ride an InheritedWidget placed above
+/// `ShadApp` where every route can resolve it.
+///
+/// Every value is PER THEME, ported from the web's `themes.css`: a `mono`
+/// success is as quiet as its own destructive, a `cyberpunk` one as loud.
+/// Fill vs ink: a fill (`success`) goes behind `successForeground` text — a
+/// meter, a dot, a badge; an ink (`successInk`) is the same role solved for
+/// text or an icon on a themed surface. Never use a fill as text.
 class MantleColors extends InheritedWidget {
   const MantleColors({required this.def, required super.child, super.key});
 
   final MantleThemeDef def;
 
+  /// The full token set for [brightness].
+  MantleModeTokens tokens(Brightness brightness) => def.forBrightness(brightness);
+
   /// chart-N (1-based, matching the web's `chart-1`..`chart-5`) for [brightness].
   /// Out-of-range N clamps into the palette.
   Color chart(Brightness brightness, int n) {
-    final list = brightness == Brightness.dark ? def.darkChart : def.lightChart;
+    final list = tokens(brightness).chart;
     return list[(n - 1).clamp(0, list.length - 1)];
   }
 
-  /// Status colours — the web's `success` / `warning` / `info` roles. The
-  /// ported themes carry no such tokens (shadcn only has `destructive`), so
-  /// one set serves every theme, tuned per brightness. Fills only: use them
-  /// for meters, dots and badges, never as text on a themed surface.
-  Color success(Brightness b) =>
-      b == Brightness.dark ? _StatusColors.successDark : _StatusColors.successLight;
-  Color warning(Brightness b) =>
-      b == Brightness.dark ? _StatusColors.warningDark : _StatusColors.warningLight;
-  Color info(Brightness b) =>
-      b == Brightness.dark ? _StatusColors.infoDark : _StatusColors.infoLight;
+  // Status fills — behind their own -foreground; meters, dots, badges.
+  Color success(Brightness b) => tokens(b).success;
+  Color warning(Brightness b) => tokens(b).warning;
+  Color info(Brightness b) => tokens(b).info;
+
+  // Status inks — text or an icon on a themed surface.
+  Color successInk(Brightness b) => tokens(b).successInk;
+  Color warningInk(Brightness b) => tokens(b).warningInk;
+  Color infoInk(Brightness b) => tokens(b).infoInk;
 
   /// Ink for text drawn ON a colour that is computed rather than themed (an
   /// agent's slug-derived avatar fill): black or white by the fill's own
   /// luminance, so the pairing rule holds for a fill no theme knows about.
-  static Color inkOn(Color fill) =>
-      fill.computeLuminance() > 0.45 ? _StatusColors.inkDark : _StatusColors.inkLight;
+  /// The only two colour literals outside the generated registry.
+  static Color inkOn(Color fill) => fill.computeLuminance() > 0.45
+      ? const Color(0xFF000000)
+      : const Color(0xFFFFFFFF);
 
   static MantleColors of(BuildContext context) {
     final widget = context.dependOnInheritedWidgetOfExactType<MantleColors>();
@@ -125,19 +130,4 @@ class MantleColors extends InheritedWidget {
 
   @override
   bool updateShouldNotify(MantleColors oldWidget) => oldWidget.def.id != def.id;
-}
-
-/// The only colour literals outside the theme definitions. Status roles the
-/// web has as tokens but the ported themes do not carry, plus the two inks
-/// for computed fills. Kept here so `lib/features` stays literal-free (the
-/// style ratchet test counts).
-abstract final class _StatusColors {
-  static const successLight = Color(0xFF15803D);
-  static const successDark = Color(0xFF4ADE80);
-  static const warningLight = Color(0xFFB45309);
-  static const warningDark = Color(0xFFFBBF24);
-  static const infoLight = Color(0xFF1D4ED8);
-  static const infoDark = Color(0xFF60A5FA);
-  static const inkLight = Color(0xFFFFFFFF);
-  static const inkDark = Color(0xFF000000);
 }

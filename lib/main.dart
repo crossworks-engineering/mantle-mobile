@@ -11,6 +11,7 @@ import 'core/lifecycle/app_lifecycle.dart';
 import 'data/push/deep_link.dart';
 import 'data/push/push_notifier.dart';
 import 'features/events/events_controller.dart';
+import 'features/settings/brain_appearance_sync.dart';
 import 'features/settings/color_theme_controller.dart';
 import 'features/settings/random_theme_controller.dart';
 import 'features/settings/theme_mode_controller.dart';
@@ -90,6 +91,8 @@ class _JackdawAppState extends ConsumerState<JackdawApp>
     // Keep device event-alarms synced on login + every foreground resume —
     // an event added from the web or by the assistant still rings here.
     ref.watch(eventAlarmSyncProvider);
+    // Follow the brain's colour theme (unless this phone picked its own).
+    ref.watch(brainAppearanceSyncProvider);
     final router = ref.watch(goRouterProvider);
 
     // MantleColors sits above ShadApp so every route can resolve the active

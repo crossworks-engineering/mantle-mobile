@@ -20,22 +20,18 @@ whole app stays visually consistent. When in doubt, match the existing screens
 
 ## Theme
 
-The default palette is **Jackdaw**, hand-written in
-[`lib/theme/jackdaw_theme.dart`](../lib/theme/jackdaw_theme.dart) from the app's
-own mark: brand brown `#2D1500` and cream `#FDE7BC`, radius 8. `primary` is the
-brown and `primaryForeground` the cream, so the header bar reproduces the app
-icon; dark mode inverts the pair. The chart ramp is the badge's sunset stripes.
-
-It sits OUTSIDE the generated registry on purpose —
-`tool/generate_themes.dart` rewrites `mantle_themes.g.dart` wholesale, so a
-theme added there would vanish on the next run.
-[`mantle_theme.dart`](../lib/theme/mantle_theme.dart) prepends it to
-`kMantleThemes` and names it as `defaultId`. The other 42 themes are still
-ported from Mantle web's `globals.css` and remain selectable. Don't hardcode
-colours — read tokens from `ShadTheme.of(context)`.
-
-Theme mode follows the system by default; the in-app **Theme** button cycles
-system → light → dark and **persists** (`ThemeModeController` → Drift).
+Every colour theme is the web's, ported: the brand default **Jackdaw**
+(orange `primary` wearing the brand brown as `primaryForeground`, cream
+surfaces; dark mode inverts), **Jackdaw Harvest**, **Pinnacle** and the
+forty others, all read from mantle's generated `themes.css` by
+[`tool/generate_themes.dart`](../tool/generate_themes.dart) into
+[`lib/theme/mantle_themes.g.dart`](../lib/theme/mantle_themes.g.dart).
+Nothing is hand-written on the phone — a brand colour changes in mantle's
+seeds, never here. [`mantle_theme.dart`](../lib/theme/mantle_theme.dart)
+names `jackdaw` as `defaultId`; the brain's own theme (`GET /api/appearance`)
+takes over on sign-in unless the phone picked a theme of its own. Don't
+hardcode colours — read tokens from `ShadTheme.of(context)`, and the tokens
+shadcn has no slot for from `MantleColors.of(context)`.
 
 ## Color tokens — `ShadTheme.of(context).colorScheme`
 
@@ -234,13 +230,17 @@ it, don't re-derive it.
   alarm rationale sheet in `events_screen.dart`), remembered so it shows
   once.
 
-## Status colours and the two exceptions
+## Status colours, inks, and the two exceptions
 
-shadcn has only `destructive`; the ported themes carry no `success` /
-`warning` / `info`. Those three live on `MantleColors`
-(`MantleColors.of(context).success(theme.brightness)` and friends), one set
-for every theme, tuned per brightness. They are **fills only** (meters, dots,
-badges), never text on a themed surface.
+The web's `success` / `warning` / `info` roles are ported **per theme** and
+live on `MantleColors`, beside `destructive` on the scheme. Each comes three
+ways, and the web's rule applies: a **fill** (`success(b)`) goes behind its
+own `-foreground` — meters, dots, badges; an **ink** (`successInk(b)`) is the
+same role solved for text or an icon on a themed surface. Never use a fill
+as text; a fill is tuned to sit behind text, not to be it. `primaryInk` and
+`destructiveInk` exist for the same reason. Code blocks use the theme's five
+`code-*` inks, not the chart ramp; chart colours are 3:1 data ink for charts,
+asides and colour spans.
 
 Two things are allowed to break the letter of the rules, both in
 `agent_avatar.dart` and both because the avatar is a generated graphic, not

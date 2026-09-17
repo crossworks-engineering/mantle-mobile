@@ -49,6 +49,8 @@ class SessionController extends _$SessionController {
   /// address goes, so the user is never stranded half-way.
   Future<void> changeServer() async {
     await signOut();
+    // The brain's theme is the old server's; the next one announces its own.
+    await ref.read(settingsRepositoryProvider).setBrainColorTheme(null);
     await ref.read(serverConfigProvider.notifier).setUrl('');
   }
 

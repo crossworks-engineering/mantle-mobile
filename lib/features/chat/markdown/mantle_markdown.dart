@@ -191,7 +191,7 @@ class _CalloutBuilder extends MarkdownElementBuilder {
   ) {
     final theme = ShadTheme.of(context);
     final variant = element.attributes['variant'] ?? 'info';
-    final accent = _calloutColor(context, theme, variant);
+    final (accent, ink) = _calloutColors(context, theme, variant);
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
       padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
@@ -205,7 +205,7 @@ class _CalloutBuilder extends MarkdownElementBuilder {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2, right: 10),
-            child: Icon(_calloutIcon(variant), size: 18, color: accent),
+            child: Icon(_calloutIcon(variant), size: 18, color: ink),
           ),
           Expanded(
             child: MantleMarkdown(
@@ -219,18 +219,27 @@ class _CalloutBuilder extends MarkdownElementBuilder {
     );
   }
 
-  Color _calloutColor(BuildContext context, ShadThemeData theme, String variant) {
-    final b = theme.brightness;
-    final colors = MantleColors.of(context);
+  /// The callout's colours are the theme's own status role — `success`,
+  /// `warning`, `info`, `destructive` — exactly as the web's callout view
+  /// draws them: the FILL tints the box and its edge, the role's INK colours
+  /// the icon (a fill is tuned to sit behind text, not to be a glyph on the
+  /// card). So a callout is green on `mono` for the same reason it is green
+  /// on `cyberpunk`, only as loud as that theme's own destructive.
+  (Color fill, Color ink) _calloutColors(
+    BuildContext context,
+    ShadThemeData theme,
+    String variant,
+  ) {
+    final t = MantleColors.of(context).tokens(theme.brightness);
     switch (variant) {
       case 'success':
-        return colors.chart(b, 4);
+        return (t.success, t.successInk);
       case 'warning':
-        return colors.chart(b, 5);
+        return (t.warning, t.warningInk);
       case 'danger':
-        return theme.colorScheme.destructive;
+        return (theme.colorScheme.destructive, t.destructiveInk);
       default:
-        return colors.chart(b, 2);
+        return (t.info, t.infoInk);
     }
   }
 

@@ -43,6 +43,30 @@ void main() {
       () async {
     await repo.setColorTheme('a-theme-that-was-removed');
     expect(await repo.colorTheme(), MantleTheme.defaultId);
+    expect(await repo.colorThemeOverride(), isNull);
+  });
+
+  test('the brain theme is the default until the phone picks its own',
+      () async {
+    await repo.setBrainColorTheme('pinnacle');
+    expect(await repo.colorTheme(), 'pinnacle');
+    expect(await repo.colorThemeOverride(), isNull);
+
+    await repo.setColorTheme('mono');
+    expect(await repo.colorTheme(), 'mono');
+
+    await repo.clearColorThemeOverride();
+    expect(await repo.colorTheme(), 'pinnacle');
+
+    await repo.setBrainColorTheme(null);
+    expect(await repo.brainColorTheme(), isNull);
+    expect(await repo.colorTheme(), MantleTheme.defaultId);
+  });
+
+  test('a retired pick falls through to the brain, not the default', () async {
+    await repo.setBrainColorTheme('claude');
+    await repo.setColorTheme('a-theme-that-was-removed');
+    expect(await repo.colorTheme(), 'claude');
   });
 
   test('account email is null until set, normalised, and cleared to null',
