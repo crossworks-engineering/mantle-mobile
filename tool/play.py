@@ -14,6 +14,8 @@ script never prints key material.
     tool/play.py promote --from internal --to beta   move the newest release
         [--notes "text"] [--draft]
     tool/play.py listings                     store-listing languages + titles
+    tool/play.py listing get [--lang en-US]   show the listing text
+    tool/play.py listing set DIR/listing.json set title / short / full description
     tool/play.py images DIR                   replace the listing graphics from
         [--lang en-US]                        DIR: icon-512.png, feature-*.png,
                                               phone-*.png (sorted order)
@@ -138,6 +140,14 @@ class Play:
         return self._call("GET", f"{API}/{self.package}/edits/{edit}/listings"
                           ).get("listings", [])
 
+    def listing_get(self, edit: str, lang: str) -> dict:
+        return self._call("GET", f"{API}/{self.package}/edits/{edit}/listings/{lang}")
+
+    def listing_set(self, edit: str, lang: str, text: dict) -> dict:
+        body = {"language": lang, **text}
+        return self._call("PUT", f"{API}/{self.package}/edits/{edit}/listings/{lang}",
+                          body=body)
+
     def images_delete_all(self, edit: str, lang: str, kind: str):
         self._call("DELETE", f"{API}/{self.package}/edits/{edit}/listings/{lang}/{kind}")
 
@@ -220,6 +230,27 @@ def cmd_listings(play: Play, _args):
         print(f"{l['language']:8} {l.get('title','')}")
 
 
+def cmd_listing(play: Play, args):
+    edit = play.edit_open()
+    if args.action == "get":
+        try:
+            l = play.listing_get(edit, args.lang)
+        finally:
+            play.edit_delete(edit)
+        for k in ("title", "shortDescription", "fullDescription", "video"):
+            v = l.get(k, "")
+            print(f"--- {k} ({len(v)} chars)\n{v}\n")
+        return
+    with open(args.file) as f:
+        text = json.load(f)
+    keep = {k: text[k] for k in ("title", "shortDescription", "fullDescription", "video")
+            if k in text}
+    play.listing_set(edit, args.lang, keep)
+    play.edit_commit(edit)
+    print(f"listing {args.lang} set: " + ", ".join(f"{k}={len(v)}" for k, v in keep.items()))
+    print("committed")
+
+
 IMAGE_KINDS = (  # Play imageType, file glob prefix
     ("icon", "icon-"),
     ("featureGraphic", "feature-"),
@@ -266,6 +297,11 @@ def main():
 
     sub.add_parser("listings", help="list store-listing languages")
 
+    li = sub.add_parser("listing", help="get or set the listing text")
+    li.add_argument("action", choices=["get", "set"])
+    li.add_argument("file", nargs="?", help="listing.json for set")
+    li.add_argument("--lang", default="en-US")
+
     im = sub.add_parser("images", help="replace the listing graphics from a directory")
     im.add_argument("dir")
     im.add_argument("--lang", default="en-US")
@@ -273,7 +309,8 @@ def main():
     args = p.parse_args()
     play = Play(args.package)
     {"tracks": cmd_tracks, "upload": cmd_upload, "promote": cmd_promote,
-     "listings": cmd_listings, "images": cmd_images}[args.cmd](play, args)
+     "listings": cmd_listings, "images": cmd_images,
+     "listing": cmd_listing}[args.cmd](play, args)
 
 
 if __name__ == "__main__":
