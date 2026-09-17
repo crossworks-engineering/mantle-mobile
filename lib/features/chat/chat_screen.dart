@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../core/format/dates.dart';
 import '../../data/agents/agent.dart';
 import '../../widgets/mantle_header.dart';
 import '../agents/agent_avatar.dart';
@@ -14,6 +15,7 @@ import '../../data/chat/turn_meta.dart';
 import 'attachment_view.dart';
 import 'chat_composer.dart';
 import 'chat_controller.dart';
+import 'chat_timeline.dart';
 import 'markdown/mantle_markdown.dart';
 import 'turn_stage_controller.dart';
 import 'turn_trail.dart';
@@ -33,6 +35,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scroll = ScrollController();
   late final ChatControllerProvider _provider =
       chatControllerProvider(widget.agentSlug);
+
+  /// Past this many pixels up the (reversed) list the newest message is out
+  /// of view: show the jump button and stop following new replies.
+  static const _scrolledUpThreshold = 300.0;
+
+  bool _scrolledUp = false;
+
+  /// Replies that landed while the user was scrolled up; shown on the jump
+  /// button instead of yanking the list down.
+  int _unseen = 0;
 
   @override
   void initState() {
@@ -62,12 +74,64 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (position.pixels >= position.maxScrollExtent - 300) {
       ref.read(_provider.notifier).loadMore();
     }
+    final up = position.pixels > _scrolledUpThreshold;
+    if (up != _scrolledUp) {
+      setState(() {
+        _scrolledUp = up;
+        if (!up) _unseen = 0;
+      });
+    }
+  }
+
+  void _jumpToLatest() {
+    if (_scroll.hasClients) {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+    setState(() => _unseen = 0);
+  }
+
+  /// New messages while scrolled up: the user's own send follows them down
+  /// (they want to see it land); a reply from the agent is counted on the
+  /// jump button and the list stays where it is.
+  void _onMessages(
+    AsyncValue<ChatState>? previous,
+    AsyncValue<ChatState> next,
+  ) {
+    final before = previous?.value?.messages;
+    final after = next.value?.messages;
+    if (before == null || after == null || after.isEmpty) return;
+    if (!_scrolledUp) return;
+    final known = {for (final m in before) m.id};
+    final horizon = before.isEmpty ? null : before.last.createdAt;
+    var replies = 0;
+    var sent = false;
+    for (final m in after) {
+      if (known.contains(m.id)) continue;
+      // Paged-in history is older than anything we had; only the tail counts.
+      if (horizon != null && !m.createdAt.isAfter(horizon)) continue;
+      if (m.isFromUser) {
+        sent = true;
+      } else {
+        replies++;
+      }
+    }
+    if (sent) {
+      _jumpToLatest();
+    } else if (replies > 0) {
+      setState(() => _unseen += replies);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final messages = ref.watch(_provider);
+    ref.listen(_provider, _onMessages);
+    final agent = agentBySlug(ref, widget.agentSlug);
 
     return Container(
       color: theme.colorScheme.background,
@@ -160,17 +224,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         );
                       }
                       // reverse:true → newest at the bottom.
-                      final message = list[list.length - 1 - adjusted];
+                      final index = list.length - 1 - adjusted;
+                      final message = list[index];
                       return _Bubble(
                         theme: theme,
                         message: message,
+                        // In a reversed list the divider sits above the first
+                        // message of its day, which is the item with the
+                        // higher index; it is part of that item, so paging
+                        // and the queued bubbles never see it.
+                        showDay: startsDay(list, index),
+                        showTime: showsTime(list, index),
                         onRetry: message.status == MessageStatus.failed
                             ? () => ref.read(_provider.notifier).retry(message)
                             : null,
                       );
                     },
                   );
-                  if (!chat.offline) return listView;
+                  final body = Stack(
+                    children: [
+                      listView,
+                      if (_scrolledUp)
+                        Positioned(
+                          right: 16,
+                          bottom: 12,
+                          child: _JumpToLatestButton(
+                            theme: theme,
+                            unseen: _unseen,
+                            onPressed: _jumpToLatest,
+                          ),
+                        ),
+                    ],
+                  );
+                  if (!chat.offline) return body;
                   // Serving from the on-device cache — say so, and offer a
                   // manual reconnect.
                   return Column(
@@ -215,22 +301,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ],
                         ),
                       ),
-                      Expanded(child: listView),
+                      Expanded(child: body),
                     ],
                   );
                 },
               ),
             ),
           ),
-          ChatComposer(provider: _provider, textController: _input),
+          ChatComposer(
+            provider: _provider,
+            textController: _input,
+            agentName: agent?.name ?? widget.agentSlug,
+          ),
         ],
       ),
     );
   }
 }
 
-/// Chat header for one agent: avatar + name (in Mantle's wordmark font); back on
-/// the right returns to the conversations inbox.
+/// The agent this thread belongs to, from the loaded agent list; null until
+/// the list arrives (callers fall back to the slug).
+Agent? agentBySlug(WidgetRef ref, String slug) {
+  final agents = ref.watch(agentControllerProvider).value?.agents;
+  for (final a in agents ?? const <Agent>[]) {
+    if (a.slug == slug) return a;
+  }
+  return null;
+}
+
+/// Chat header for one agent: avatar + name; back on the right returns to the
+/// conversations inbox.
 class _ChatHeader extends ConsumerWidget {
   const _ChatHeader({required this.agentSlug});
 
@@ -239,14 +339,7 @@ class _ChatHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fg = ShadTheme.of(context).colorScheme.primaryForeground;
-    final agents = ref.watch(agentControllerProvider).value?.agents;
-    Agent? agent;
-    for (final a in agents ?? const <Agent>[]) {
-      if (a.slug == agentSlug) {
-        agent = a;
-        break;
-      }
-    }
+    final agent = agentBySlug(ref, agentSlug);
 
     return MantleHeader(
       leading: _AgentIdentity(
@@ -302,20 +395,35 @@ class _AgentIdentity extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.theme, required this.message, this.onRetry});
+  const _Bubble({
+    required this.theme,
+    required this.message,
+    this.showDay = false,
+    this.showTime = false,
+    this.onRetry,
+  });
   final ShadThemeData theme;
   final ChatMessage message;
+
+  /// A day divider above this bubble (the first message of its day).
+  final bool showDay;
+
+  /// The clock time under this bubble (a gap since the previous message).
+  final bool showTime;
 
   /// Set for failed user messages — resends this turn.
   final VoidCallback? onRetry;
 
-  /// Long-press menu: copy the text, and retry if this send failed.
+  /// Long-press menu: the full time stamp, copy the text, and retry if this
+  /// send failed.
   Future<void> _showActions(BuildContext context) async {
     final hasText = message.text.trim().isNotEmpty;
-    if (!hasText && onRetry == null) return;
     final choice = await showShadSheet<String>(
       context: context,
       builder: (ctx) => ShadSheet(
+        title: Text(
+          '${formatDay(message.createdAt)} · ${formatTime(message.createdAt)}',
+        ),
         child: Padding(
           padding: const EdgeInsets.only(top: 8),
           child: Column(
@@ -425,10 +533,19 @@ class _Bubble extends StatelessWidget {
         crossAxisAlignment:
             fromUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
+          if (showDay) _DayDivider(theme: theme, at: message.createdAt),
           GestureDetector(
             onLongPress: () => _showActions(context),
             child: Opacity(opacity: sending || queued ? 0.6 : 1, child: bubble),
           ),
+          if (showTime)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Text(
+                formatTime(message.createdAt),
+                style: theme.textTheme.muted,
+              ),
+            ),
           // A failed USER send gets the retry affordance; a failed ASSISTANT
           // turn shows the server's failure reason instead (nothing to retry —
           // the user rephrases and sends again).
@@ -521,6 +638,103 @@ class _Bubble extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A centred day name between two days of messages: a rule either side of
+/// `Today` / `Yesterday` / `Fri 18 Sep`, in the muted text style.
+class _DayDivider extends StatelessWidget {
+  const _DayDivider({required this.theme, required this.at});
+
+  final ShadThemeData theme;
+  final DateTime at;
+
+  @override
+  Widget build(BuildContext context) {
+    final rule = Expanded(
+      child: Container(height: 1, color: theme.colorScheme.border),
+    );
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+      child: Row(
+        children: [
+          rule,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(formatDay(at), style: theme.textTheme.muted),
+          ),
+          rule,
+        ],
+      ),
+    );
+  }
+}
+
+/// The round "back to the newest message" button that floats above the
+/// composer once the user has scrolled up. With replies unseen it grows into
+/// a pill carrying the count.
+class _JumpToLatestButton extends StatelessWidget {
+  const _JumpToLatestButton({
+    required this.theme,
+    required this.unseen,
+    required this.onPressed,
+  });
+
+  final ShadThemeData theme;
+  final int unseen;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = theme.colorScheme;
+    final label = unseen == 0
+        ? 'Jump to latest'
+        : 'Jump to latest, $unseen new ${unseen == 1 ? 'reply' : 'replies'}';
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: Container(
+          height: 44,
+          constraints: const BoxConstraints(minWidth: 44),
+          padding: EdgeInsets.symmetric(horizontal: unseen == 0 ? 0 : 12),
+          // A halo in the screen's own fill keeps the button legible when it
+          // floats over a user bubble of the same primary colour.
+          decoration: BoxDecoration(
+            color: scheme.primary,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: scheme.background, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: scheme.foreground.withValues(alpha: 0.25),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (unseen > 0) ...[
+                Text(
+                  '$unseen',
+                  style: theme.textTheme.small.copyWith(
+                    color: scheme.primaryForeground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Icon(LucideIcons.arrowDown,
+                  size: 20, color: scheme.primaryForeground),
+            ],
+          ),
+        ),
       ),
     );
   }

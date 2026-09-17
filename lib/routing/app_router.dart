@@ -89,8 +89,17 @@ GoRouter goRouter(Ref ref) {
       ),
       GoRoute(
         path: '/files/image/:id',
-        builder: (context, state) => FileImageScreen(
+        builder: (context, state) => FileImageScreen.file(
           fileId: state.pathParameters['id']!,
+          name: state.uri.queryParameters['name'],
+        ),
+      ),
+      // A picture just sent from this device: the chat keeps its local
+      // preview after the turn lands, and no node id comes back with it.
+      GoRoute(
+        path: '/files/local-image',
+        builder: (context, state) => FileImageScreen.local(
+          localPath: state.uri.queryParameters['path'] ?? '',
           name: state.uri.queryParameters['name'],
         ),
       ),

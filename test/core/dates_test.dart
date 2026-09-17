@@ -33,6 +33,14 @@ void main() {
     });
   });
 
+  group('formatTime', () {
+    test('is a zero-padded 24-hour clock', () {
+      expect(formatTime(DateTime(2026, 9, 16, 9, 5)), '09:05');
+      expect(formatTime(DateTime(2026, 9, 16, 14, 32)), '14:32');
+      expect(formatTime(DateTime(2026, 9, 16, 0, 0)), '00:00');
+    });
+  });
+
   group('formatDue', () {
     test('counts days either side of today within a week', () {
       expect(formatDue(now, now: now), 'Today');

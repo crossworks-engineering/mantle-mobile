@@ -6,8 +6,9 @@
 ///   `Fri 18 Sep`, `Fri 18 Sep 2027`. Journal entries, event day headers.
 /// - [formatDue] — a deadline relative to today: `Today`, `Tomorrow`,
 ///   `In 3 days`, `Yesterday`, `3 days overdue`, else [formatDay]. Task rows.
+/// - [formatTime] — a clock time: `09:05`, `14:32`. Chat bubbles.
 ///
-/// All three work in the device's local time and take `now` for tests.
+/// All work in the device's local time; the relative ones take `now` for tests.
 library;
 
 const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -59,4 +60,13 @@ String formatDue(DateTime due, {DateTime? now}) {
   if (diff < 0 && diff > -7) return '${-diff} days overdue';
   if (diff > 0 && diff < 7) return 'In $diff days';
   return formatDay(t, now: n);
+}
+
+/// A clock time in the device's local zone, 24-hour: `09:05`, `14:32`. Under
+/// a chat bubble, next to a day name for a full stamp.
+String formatTime(DateTime at) {
+  final t = at.toLocal();
+  final h = t.hour.toString().padLeft(2, '0');
+  final m = t.minute.toString().padLeft(2, '0');
+  return '$h:$m';
 }

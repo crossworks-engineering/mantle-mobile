@@ -32,10 +32,14 @@ class ChatComposer extends ConsumerStatefulWidget {
     super.key,
     required this.provider,
     required this.textController,
+    required this.agentName,
   });
 
   final ChatControllerProvider provider;
   final TextEditingController textController;
+
+  /// Who the message goes to; the placeholder names them.
+  final String agentName;
 
   @override
   ConsumerState<ChatComposer> createState() => _ChatComposerState();
@@ -352,7 +356,9 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
           style: theme.textTheme.p,
           placeholderStyle: theme.textTheme.p.copyWith(color: muted),
           placeholder: Text(
-            _attachment != null ? 'Add a caption…' : 'Message Mantle…',
+            _attachment != null
+                ? 'Add a caption…'
+                : 'Message ${widget.agentName}…',
           ),
           maxLines: 6,
           minLines: 1,

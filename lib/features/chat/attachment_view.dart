@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/chat/chat_api.dart';
@@ -9,8 +10,9 @@ import '../../data/chat/chat_attachment.dart';
 import 'audio_bubble.dart';
 
 /// Renders one [ChatAttachment] beneath a message bubble. Images show inline
-/// (from disk when just-sent, else fetched authed by `nodeId`); everything else
-/// — documents, voice notes — shows as a labeled chip with its file type.
+/// (from disk when just-sent, else fetched authed by `nodeId`) and open full
+/// screen on tap; everything else — documents, voice notes — shows as a
+/// labeled chip with its file type.
 class AttachmentView extends StatelessWidget {
   const AttachmentView({
     super.key,
@@ -31,21 +33,33 @@ class AttachmentView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (attachment.isImage) {
+      final name = Uri.encodeComponent(attachment.caption ?? 'Image');
       if (attachment.localPath != null) {
-        return _frame(
-          Image.file(
-            File(attachment.localPath!),
-            fit: BoxFit.cover,
-            width: double.infinity,
-            errorBuilder: (_, _, _) => _chip(),
+        final path = attachment.localPath!;
+        return _openOnTap(
+          context,
+          '/files/local-image?path=${Uri.encodeComponent(path)}&name=$name',
+          _frame(
+            Image.file(
+              File(path),
+              fit: BoxFit.cover,
+              width: double.infinity,
+              errorBuilder: (_, _, _) => _chip(),
+            ),
           ),
         );
       }
       if (attachment.nodeId != null) {
-        return _NetworkImageAttachment(
-          nodeId: attachment.nodeId!,
-          frame: _frame,
-          fallback: _chip,
+        // The fallback chip is tappable too: the full-screen view carries the
+        // Retry for a fetch that failed and was cached as such.
+        return _openOnTap(
+          context,
+          '/files/image/${attachment.nodeId}?name=$name',
+          _NetworkImageAttachment(
+            nodeId: attachment.nodeId!,
+            frame: _frame,
+            fallback: _chip,
+          ),
         );
       }
     }
@@ -61,6 +75,20 @@ class AttachmentView extends StatelessWidget {
       );
     }
     return _chip();
+  }
+
+  /// Tap opens the full-screen viewer at [route]; long-press still reaches the
+  /// bubble's own menu (this detector claims taps only).
+  Widget _openOnTap(BuildContext context, String route, Widget child) {
+    return Semantics(
+      button: true,
+      label: 'Open image',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.push(route),
+        child: child,
+      ),
+    );
   }
 
   /// Rounded, clipped, height-capped container shared by all inline images.
