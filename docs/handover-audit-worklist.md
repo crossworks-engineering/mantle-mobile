@@ -1,8 +1,8 @@
-# Handover: the audit worklist, items 8 to 11
+# Handover: the audit worklist, items 9 to 11
 
 _Written 2026-09-16 at the end of the session that wrote the audit and did
-items 1 to 6; updated 2026-09-17 after item 7. Item 7 is not pushed. Pick
-up here._
+items 1 to 6; updated 2026-09-17 after items 7 and 8. Items 7 and 8 are not
+pushed. Pick up here._
 
 > ### Start here
 >
@@ -13,9 +13,9 @@ up here._
 > 2. `fvm flutter analyze && fvm flutter test` — expect clean and **201**
 >    passing. A failure before you touch anything is not yours.
 > 3. The audit is `docs/audit-2026-09-16.md`; the worklist at its end is the
->    plan. Items 1 to 7 are done (commits `939d982` … `fd581d3`). This file
+>    plan. Items 1 to 8 are done (commits `939d982` … `491c747`). This file
 >    is what the doc does not say: the judgement calls, the traps, and where
->    item 8 starts.
+>    item 9 starts.
 
 ---
 
@@ -23,11 +23,11 @@ up here._
 
 | What                     | State                                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Branch                   | `main`, two commits ahead of origin (`fd581d3`, the doc commit). Items 1 to 6 and the CI fix are already on origin, so CI has run; the item 7 commits are **not pushed**. Push is Jason's call. |
-| Tests                    | 154 → 208. Analyzer clean.                                                                            |
+| Branch                   | `main`, four commits ahead of origin (item 7, its doc, item 8, this doc). Items 1 to 6 and the CI fix are on origin, so CI has run; items 7 and 8 are **not pushed**. Push is Jason's call. |
+| Tests                    | 154 → 212. Analyzer clean.                                                                            |
 | CI                       | `.github/workflows/verify.yml` exists but has never run (nothing pushed). The Android job uses `tool/ci/google-services.ci.json`; that placeholder was proven to build a release APK locally. |
 | Simulator                | An iPhone 17 (iOS 26) on the Mac has the app installed and **signed in to the dev brain**. `fvm flutter build ios --simulator --debug`, then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app` and `xcrun simctl launch booted crossworks.engineering.jackdaw`. The login survives reinstalls. Do NOT sign it out; a session cannot type credentials. |
-| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 7 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
+| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 8 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
 | Owner's scope rule       | No full editors for Pages or complex screens on the phone. Notes is the exception. Formulas, recall, tables, drawing: decide with Jason before any work. |
 
 ## Habits this repo expects (the ones that bit)
@@ -83,18 +83,33 @@ What landed, and the choices a later reader might question:
 - The composer takes `agentName`; `agentBySlug(ref, slug)` in
   `chat_screen.dart` is the shared lookup the header now uses as well.
 
-## Items 8 to 11, briefly
+## Item 8 is done (`491c747`)
 
-Item 8 starts at `lib/features/settings/settings_screen.dart:72`, the
-"coming soon" placeholder.
+- The server checked: `POST /api/auth/mobile-login` returns only the token
+  and `GET /api/profile` returns preferences plus a user id, no email. So
+  the app stores the email typed at sign-in (`SettingsRepository.
+  accountEmail`, key `account_email`, lower-cased) and clears it in
+  `SessionController._forgetAccountState`, which both sign-out and the 401
+  path call. A session from before this build shows no "Signed in as" row
+  until the next sign-in; that is by design, not a bug.
+- `appVersionProvider` (`lib/core/app_version.dart`, package_info_plus)
+  and `serverVersionProvider` (`lib/data/server/server_version.dart`,
+  autoDispose so a down server is re-asked when the screen reopens).
+- `SessionController.changeServer()` = `signOut()` then `setUrl('')`; the
+  gate's `build()` watches the URL and lands on `needsServer`, the router
+  does the rest. Tested, including the token-clear failure keeping the
+  address.
+- Clear cache calls `AppDatabase.clearUserData` (messages + outbox) and
+  invalidates the whole `chatControllerProvider` family so an open thread
+  reloads. The confirm says the outbox goes.
+- Seen on the simulator: the card, both versions, Clear cache end to end,
+  the Change server confirm (cancelled, the simulator's sign-in is kept).
 
-8. **Settings identity.** Show the server address (`serverConfigProvider`)
-   and the signed-in account (there is no profile endpoint in use; check
-   `/api/profile/*` on the server before adding one), the app version
-   (add `package_info_plus`) and server version (the probe already reads
-   `/api/version`; keep it), a "Change server" that signs out then routes to
-   `/setup`, and "Clear cache" (`AppDatabase.clearUserData` exists). The
-   placeholder text "Account & profile settings coming soon." goes.
+## Items 9 to 11, briefly
+
+Item 9 starts with the audit doc's "Layout and accessibility" list; the
+`ShadButton` size question is a theme-level one (`lib/theme/mantle_theme.dart`).
+
 9. **Tap targets and a11y.** The audit's list is in the doc under "Layout and
    accessibility". Fix `ShadButton` size at the theme level once rather than
    per call site if shadcn_ui 0.54 allows it; the small toggles need padding,
@@ -130,5 +145,5 @@ Item 8 starts at `lib/features/settings/settings_screen.dart:72`, the
 
 ```bash
 cd ~/Projects/jackdaw-mobile && fvm flutter analyze && fvm flutter test
-git log --oneline -11  # fd581d3 feat(chat) … fd98307 docs: audit
+git log --oneline -13  # 491c747 feat(settings) … fd98307 docs: audit
 ```
