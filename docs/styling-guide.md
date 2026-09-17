@@ -206,6 +206,13 @@ it, don't re-derive it.
 - **Header actions.** `HeaderAction(icon:, label:, onPressed:)` for every
   icon in a header's trailing slot. Never a hand-built `ShadButton.ghost`
   there.
+- **Pills.** `ChoicePill(label:, selected:, onTap:)` in `lib/widgets` for
+  every row of choices (tag filters, reminder leads, priority). It is
+  `secondary` at rest and `primary` when selected, and carries its own 44pt
+  padding, so it drops into a `Wrap` or a 44-tall horizontal list as is.
+- **Editing.** A list row opens a sheet with the few fields the row shows
+  (`EditTaskSheet`, `EventSheet`, `EntrySheet`). Long-press deletes. The
+  phone edits what it lists; it never opens a document editor.
 
 ## Touch and screen readers
 

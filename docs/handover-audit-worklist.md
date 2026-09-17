@@ -1,7 +1,7 @@
-# Handover: the audit worklist, items 10 and 11
+# Handover: the audit worklist, item 11
 
 _Written 2026-09-16 at the end of the session that wrote the audit and did
-items 1 to 6; updated 2026-09-17 after items 7, 8 and 9. Item 9 is not
+items 1 to 6; updated 2026-09-17 after items 7 to 10. Item 10 is not
 pushed. Pick up here._
 
 > ### Start here
@@ -13,9 +13,9 @@ pushed. Pick up here._
 > 2. `fvm flutter analyze && fvm flutter test` — expect clean and **201**
 >    passing. A failure before you touch anything is not yours.
 > 3. The audit is `docs/audit-2026-09-16.md`; the worklist at its end is the
->    plan. Items 1 to 9 are done (commits `939d982` … `6615253`). This file
+>    plan. Items 1 to 10 are done (commits `939d982` … `16afe21`). This file
 >    is what the doc does not say: the judgement calls, the traps, and where
->    item 10 starts.
+>    item 11 starts.
 
 ---
 
@@ -23,11 +23,11 @@ pushed. Pick up here._
 
 | What                     | State                                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Branch                   | `main`, two commits ahead of origin (item 9 and this doc). Items 1 to 8 are pushed (2026-09-17); their CI run was still in progress when this was written, check `gh run list`. Push is Jason's call. |
-| Tests                    | 154 → 213. Analyzer clean.                                                                            |
+| Branch                   | `main`, two commits ahead of origin (item 10 and this doc). Items 1 to 9 are pushed and CI was green through item 8 (item 9's run: check `gh run list`). Push is Jason's call. |
+| Tests                    | 154 → 219. Analyzer clean.                                                                            |
 | CI                       | `.github/workflows/verify.yml` exists but has never run (nothing pushed). The Android job uses `tool/ci/google-services.ci.json`; that placeholder was proven to build a release APK locally. |
 | Simulator                | An iPhone 17 (iOS 26) on the Mac has the app installed and **signed in to the dev brain**. `fvm flutter build ios --simulator --debug`, then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app` and `xcrun simctl launch booted crossworks.engineering.jackdaw`. The login survives reinstalls. Do NOT sign it out; a session cannot type credentials. |
-| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 9 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
+| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 10 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
 | Owner's scope rule       | No full editors for Pages or complex screens on the phone. Notes is the exception. Formulas, recall, tables, drawing: decide with Jason before any work. |
 
 ## Habits this repo expects (the ones that bit)
@@ -132,13 +132,33 @@ What landed, and the choices a later reader might question:
   "Not now" is remembered too. Seen once on the simulator; the OS prompt did
   not follow because the simulator had already granted notifications.
 
-## Items 10 and 11, briefly
+## Item 10 is done (`16afe21`)
 
-10. **Parity that fits the phone.** Tasks due date and priority, Events edit
-    and a real time picker, Journal edit/delete and rendering the assistant's
-    `kind: 'gap'` questions. The APIs already accept most of this
-    (`tasks_api.dart` has `create(dueAt:)`, `events_api.dart` has
-    `create(endsAt:)`, the models are missing `kind`). **Not** Pages editing.
+- Each edit is a sheet with the fields the list shows, opened by a tap on
+  the row (long-press still deletes, in Tasks and Events). `EditTaskSheet`
+  in `tasks_screen.dart`; `EventSheet` (add and edit, one widget) in
+  `events_screen.dart`; `EntrySheet` in `journal_screen.dart`.
+- The controllers' method is `edit`, not `update`: Riverpod 3's
+  `AsyncNotifier` already has an `update`, and the analyzer said so.
+- PATCH bodies carry only what changed. Tasks re-fetch quietly after an
+  edit so the server's due-date order holds; Events re-sort locally and
+  re-arm alarms; Journal swaps the row in place (its date does not move).
+- Journal's model gained `kind`, `status`, `author`, `agentSlug`. An open
+  gap shows a warning dot + "Open question" (fills only, per the guide)
+  and its sheet takes an answer, posting to `/api/journal/{id}/resolve`.
+  Not seen on the simulator: the dev brain had no open question at the
+  time; the controller path is unit-tested (`answerGap`).
+- `ChoicePill` (`lib/widgets/choice_pill.dart`) replaced the three chip
+  copies. Notes' and Search's horizontal lists are 44 tall to match.
+- Seen on the simulator with throwaway rows, then deleted: task edit (due
+  date + priority land in the row), event edit (the reminder change lands;
+  the "Just a test event" on the dev brain now carries a 5-minute lead),
+  journal edit and delete.
+- The time picker is `ShadTimePicker` (hours + minutes, 24h). It replaced
+  the HH:MM text box in the event sheet; no parsing remains.
+
+## Item 11, briefly
+
 11. **Tests** for what is still uncovered: `EventAlarms.sync`,
     `PushDecryptor`, flush-on-resume, and the first screen widget tests.
 
@@ -162,5 +182,5 @@ What landed, and the choices a later reader might question:
 
 ```bash
 cd ~/Projects/jackdaw-mobile && fvm flutter analyze && fvm flutter test
-git log --oneline -15  # 6615253 a11y … fd98307 docs: audit
+git log --oneline -17  # 16afe21 feat: edit … fd98307 docs: audit
 ```
