@@ -21,6 +21,7 @@ class SettingsRepository {
   static const _randomIntervalKey = 'random_theme_interval_ms';
   static const _randomAtKey = 'random_theme_at_ms';
   static const _locationSharingKey = 'location_sharing';
+  static const _accountEmailKey = 'account_email';
 
   /// Default random-rotation cadence (12 hours), mirroring the web app.
   static const Duration defaultRandomInterval = Duration(hours: 12);
@@ -84,6 +85,21 @@ class SettingsRepository {
 
   Future<void> setLocationSharing(bool enabled) =>
       _db.setSetting(_locationSharingKey, enabled.toString());
+
+  /// The email the current session was signed in with, or null when signed
+  /// out. Mantle's login reply carries no identity and `/api/profile` gives
+  /// preferences, not an email, so the app remembers what was typed. Stored
+  /// lower-cased and trimmed, as the server keys it.
+  Future<String?> accountEmail() async {
+    final raw = await _db.getSetting(_accountEmailKey);
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
+
+  Future<void> setAccountEmail(String email) =>
+      _db.setSetting(_accountEmailKey, email.trim().toLowerCase());
+
+  /// Forget the account (the session ended). An empty value reads as null.
+  Future<void> clearAccountEmail() => _db.setSetting(_accountEmailKey, '');
 }
 
 @Riverpod(keepAlive: true)

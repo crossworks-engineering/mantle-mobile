@@ -5,6 +5,7 @@ import '../../data/auth/session_wipe.dart';
 import '../../data/auth/token_store.dart';
 import '../../data/server/server_config.dart';
 import '../agents/agent_controller.dart';
+import '../settings/settings_repository.dart';
 
 part 'session_controller.g.dart';
 
@@ -34,9 +35,21 @@ class SessionController extends _$SessionController {
       ref.read(serverConfigProvider.notifier).setUrl(url);
 
   /// Logs in and flips to `loggedIn`. Throws [AuthException] on bad credentials.
+  /// The email is remembered so Settings can say who is signed in.
   Future<void> signIn({required String email, required String password}) async {
     await ref.read(authRepositoryProvider).login(email: email, password: password);
+    await ref.read(settingsRepositoryProvider).setAccountEmail(email);
+    ref.invalidate(accountEmailProvider);
     state = const AsyncData(AuthStatus.loggedIn);
+  }
+
+  /// Leave this server: a full [signOut] (server revoke, local wipe), then
+  /// forget the address so `build()` lands on `needsServer` and the router
+  /// shows setup. A wipe that cannot clear the token throws before the
+  /// address goes, so the user is never stranded half-way.
+  Future<void> changeServer() async {
+    await signOut();
+    await ref.read(serverConfigProvider.notifier).setUrl('');
   }
 
   /// The user signs out: unpair push (needs the token), revoke the token,
@@ -47,7 +60,7 @@ class SessionController extends _$SessionController {
     await wipe.unpairPush();
     await ref.read(authRepositoryProvider).logout();
     await wipe.wipeLocal();
-    _forgetAccountState();
+    await _forgetAccountState();
     state = const AsyncData(AuthStatus.loggedOut);
   }
 
@@ -60,14 +73,22 @@ class SessionController extends _$SessionController {
     state = const AsyncData(AuthStatus.loggedOut);
     try {
       await ref.read(sessionWipeProvider).wipeLocal();
+      await _forgetAccountState();
     } catch (_) {
       /* the token clear failed; build() will re-read it on next launch */
     }
-    _forgetAccountState();
   }
 
   /// Caches keyed to the account, not the device.
-  void _forgetAccountState() {
+  Future<void> _forgetAccountState() async {
     ref.invalidate(agentControllerProvider);
+    await ref.read(settingsRepositoryProvider).clearAccountEmail();
+    ref.invalidate(accountEmailProvider);
   }
 }
+
+/// The signed-in email for display, null when signed out. Invalidated by the
+/// session controller whenever the account changes.
+@Riverpod(keepAlive: true)
+Future<String?> accountEmail(Ref ref) =>
+    ref.watch(settingsRepositoryProvider).accountEmail();

@@ -42,7 +42,7 @@ final class SessionControllerProvider
   SessionController create() => SessionController();
 }
 
-String _$sessionControllerHash() => r'a3df009c0ae600bd7a48cd4908babaf7adb85307';
+String _$sessionControllerHash() => r'49eb7a61dc87786663ea34d921859e25ffc80e2d';
 
 /// Single source of truth for "where should the app be?". Derived from the
 /// persisted server URL + the presence of a bearer token; the router redirects
@@ -65,3 +65,44 @@ abstract class _$SessionController extends $AsyncNotifier<AuthStatus> {
     return element.handleCreate(ref, build);
   }
 }
+
+/// The signed-in email for display, null when signed out. Invalidated by the
+/// session controller whenever the account changes.
+
+@ProviderFor(accountEmail)
+final accountEmailProvider = AccountEmailProvider._();
+
+/// The signed-in email for display, null when signed out. Invalidated by the
+/// session controller whenever the account changes.
+
+final class AccountEmailProvider
+    extends $FunctionalProvider<AsyncValue<String?>, String?, FutureOr<String?>>
+    with $FutureModifier<String?>, $FutureProvider<String?> {
+  /// The signed-in email for display, null when signed out. Invalidated by the
+  /// session controller whenever the account changes.
+  AccountEmailProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'accountEmailProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$accountEmailHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<String?> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<String?> create(Ref ref) {
+    return accountEmail(ref);
+  }
+}
+
+String _$accountEmailHash() => r'e3e8502e2266703d90d5077510b57c899c8c4c35';

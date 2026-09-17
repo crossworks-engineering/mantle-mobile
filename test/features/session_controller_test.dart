@@ -84,6 +84,9 @@ void main() {
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
     verify(() => authRepo.login(email: 'owner@example.com', password: 'pw'))
         .called(1);
+    // Settings shows who is signed in from this.
+    expect(await db.getSetting('account_email'), 'owner@example.com');
+    expect(await c.read(accountEmailProvider.future), 'owner@example.com');
   });
 
   test('signOut unpairs push, revokes, wipes, and flips to loggedOut', () async {
@@ -101,6 +104,52 @@ void main() {
       () => authRepo.logout(),
       () => wipe.wipeLocal(),
     ]);
+  });
+
+  test('signOut forgets the account email', () async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    await db.setSetting('account_email', 'owner@example.com');
+    when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
+    when(() => authRepo.logout()).thenAnswer((_) async {});
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    await c.read(sessionControllerProvider.notifier).signOut();
+
+    expect(await c.read(accountEmailProvider.future), isNull);
+  });
+
+  test('changeServer signs out, forgets the address, and lands on needsServer',
+      () async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
+    when(() => authRepo.logout()).thenAnswer((_) async {});
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    await c.read(sessionControllerProvider.notifier).changeServer();
+
+    verify(() => wipe.wipeLocal()).called(1);
+    expect(await db.getSetting('server_base_url'), '');
+    expect(
+      await c.read(sessionControllerProvider.future),
+      AuthStatus.needsServer,
+    );
+  });
+
+  test('changeServer keeps the address when the local wipe fails', () async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
+    when(() => authRepo.logout()).thenAnswer((_) async {});
+    when(() => wipe.wipeLocal()).thenThrow(Exception('keychain'));
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    await expectLater(
+      c.read(sessionControllerProvider.notifier).changeServer(),
+      throwsA(isA<Exception>()),
+    );
+    expect(await db.getSetting('server_base_url'), 'https://m.example.com');
   });
 
   test('signOut keeps the session when the local wipe cannot clear the token',

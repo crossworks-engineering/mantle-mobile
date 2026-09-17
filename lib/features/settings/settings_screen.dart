@@ -3,13 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../core/app_version.dart';
+import '../../data/db/database_provider.dart';
+import '../../data/server/server_config.dart';
+import '../../data/server/server_version.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/mantle_header.dart';
 import '../auth/session_controller.dart';
+import '../chat/chat_controller.dart';
 import 'location_controller.dart';
 
-/// Settings: appearance (theme), notifications, and account. Profile/account
-/// management beyond sign-out is a TODO.
+/// Settings: appearance, notifications, privacy, the account (who and where,
+/// with sign out and change server), and storage (clear the on-device
+/// cache).
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -65,14 +71,13 @@ class SettingsScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   Text('Account', style: theme.textTheme.small),
                   const SizedBox(height: 8),
+                  _IdentityCard(theme: theme),
+                  const SizedBox(height: 12),
                   _SignOutRow(theme: theme),
                   const SizedBox(height: 24),
-                  Center(
-                    child: Text(
-                      'Account & profile settings coming soon.',
-                      style: theme.textTheme.muted,
-                    ),
-                  ),
+                  Text('Storage', style: theme.textTheme.small),
+                  const SizedBox(height: 8),
+                  _ClearCacheRow(theme: theme),
                 ],
               ),
             ),
@@ -117,6 +122,244 @@ class _NavRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Who and where: the server address, the signed-in email, this build and
+/// the server's version. Facts, not controls; the one action is "Change
+/// server" under the address, which signs out first and lands on setup.
+class _IdentityCard extends ConsumerStatefulWidget {
+  const _IdentityCard({required this.theme});
+
+  final ShadThemeData theme;
+
+  @override
+  ConsumerState<_IdentityCard> createState() => _IdentityCardState();
+}
+
+class _IdentityCardState extends ConsumerState<_IdentityCard> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _changeServer() async {
+    final confirmed = await confirmDestructive(
+      context,
+      title: 'Change server?',
+      description: 'You are signed out of this server first: cached messages, '
+          'unsent messages, push keys and event alarms are removed. Then you '
+          'enter the new address.',
+      action: 'Sign out and change',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(sessionControllerProvider.notifier).changeServer();
+      // The router moves to /setup; this widget is gone.
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = "Couldn't clear the session on this device. Try again.";
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final scheme = theme.colorScheme;
+    final server = ref.watch(serverConfigProvider).value;
+    final email = ref.watch(accountEmailProvider).value;
+    final app = ref.watch(appVersionProvider).value;
+    final mantle = ref.watch(serverVersionProvider);
+    final mantleText = mantle.when(
+      loading: () => 'Checking…',
+      error: (_, _) => 'Unreachable',
+      data: (v) => v == null ? 'Unreachable' : 'Mantle $v',
+    );
+
+    final divider = Container(height: 1, color: scheme.border);
+    return ShadCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _InfoRow(
+            theme: theme,
+            icon: LucideIcons.server,
+            label: 'Server',
+            value: server ?? 'Not set',
+            trailing: ShadButton.link(
+              onPressed: _busy ? null : _changeServer,
+              padding: EdgeInsets.zero,
+              child: Text(_busy ? 'Signing out…' : 'Change server'),
+            ),
+          ),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                _error!,
+                style: theme.textTheme.small.copyWith(color: scheme.destructive),
+              ),
+            ),
+          // A session signed in before the email was recorded has none to
+          // show; the row appears from the next sign-in.
+          if (email != null) ...[
+            divider,
+            _InfoRow(
+              theme: theme,
+              icon: LucideIcons.user,
+              label: 'Signed in as',
+              value: email,
+            ),
+          ],
+          divider,
+          _InfoRow(
+            theme: theme,
+            icon: LucideIcons.smartphone,
+            label: 'App',
+            value: app == null ? 'Jackdaw' : 'Jackdaw $app',
+          ),
+          divider,
+          _InfoRow(
+            theme: theme,
+            icon: LucideIcons.brain,
+            label: 'Server version',
+            value: mantleText,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A label over a value, with an icon to the left; the value wraps rather
+/// than truncates because a server address has to be readable in full.
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.theme,
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.trailing,
+  });
+
+  final ShadThemeData theme;
+  final IconData icon;
+  final String label;
+  final String value;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: 18, color: scheme.mutedForeground),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: theme.textTheme.muted),
+                Text(value, style: theme.textTheme.p),
+                if (trailing != null)
+                  Align(alignment: Alignment.centerLeft, child: trailing),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Clear what the app keeps on the device for this account: the saved
+/// messages and the offline outbox. Settings and the session stay. Behind a
+/// confirm because the outbox holds messages not yet delivered.
+class _ClearCacheRow extends ConsumerStatefulWidget {
+  const _ClearCacheRow({required this.theme});
+
+  final ShadThemeData theme;
+
+  @override
+  ConsumerState<_ClearCacheRow> createState() => _ClearCacheRowState();
+}
+
+class _ClearCacheRowState extends ConsumerState<_ClearCacheRow> {
+  bool _busy = false;
+  String? _note;
+  bool _failed = false;
+
+  Future<void> _clear() async {
+    final confirmed = await confirmDestructive(
+      context,
+      title: 'Clear cache?',
+      description: 'Removes the messages saved on this device and any unsent '
+          'messages still waiting to go. Nothing on the server changes; '
+          'threads reload from it.',
+      action: 'Clear',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() {
+      _busy = true;
+      _note = null;
+      _failed = false;
+    });
+    try {
+      await ref.read(appDatabaseProvider).clearUserData();
+      // Open threads hold the old rows in memory; make them reload.
+      ref.invalidate(chatControllerProvider);
+      if (mounted) setState(() => _note = 'Cache cleared.');
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _note = "Couldn't clear the cache. Try again.";
+          _failed = true;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = widget.theme;
+    final scheme = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: double.infinity,
+          child: ShadButton.outline(
+            onPressed: _busy ? null : _clear,
+            leading: const Icon(LucideIcons.eraser, size: 16),
+            child: Text(_busy ? 'Clearing…' : 'Clear cache'),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8, left: 4, right: 4),
+          child: Text(
+            _note ?? 'Saved messages and the offline outbox. Your settings '
+                'and sign-in stay.',
+            style: theme.textTheme.muted.copyWith(
+              color: _failed ? scheme.destructive : null,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

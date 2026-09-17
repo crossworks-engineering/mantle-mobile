@@ -45,6 +45,15 @@ void main() {
     expect(await repo.colorTheme(), MantleTheme.defaultId);
   });
 
+  test('account email is null until set, normalised, and cleared to null',
+      () async {
+    expect(await repo.accountEmail(), isNull);
+    await repo.setAccountEmail('  Owner@Example.com ');
+    expect(await repo.accountEmail(), 'owner@example.com');
+    await repo.clearAccountEmail();
+    expect(await repo.accountEmail(), isNull);
+  });
+
   test('random mode defaults to off with the default interval', () async {
     expect(await repo.randomThemeEnabled(), isFalse);
     expect(await repo.randomInterval(), SettingsRepository.defaultRandomInterval);
