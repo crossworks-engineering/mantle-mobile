@@ -417,8 +417,9 @@ the bubble colour drive it). User messages stay plain `Text`. Built in phases:
 The composer ([`features/chat/chat_composer.dart`](../lib/features/chat/chat_composer.dart))
 is a two-row layout — the text field on top (grows to 6 lines), with the attach
 button (photo library / camera via **image_picker**, document via
-**file_picker**), the mic, and the send/stop button on the row below. Both
-attach and voice reuse Mantle's existing endpoints — no new server work:
+**file_picker**), the hold-to-talk mic, and the send/stop button on the row
+below. Both attach and voice reuse Mantle's existing endpoints — no new server
+work:
 
 - **Send.** A picked file rides on the turn as multipart
   (`POST /api/assistant/turn`, field `image` for pictures / `file` for the
@@ -447,11 +448,34 @@ attach and voice reuse Mantle's existing endpoints — no new server work:
   one-tap **Retry** (`ChatController.retry` drops the failed bubble and re-sends
   the text + attachment, reconstructed from the local preview). Long-pressing any
   message opens a sheet to **copy** its text (and retry, if it failed).
-- **Voice.** Tap the mic to record (**record** → `.m4a`/aac to a temp file, with
-  a live timer + cancel); tap send to stop → `POST /api/assistant/transcribe`
-  (Mantle's default STT worker) → the transcript is sent as a normal turn. A
-  missing STT worker (412) / failed transcription (422) surfaces the server's
-  message inline.
+- **Voice (dictation into any field).** One mechanism app-wide, in three
+  pieces:
+  [`features/voice/voice_capture.dart`](../lib/features/voice/voice_capture.dart)
+  `VoiceCapture` (the controller: permission → **record** → `.m4a` temp file
+  → `POST /api/assistant/transcribe` via `voiceTranscriberProvider` → the
+  words; a 60 s cap; a release that beats the recorder's start-up is a
+  no-op; states `idle | recording | transcribing`),
+  [`widgets/hold_to_talk_button.dart`](../lib/widgets/hold_to_talk_button.dart)
+  `HoldToTalkButton` (press-and-hold: hold records, release transcribes,
+  slide up/left discards; a plain tap toggles for anyone who cannot hold;
+  haptics on start/stop; a pulsing dot + elapsed while held), and
+  [`widgets/voice_text_field.dart`](../lib/widgets/voice_text_field.dart)
+  `VoiceTextField` (a `ShadInput` with the button inside its right edge,
+  height-neutral like `SecretInput`; `insertTranscript` puts the words at the
+  caret with spacing so a second hold extends). Every new-item field is a
+  `VoiceTextField`: task quick-add + edit title, note quick-add + edit
+  title/body, event title, journal composer + entry sheet. The chat composer
+  keeps its mic in the action row (a bare `HoldToTalkButton`) and inserts
+  into the field the same way. **Nothing auto-submits** — the transcript is
+  reviewed and then saved/sent by the normal button (Whisper invents words
+  on silence; same policy as the web `use-voice-input.ts`). The chat's old
+  tap-to-record → tap-to-send flow was retired 2026-09-17 for this. A failed
+  transcription (422) surfaces the server's message in the field's error
+  line; a missing STT worker (**412**) shows the hint once and
+  `SttAvailability` hides every mic for the rest of the session.
+  Recorders are built through `voiceRecorderFactoryProvider` and lazily, so
+  a screen that merely shows a mic never touches the plugin — tests override
+  the factory with `FakeVoiceRecorder` (`test/helpers/`).
 - **Render** ([`features/chat/attachment_view.dart`](../lib/features/chat/attachment_view.dart)).
   `ChatMessage.attachments` (`ChatAttachment`) drives it: an image shows inline —
   from `localPath` when just-sent, else fetched authed by `nodeId` via

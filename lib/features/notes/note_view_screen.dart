@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/notes/notes_models.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/voice_text_field.dart';
 import '../chat/markdown/mantle_markdown.dart';
 import 'notes_controller.dart';
 
@@ -210,17 +211,19 @@ class _NoteEditSheetState extends ConsumerState<_NoteEditSheet> {
             Text('Edit note',
                 style: theme.textTheme.h4.copyWith(color: scheme.foreground)),
             const SizedBox(height: 12),
-            ShadInput(
+            VoiceTextField(
               controller: _title,
               placeholder: const Text('Title'),
+              onError: (m) => setState(() => _error = m),
             ),
             const SizedBox(height: 8),
-            ShadInput(
+            VoiceTextField(
               controller: _content,
               placeholder: const Text('Write…'),
               style: theme.textTheme.p,
               minLines: 6,
               maxLines: 12,
+              onError: (m) => setState(() => _error = m),
             ),
             const SizedBox(height: 8),
             ShadInput(

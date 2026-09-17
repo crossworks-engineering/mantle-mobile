@@ -1,18 +1,16 @@
-import 'dart:async';
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart' show TextInputAction, TextSelection;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/chat/chat_attachment.dart';
+import '../../widgets/hold_to_talk_button.dart';
+import '../../widgets/voice_text_field.dart' show insertTranscript;
 import 'chat_controller.dart';
 
 /// Documents Mantle can ingest on a turn (mirrors the server's
@@ -21,12 +19,17 @@ const _docExtensions = [
   'pdf', 'docx', 'xlsx', 'xls', 'csv', 'txt', 'md', 'json', 'yaml', 'yml',
 ];
 
-enum _VoiceState { idle, recording, transcribing }
-
 /// The chat composer: a text input flanked by an attach button (photo / camera
 /// / document) and a mic. Attachments preview above the input and post as
-/// multipart with the turn. The mic is tap-to-record → tap-to-send (the
-/// recording is transcribed server-side, then sent) with a cancel.
+/// multipart with the turn.
+///
+/// The mic is the app's [HoldToTalkButton]: hold, speak, release, and the
+/// transcript lands in the field at the caret ([insertTranscript]) — it is
+/// NOT sent. Decided 2026-09-17, replacing the old tap-to-record →
+/// tap-to-send flow: every other field in the app dictates for review and
+/// the web composer does the same (`use-voice-input.ts`), Whisper invents
+/// words on silence, and Send is one tap away on the same row. A dictated
+/// message therefore always gets a look before it reaches the agent.
 class ChatComposer extends ConsumerStatefulWidget {
   const ChatComposer({
     super.key,
@@ -46,7 +49,6 @@ class ChatComposer extends ConsumerStatefulWidget {
 }
 
 class _ChatComposerState extends ConsumerState<ChatComposer> {
-  final _recorder = AudioRecorder();
   final _imagePicker = ImagePicker();
 
   OutgoingAttachment? _attachment;
@@ -54,19 +56,8 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   bool _sending = false;
   String? _error;
 
-  _VoiceState _voice = _VoiceState.idle;
-  Duration _elapsed = Duration.zero;
-  Timer? _ticker;
-
   TextEditingController get _input => widget.textController;
   ChatController get _notifier => ref.read(widget.provider.notifier);
-
-  @override
-  void dispose() {
-    _ticker?.cancel();
-    _recorder.dispose();
-    super.dispose();
-  }
 
   // ── Attachments ──────────────────────────────────────────────────────────
 
@@ -222,77 +213,15 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   // ── Voice ────────────────────────────────────────────────────────────────
 
-  Future<void> _startRecording() async {
-    setState(() => _error = null);
-    try {
-      if (!await _recorder.hasPermission()) {
-        _showError('Microphone permission is needed to record.');
-        return;
-      }
-      final dir = await getTemporaryDirectory();
-      final path =
-          '${dir.path}/voice-${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(const RecordConfig(), path: path);
-      if (!mounted) return;
-      setState(() {
-        _voice = _VoiceState.recording;
-        _elapsed = Duration.zero;
-      });
-      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
-      });
-    } catch (e) {
-      _showError("Couldn't start recording.");
-    }
-  }
-
-  Future<void> _cancelRecording() async {
-    _ticker?.cancel();
-    await _recorder.cancel();
-    if (mounted) setState(() => _voice = _VoiceState.idle);
-  }
-
-  Future<void> _stopAndSendRecording() async {
-    _ticker?.cancel();
-    String? path;
-    try {
-      path = await _recorder.stop();
-    } catch (_) {
-      path = null;
-    }
-    if (!mounted) return;
-    if (path == null) {
-      setState(() => _voice = _VoiceState.idle);
-      return;
-    }
-    setState(() => _voice = _VoiceState.transcribing);
-    try {
-      final text = await _notifier.transcribe(path);
-      if (!mounted) return;
-      if (text.isEmpty) {
-        _showError("Couldn't hear anything — try again.");
-      } else {
-        await _notifier.send(text);
-      }
-    } catch (e) {
-      _showError(_describeError(e));
-    } finally {
-      if (mounted) setState(() => _voice = _VoiceState.idle);
-    }
+  /// Dictated words go into the field for review, never straight to send
+  /// (see the class doc).
+  void _dictated(String text) {
+    insertTranscript(_input, text);
+    if (_error != null) setState(() => _error = null);
   }
 
   void _showError(String message) {
     if (mounted) setState(() => _error = message);
-  }
-
-  /// Surface the server's own message for a failed transcribe — e.g. the 412
-  /// "No default STT worker configured" hint, or a 422 provider error.
-  String _describeError(Object e) {
-    if (e is DioException) {
-      final data = e.response?.data;
-      if (data is Map && data['error'] is String) return data['error'] as String;
-    }
-    return "Couldn't transcribe the recording.";
   }
 
   // ── Build ────────────────────────────────────────────────────────────────
@@ -330,11 +259,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                     .copyWith(color: theme.colorScheme.destructive),
               ),
             ),
-          switch (_voice) {
-            _VoiceState.recording => _recordingRow(theme),
-            _VoiceState.transcribing => _transcribingRow(theme),
-            _VoiceState.idle => _inputRow(theme),
-          },
+          _inputRow(theme),
         ],
       ),
     );
@@ -370,9 +295,11 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
             _circleIcon(LucideIcons.paperclip, muted,
                 label: 'Attach a photo or file',
                 onPressed: _sending ? null : _openAttachMenu),
-            _circleIcon(LucideIcons.mic, muted,
-                label: 'Record a voice message',
-                onPressed: _sending ? null : _startRecording),
+            HoldToTalkButton(
+              enabled: !_sending,
+              onTranscript: _dictated,
+              onError: _showError,
+            ),
             const Spacer(),
             if (_sending) ...[
               Text('Sending…', style: theme.textTheme.muted),
@@ -390,53 +317,6 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
               ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _recordingRow(ShadThemeData theme) {
-    final scheme = theme.colorScheme;
-    return Row(
-      children: [
-        _circleIcon(LucideIcons.x, scheme.destructive,
-            label: 'Cancel recording', onPressed: _cancelRecording),
-        const SizedBox(width: 4),
-        Expanded(
-          child: Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: scheme.destructive,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                'Recording  ${_fmt(_elapsed)}',
-                style: theme.textTheme.p,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        ShadButton(
-          onPressed: _stopAndSendRecording,
-          child: const Icon(LucideIcons.arrowUp,
-              size: 18, semanticLabel: 'Send the recording'),
-        ),
-      ],
-    );
-  }
-
-  Widget _transcribingRow(ShadThemeData theme) {
-    return Row(
-      children: [
-        Icon(LucideIcons.loaderCircle,
-            size: 18, color: theme.colorScheme.mutedForeground),
-        const SizedBox(width: 10),
-        Text('Transcribing…', style: theme.textTheme.muted),
       ],
     );
   }
@@ -520,11 +400,5 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         ],
       ),
     );
-  }
-
-  String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString();
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
   }
 }

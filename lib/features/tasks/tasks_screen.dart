@@ -7,6 +7,7 @@ import '../../data/tasks/tasks_models.dart';
 import '../../core/format/dates.dart';
 import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/voice_text_field.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'tasks_controller.dart';
 
@@ -110,11 +111,12 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                     Expanded(
-                      child: ShadInput(
+                      child: VoiceTextField(
                         controller: _input,
                         focusNode: _inputFocus,
                         placeholder: const Text('Add a task…'),
                         onSubmitted: (_) => _add(),
+                        onError: (m) => setState(() => _error = m),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -397,11 +399,12 @@ class _EditTaskSheetState extends ConsumerState<EditTaskSheet> {
           children: [
             Text('Edit task', style: theme.textTheme.h4),
             const SizedBox(height: 12),
-            ShadInput(
+            VoiceTextField(
               controller: _title,
               placeholder: const Text('Title'),
               minLines: 1,
               maxLines: 3,
+              onError: (m) => setState(() => _error = m),
             ),
             const SizedBox(height: 16),
             Text('Due', style: theme.textTheme.muted),

@@ -488,9 +488,6 @@ class ChatController extends _$ChatController {
   /// Transcribe a recorded voice note to text (the composer then sends it as a
   /// normal turn). Throws on failure so the composer can surface the server's
   /// message (e.g. "no STT worker configured").
-  Future<String> transcribe(String audioPath) =>
-      ref.read(chatRepositoryProvider).transcribe(audioPath);
-
   /// Send a turn. [attachment] (optional) is an image or document picked
   /// locally; the user's bubble shows it immediately (from disk) and the turn
   /// posts it as multipart. Either [text] or [attachment] must be non-empty.

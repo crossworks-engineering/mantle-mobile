@@ -9,6 +9,7 @@ import '../../core/format/dates.dart';
 import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/voice_text_field.dart';
 import '../settings/settings_repository.dart';
 import 'events_controller.dart';
 
@@ -428,9 +429,10 @@ class _EventSheetState extends ConsumerState<EventSheet> {
             Text(_editing ? 'Edit event' : 'New event',
                 style: theme.textTheme.h4),
             const SizedBox(height: 12),
-            ShadInput(
+            VoiceTextField(
               controller: _title,
               placeholder: const Text('What is it?'),
+              onError: (m) => setState(() => _error = m),
             ),
             const SizedBox(height: 12),
             Center(

@@ -139,6 +139,20 @@ height (see the chat composer in `chat_screen.dart`). Don't hand-tune a fixed
   hints on so password managers still fill it. One widget, every secret.
 - Sign-in fields sit in one `AutofillGroup` with `AutofillHints.username` /
   `email` on the email and the password hint on the secret.
+- **A new-item field dictates.** Anything the phone would otherwise make you
+  type fresh — a task, a note, an event title, a journal entry — is a
+  [`VoiceTextField`](../lib/widgets/voice_text_field.dart): a `ShadInput` with
+  the app's [`HoldToTalkButton`](../lib/widgets/hold_to_talk_button.dart)
+  inside its right edge (hold, speak, release; slide away to discard; tap
+  toggles as the no-hold fallback). Same height trick as `SecretInput`: the
+  field's vertical padding moves onto the text (`inputPadding`) and the mic's
+  box is the 37pt inner height, 44 wide; a growing field keeps the mic on its
+  last line (`crossAxisAlignment: end`). The transcript lands at the caret and
+  **never submits**. Pass `onError:` when the screen has an error slot of its
+  own, else the field shows the line itself. The mic hides itself for the
+  session after a 412 (no STT worker), so never lay out around it. A
+  composer with its own action row (chat) uses the bare button there and
+  `insertTranscript` for the same insertion rule.
 - Multiline (chat composer): `minLines` / `maxLines` + `textInputAction`.
 - Error display: a `Text` below the field — `theme.textTheme.small` +
   `colorScheme.destructive`. **No** inline banners or dialogs for field errors.

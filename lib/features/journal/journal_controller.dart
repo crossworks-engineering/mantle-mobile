@@ -1,16 +1,14 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../data/chat/chat_repository.dart';
 import '../../data/journal/journal_api.dart';
 import '../../data/journal/journal_models.dart';
 
 part 'journal_controller.g.dart';
 
 /// Owns the journal: newest-first entries (first page) and quick capture.
-/// [capture] posts the body and slots the saved row in date order;
-/// [transcribe] routes a voice note through the assistant's STT endpoint (the
-/// same pipeline the chat composer uses) so an entry can be spoken instead of
-/// typed.
+/// [capture] posts the body and slots the saved row in date order. (A spoken
+/// entry is dictated into the composer's field by [VoiceTextField]; the
+/// controller only ever sees text.)
 ///
 /// The list is ordered here, by the date the screen shows
 /// ([JournalRow.displayDate]: the entry's own date when it has one, else when
@@ -107,11 +105,6 @@ class JournalController extends _$JournalController {
       /* keep current; refresh reconciles */
     }
   }
-
-  /// Voice note → text, via `POST /api/assistant/transcribe` (shared with the
-  /// chat composer — one STT pipeline for the whole app).
-  Future<String> transcribe(String audioPath) =>
-      ref.read(chatRepositoryProvider).transcribe(audioPath);
 }
 
 /// Newest [JournalRow.displayDate] first; ties broken by creation time so two

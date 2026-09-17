@@ -7,6 +7,7 @@ import '../../data/notes/notes_models.dart';
 import '../../core/format/dates.dart';
 import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
+import '../../widgets/voice_text_field.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'notes_controller.dart';
 
@@ -115,11 +116,12 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                     Expanded(
-                      child: ShadInput(
+                      child: VoiceTextField(
                         controller: _input,
                         focusNode: _inputFocus,
                         placeholder: const Text('Capture a note…'),
                         onSubmitted: (_) => _add(),
+                        onError: (m) => setState(() => _error = m),
                       ),
                     ),
                     const SizedBox(width: 8),
