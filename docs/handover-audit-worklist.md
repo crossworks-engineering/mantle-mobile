@@ -1,7 +1,8 @@
-# Handover: the audit worklist, items 7 to 11
+# Handover: the audit worklist, items 8 to 11
 
 _Written 2026-09-16 at the end of the session that wrote the audit and did
-items 1 to 6. Nothing is pushed. Pick up here._
+items 1 to 6; updated 2026-09-17 after item 7. Item 7 is not pushed. Pick
+up here._
 
 > ### Start here
 >
@@ -12,9 +13,9 @@ items 1 to 6. Nothing is pushed. Pick up here._
 > 2. `fvm flutter analyze && fvm flutter test` — expect clean and **201**
 >    passing. A failure before you touch anything is not yours.
 > 3. The audit is `docs/audit-2026-09-16.md`; the worklist at its end is the
->    plan. Items 1 to 6 are done (commits `939d982` … `264aa28`). This file
+>    plan. Items 1 to 7 are done (commits `939d982` … `fd581d3`). This file
 >    is what the doc does not say: the judgement calls, the traps, and where
->    item 7 starts.
+>    item 8 starts.
 
 ---
 
@@ -22,11 +23,11 @@ items 1 to 6. Nothing is pushed. Pick up here._
 
 | What                     | State                                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Branch                   | `main`, eight commits ahead of origin, **not pushed**. Push is Jason's call; it also runs CI for the first time. |
-| Tests                    | 154 → 201. Analyzer clean.                                                                            |
+| Branch                   | `main`, two commits ahead of origin (`fd581d3`, the doc commit). Items 1 to 6 and the CI fix are already on origin, so CI has run; the item 7 commits are **not pushed**. Push is Jason's call. |
+| Tests                    | 154 → 208. Analyzer clean.                                                                            |
 | CI                       | `.github/workflows/verify.yml` exists but has never run (nothing pushed). The Android job uses `tool/ci/google-services.ci.json`; that placeholder was proven to build a release APK locally. |
 | Simulator                | An iPhone 17 (iOS 26) on the Mac has the app installed and **signed in to the dev brain**. `fvm flutter build ios --simulator --debug`, then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app` and `xcrun simctl launch booted crossworks.engineering.jackdaw`. The login survives reinstalls. Do NOT sign it out; a session cannot type credentials. |
-| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 6 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
+| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 7 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
 | Owner's scope rule       | No full editors for Pages or complex screens on the phone. Notes is the exception. Formulas, recall, tables, drawing: decide with Jason before any work. |
 
 ## Habits this repo expects (the ones that bit)
@@ -49,57 +50,43 @@ items 1 to 6. Nothing is pushed. Pick up here._
 - The screens are ConsumerStatefulWidgets with no widget tests. Verify visual
   changes on the simulator: the three earlier sessions did, and it caught
   the Journal order bug the reviews had only read.
+- **Never run `dart format` on this repo.** The pinned formatter rewrites
+  files it touches in the newer style (2-space initializer lists and so
+  on), and the tree is not format-clean, so one run dirties eight files
+  that are not yours. Match the surrounding style by hand.
 
-## Item 7: chat timestamps, date grouping, scroll-to-bottom, image full-screen, the placeholder
+## Item 7 is done (`fd581d3`)
 
-All in `lib/features/chat/`. Anchors as of `264aa28`:
+What landed, and the choices a later reader might question:
 
-- **Placeholder.** `chat_composer.dart:355` reads `'Message Mantle…'`. The
-  composer is built at `chat_screen.dart:225` with `provider` and
-  `textController` only; the screen already has the agent name at
-  `chat_screen.dart:242-253` (`agents` from `agentControllerProvider`,
-  `agent?.name ?? agentSlug`). Pass the name in and say
-  `'Message <name>…'`. Smallest change on the list; do it first.
-- **Timestamps and date grouping.** `_Bubble` (`chat_screen.dart:304`) never
-  renders `createdAt`. The list is `ListView.builder(reverse: true)` at
-  `:132`, so index 0 is the newest message. Two things the web does:
-  a day divider when the day changes between neighbours (use `formatDay`
-  from `core/format/dates.dart`, which already gives "Today" / "Yesterday"
-  / "Fri 18 Sep"), and a time under a bubble when the gap to the previous
-  message is more than a few minutes, or on long-press. Keep the time in
-  `theme.textTheme.muted`; the ratchet forbids a smaller size. In a reversed
-  list the divider belongs *above* the first message of a day, which is the
-  item with the higher index; build the divider into the item builder, not
-  as separate list entries, or `loadMore`'s merge and the queued-bubble
-  ordering (`chat_controller.dart`, `_mergeLatest`) will have to know about
-  it.
-- **Scroll-to-bottom.** `_scroll` (`chat_screen.dart:33`) already drives
-  `_onScroll` for paging older history at the far end. Show a small round
-  button (primary + primaryForeground, 44pt, bottom-right above the
-  composer) when `_scroll.position.pixels > ~300` in the reversed list, and
-  animate to `0`. Bonus that matters: when a new outbound message lands
-  while scrolled up, show an unread count on it instead of yanking the list.
-- **Image full-screen.** `attachment_view.dart:33-50` renders local images
-  (`Image.file`) and `:183-200` renders server ones (`Image.memory` from
-  `fileBytesProvider`) with no tap handler. The route
-  `/files/image/:id?name=` already exists (`app_router.dart:91`) and
-  `files_screen.dart:151` shows how to build it; server attachments have a
-  node id, so wrap them in a `GestureDetector` and `context.push`. Local
-  previews (a just-sent picture) have only a path; either a tiny
-  full-screen route taking a path or accept that they open only after the
-  turn lands (the local preview is kept after landing, so the node id is
-  known then). Also the audit's bug list: `fileBytesProvider` is keepAlive
-  and caches a failed load as `null` forever (`chat_api.dart:439-451`);
-  give the image screen a Retry that invalidates it while you are there.
-- **Tests.** No widget tests exist; add controller-level ones where there is
-  logic (a pure `dayBoundaries(messages)` helper is easy to test) and
-  verify the rest on the simulator. The thread to open is the first inbox
-  row; it has messages from today and older.
-
-Commit as one item: `feat(chat): timestamps, day dividers, scroll-to-bottom,
-full-screen images, and the agent's name in the composer`.
+- `lib/features/chat/chat_timeline.dart` holds `startsDay` and `showsTime`
+  as pure functions over the oldest-first list; the item builder asks per
+  index, so the divider is part of the first message's item and
+  `loadMore` / `_mergeLatest` never see it. Tests in
+  `test/features/chat_timeline_test.dart`.
+- A time shows under a bubble when more than five minutes passed since the
+  message before it, or it starts a day. The long-press sheet's title is
+  the full stamp (`Yesterday · 15:33`). `formatTime` joined `dates.dart`.
+- The jump button is a `GestureDetector` + `Container` (primary +
+  primaryForeground, 44pt) with a 3pt halo in `background` and a soft
+  shadow: without the halo it vanished into a user bubble of the same
+  primary. A reply landing while scrolled up counts on the button; the
+  user's own send still follows them down. The count path was not seen on
+  the simulator (it needs a reply from elsewhere while scrolled up); the
+  logic is `_onMessages` in `chat_screen.dart`.
+- Images: server attachments push `/files/image/:id`; a just-sent picture
+  pushes `/files/local-image?path=` because the landed inbound row keeps
+  only the local preview (`chat_controller.dart:588`, no node id comes
+  back). `FileImageScreen` has `.file` and `.local` constructors and a
+  Retry that invalidates `fileBytesProvider`. The inline fallback chip is
+  tappable too, so a failed fetch can be retried from the full screen.
+- The composer takes `agentName`; `agentBySlug(ref, slug)` in
+  `chat_screen.dart` is the shared lookup the header now uses as well.
 
 ## Items 8 to 11, briefly
+
+Item 8 starts at `lib/features/settings/settings_screen.dart:72`, the
+"coming soon" placeholder.
 
 8. **Settings identity.** Show the server address (`serverConfigProvider`)
    and the signed-in account (there is no profile endpoint in use; check
@@ -143,5 +130,5 @@ full-screen images, and the agent's name in the composer`.
 
 ```bash
 cd ~/Projects/jackdaw-mobile && fvm flutter analyze && fvm flutter test
-git log --oneline -9   # 264aa28 style … fd98307 docs: audit
+git log --oneline -11  # fd581d3 feat(chat) … fd98307 docs: audit
 ```
