@@ -58,6 +58,34 @@ class TasksController extends _$TasksController {
     }
   }
 
+  /// Edit title, priority and due date from the edit sheet. Server first
+  /// (the sheet shows the failure), then the row is swapped in place and the
+  /// list re-fetched quietly so the server's due-date order holds.
+  Future<void> edit(
+    String id, {
+    String? title,
+    String? priority,
+    DateTime? dueAt,
+    bool clearDueAt = false,
+  }) async {
+    final updated = await ref.read(tasksApiProvider).update(
+          id,
+          title: title,
+          priority: priority,
+          dueAt: dueAt,
+          clearDueAt: clearDueAt,
+        );
+    if (!ref.mounted) return;
+    final current = state.value;
+    if (current != null) {
+      state = AsyncData([
+        for (final t in current)
+          if (t.id == id) updated else t,
+      ]);
+    }
+    await _reloadSilently();
+  }
+
   /// Delete a task (long-press action), optimistically.
   Future<void> delete(String id) async {
     final current = state.value;

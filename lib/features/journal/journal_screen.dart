@@ -10,6 +10,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/journal/journal_models.dart';
 import '../../core/format/dates.dart';
+import '../../theme/mantle_theme.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../../widgets/mantle_header.dart';
 import 'journal_controller.dart';
 
@@ -18,8 +20,9 @@ enum _VoiceState { idle, recording, transcribing }
 /// The journal: a quick-capture composer above newest-first entries. The mic
 /// makes the phone the brain's capture device — tap to record, tap to stop;
 /// the recording transcribes server-side (the chat's STT pipeline) into the
-/// text field for a quick review before saving. Backed by
-/// `GET/POST /api/journal` via [JournalController].
+/// text field for a quick review before saving. Tap an entry to edit or
+/// delete it; an assistant's open question opens with an answer box instead.
+/// Backed by `GET/POST/PATCH/DELETE /api/journal` via [JournalController].
 class JournalScreen extends ConsumerStatefulWidget {
   const JournalScreen({super.key});
 
@@ -221,8 +224,14 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                         itemCount: entries.length,
-                        itemBuilder: (context, i) =>
-                            _EntryCard(theme: theme, entry: entries[i]),
+                        itemBuilder: (context, i) => _EntryCard(
+                          theme: theme,
+                          entry: entries[i],
+                          onTap: () => showShadSheet<void>(
+                            context: context,
+                            builder: (_) => EntrySheet(entry: entries[i]),
+                          ),
+                        ),
                       ),
               ),
             ),
@@ -235,18 +244,32 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
 
 
 class _EntryCard extends StatelessWidget {
-  const _EntryCard({required this.theme, required this.entry});
+  const _EntryCard({
+    required this.theme,
+    required this.entry,
+    required this.onTap,
+  });
 
   final ShadThemeData theme;
   final JournalRow entry;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = theme.colorScheme;
     final onAccent = scheme.accentForeground;
+    final dim = onAccent.withValues(alpha: 0.6);
+    // An open question gets a warning dot (status colours are fills only)
+    // and says so; a resolved one is just a past entry with its label.
+    final gapLabel = entry.isGap
+        ? (entry.isOpenGap ? 'Open question' : 'Answered')
+        : null;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Container(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
           color: scheme.accent,
@@ -261,17 +284,38 @@ class _EntryCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     formatDay(entry.displayDate),
-                    style: theme.textTheme.small.copyWith(
-                      color: onAccent.withValues(alpha: 0.6),
-                    ),
+                    style: theme.textTheme.small.copyWith(color: dim),
                   ),
                 ),
-                if (entry.mood != null && entry.mood!.isNotEmpty)
+                if (gapLabel != null) ...[
+                  if (entry.isOpenGap)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: MantleColors.of(context)
+                              .warning(theme.brightness),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ),
+                  Text(
+                    gapLabel,
+                    style: theme.textTheme.small.copyWith(
+                      color: entry.isOpenGap ? onAccent : dim,
+                    ),
+                  ),
+                ] else if (entry.fromAgent)
+                  Text(
+                    entry.agentSlug ?? 'agent',
+                    style: theme.textTheme.small.copyWith(color: dim),
+                  )
+                else if (entry.mood != null && entry.mood!.isNotEmpty)
                   Text(
                     entry.mood!,
-                    style: theme.textTheme.small.copyWith(
-                      color: onAccent.withValues(alpha: 0.6),
-                    ),
+                    style: theme.textTheme.small.copyWith(color: dim),
                   ),
               ],
             ),
@@ -295,6 +339,166 @@ class _EntryCard extends StatelessWidget {
                 ),
               ),
             ],
+          ],
+        ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One entry, opened from the list. A plain entry edits in place and can be
+/// deleted (behind a confirm). An assistant's open question shows the
+/// question and takes an answer instead: answering resolves it and files
+/// the answer as an entry every agent carries from then on.
+class EntrySheet extends ConsumerStatefulWidget {
+  const EntrySheet({super.key, required this.entry});
+
+  final JournalRow entry;
+
+  @override
+  ConsumerState<EntrySheet> createState() => _EntrySheetState();
+}
+
+class _EntrySheetState extends ConsumerState<EntrySheet> {
+  late final _text = TextEditingController(
+    text: widget.entry.isOpenGap ? '' : widget.entry.body,
+  );
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<void> Function() action, String failure) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await action();
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _error = failure);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _save() {
+    final body = _text.text.trim();
+    if (body.isEmpty) {
+      setState(() => _error = 'Write something first.');
+      return Future.value();
+    }
+    final notifier = ref.read(journalControllerProvider.notifier);
+    return _run(
+      () => notifier.edit(widget.entry.id, body: body),
+      "Couldn't save the entry.",
+    );
+  }
+
+  Future<void> _answer() {
+    final answer = _text.text.trim();
+    if (answer.isEmpty) {
+      setState(() => _error = 'Write an answer first.');
+      return Future.value();
+    }
+    final notifier = ref.read(journalControllerProvider.notifier);
+    return _run(
+      () => notifier.answerGap(widget.entry.id, answer: answer),
+      "Couldn't save the answer.",
+    );
+  }
+
+  Future<void> _delete() async {
+    final ok = await confirmDestructive(
+      context,
+      title: 'Delete entry?',
+      description: 'This entry is removed from your brain.',
+      action: 'Delete',
+    );
+    if (!ok || !mounted) return;
+    final notifier = ref.read(journalControllerProvider.notifier);
+    await _run(() => notifier.delete(widget.entry.id), "Couldn't delete it.");
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    final entry = widget.entry;
+    final asking = entry.isOpenGap;
+    return ShadSheet(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              asking ? 'A question for you' : formatDay(entry.displayDate),
+              style: theme.textTheme.h4,
+            ),
+            if (entry.fromAgent) ...[
+              const SizedBox(height: 2),
+              Text(
+                'From ${entry.agentSlug ?? 'an agent'}',
+                style: theme.textTheme.muted,
+              ),
+            ],
+            const SizedBox(height: 12),
+            if (asking) ...[
+              Text(entry.body.isNotEmpty ? entry.body : entry.title,
+                  style: theme.textTheme.p),
+              const SizedBox(height: 12),
+            ],
+            ShadInput(
+              controller: _text,
+              placeholder: Text(asking ? 'Your answer…' : 'Entry'),
+              minLines: asking ? 2 : 3,
+              maxLines: 10,
+              enabled: !_busy,
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style:
+                    theme.textTheme.small.copyWith(color: scheme.destructive),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ShadButton(
+                onPressed: _busy ? null : (asking ? _answer : _save),
+                child: Text(
+                  _busy
+                      ? 'Saving…'
+                      : asking
+                          ? 'Answer'
+                          : 'Save',
+                ),
+              ),
+            ),
+            if (!asking) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ShadButton.outline(
+                  onPressed: _busy ? null : _delete,
+                  leading: const Icon(LucideIcons.trash2, size: 16),
+                  child: const Text('Delete'),
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
           ],
         ),
       ),

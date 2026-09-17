@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/notes/notes_models.dart';
 import '../../core/format/dates.dart';
+import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'notes_controller.dart';
@@ -173,8 +174,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                             padding:
                                 const EdgeInsets.symmetric(horizontal: 12),
                             children: [
-                              _TagChip(
-                                theme: theme,
+                              ChoicePill(
                                 label: 'All',
                                 selected: s.tag == null,
                                 onTap: () => ref
@@ -182,8 +182,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
                                     .setTag(null),
                               ),
                               for (final t in s.tags)
-                                _TagChip(
-                                  theme: theme,
+                                ChoicePill(
                                   label: '${t.tag} ${t.count}',
                                   selected: s.tag == t.tag,
                                   onTap: () => ref
@@ -241,54 +240,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
   }
 }
 
-class _TagChip extends StatelessWidget {
-  const _TagChip({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = theme.colorScheme;
-    // The pill stays small; the 44pt box it sits in is the target.
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: 44,
-          alignment: Alignment.center,
-          margin: const EdgeInsets.only(right: 6),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: selected ? scheme.primary : scheme.secondary,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              label,
-              style: theme.textTheme.small.copyWith(
-                color: selected
-                    ? scheme.primaryForeground
-                    : scheme.secondaryForeground,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 
 class _NoteTile extends StatelessWidget {

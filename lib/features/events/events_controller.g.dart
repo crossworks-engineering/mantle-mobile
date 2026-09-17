@@ -54,7 +54,7 @@ final class EventsControllerProvider
   EventsController create() => EventsController();
 }
 
-String _$eventsControllerHash() => r'3d96e7ff246e81066530c92c7eda116b2c2500dc';
+String _$eventsControllerHash() => r'728a33403bc759dee63e85a58e5b0ce549435842';
 
 /// Owns the upcoming-events list. Every successful load or mutation also
 /// re-syncs the device's LOCAL alarms ([EventAlarms.sync]) so what's on the

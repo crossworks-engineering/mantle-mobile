@@ -57,6 +57,31 @@ class EventsApi {
     );
   }
 
+  /// `PATCH /api/events/{id}` — edit what the phone's sheet shows. Only the
+  /// arguments given are sent; `clearLocation` sends `location: null`.
+  /// Returns the updated row.
+  Future<EventRow> update(
+    String id, {
+    String? title,
+    DateTime? startsAt,
+    String? location,
+    bool clearLocation = false,
+    int? remindMinutesBefore,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/api/events/$id',
+      data: {
+        'title': ?title,
+        if (startsAt != null) 'startsAt': startsAt.toUtc().toIso8601String(),
+        if (clearLocation) 'location': null else 'location': ?location,
+        'remindMinutesBefore': ?remindMinutesBefore,
+      },
+    );
+    return EventRow.fromJson(
+      (res.data?['event'] as Map).cast<String, dynamic>(),
+    );
+  }
+
   /// `PATCH /api/events/{id}` with a full replacement `tags` list — how this
   /// client persists the [kEventDoneTag] "done" marker (the server has no
   /// status field). Returns the updated row.

@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../data/events/event_alarms.dart';
 import '../../data/events/events_models.dart';
 import '../../core/format/dates.dart';
+import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../settings/settings_repository.dart';
@@ -13,9 +14,10 @@ import 'events_controller.dart';
 
 /// Upcoming events, soonest first, grouped by day. Each row shows the time,
 /// title, and reminder lead; the circle marks done (persisted as the `done`
-/// tag — the server has no event status). The + opens the add sheet. Every
-/// change re-syncs REAL device alarms (see EventAlarms) so events ring at
-/// their start time even offline.
+/// tag — the server has no event status). The + opens the add sheet; a tap
+/// on a row opens the same sheet to edit it. Every change re-syncs REAL
+/// device alarms (see EventAlarms) so events ring at their start time even
+/// offline.
 class EventsScreen extends ConsumerStatefulWidget {
   const EventsScreen({super.key});
 
@@ -80,7 +82,7 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                 label: 'Add event',
                 onPressed: () => showShadSheet<void>(
                   context: context,
-                  builder: (_) => const AddEventSheet(),
+                  builder: (_) => const EventSheet(),
                 ),
               ),
               HeaderAction(
@@ -152,6 +154,10 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
                             onToggle: () => ref
                                 .read(eventsControllerProvider.notifier)
                                 .setDone(e.id, done: !e.done),
+                            onTap: () => showShadSheet<void>(
+                              context: context,
+                              builder: (_) => EventSheet(existing: e),
+                            ),
                             onLongPress: () => _confirmDelete(e),
                           ),
                       ],
@@ -194,12 +200,14 @@ class _EventTile extends StatelessWidget {
     required this.theme,
     required this.event,
     required this.onToggle,
+    required this.onTap,
     required this.onLongPress,
   });
 
   final ShadThemeData theme;
   final EventRow event;
   final VoidCallback onToggle;
+  final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   @override
@@ -233,6 +241,7 @@ class _EventTile extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -318,69 +327,81 @@ class _Meta extends StatelessWidget {
   }
 }
 
-/// Add an event: title, day (calendar), time (HH:MM), optional location and
-/// reminder lead. Saves via [EventsController.add], which also arms the alarm.
-class AddEventSheet extends ConsumerStatefulWidget {
-  const AddEventSheet({super.key});
+/// Add or edit an event: title, day (calendar), time (a real picker), an
+/// optional location and the reminder lead. With [existing] it edits that
+/// event through [EventsController.edit]; without, it creates through
+/// [EventsController.add]. Both re-arm the local alarm.
+class EventSheet extends ConsumerStatefulWidget {
+  const EventSheet({super.key, this.existing});
+
+  final EventRow? existing;
 
   @override
-  ConsumerState<AddEventSheet> createState() => _AddEventSheetState();
+  ConsumerState<EventSheet> createState() => _EventSheetState();
 }
 
-class _AddEventSheetState extends ConsumerState<AddEventSheet> {
-  final _title = TextEditingController();
-  final _time = TextEditingController(text: '09:00');
-  final _location = TextEditingController();
-  DateTime _day = DateTime.now();
-  int _remind = 0;
+class _EventSheetState extends ConsumerState<EventSheet> {
+  late final _title = TextEditingController(text: widget.existing?.title);
+  late final _location =
+      TextEditingController(text: widget.existing?.location);
+  late DateTime _day = widget.existing?.startsAt.toLocal() ?? DateTime.now();
+  late ShadTimeOfDay _time = widget.existing == null
+      ? const ShadTimeOfDay(hour: 9, minute: 0, second: 0)
+      : ShadTimeOfDay.fromDateTime(widget.existing!.startsAt.toLocal());
+  late int _remind = widget.existing?.remindMinutesBefore ?? 0;
   bool _saving = false;
   String? _error;
 
   static const _remindChoices = [0, 5, 15, 30, 60];
 
+  bool get _editing => widget.existing != null;
+
   @override
   void dispose() {
     _title.dispose();
-    _time.dispose();
     _location.dispose();
     super.dispose();
   }
 
-  DateTime? _startsAt() {
-    final parts = _time.text.trim().split(':');
-    if (parts.length != 2) return null;
-    final h = int.tryParse(parts[0]);
-    final m = int.tryParse(parts[1]);
-    if (h == null || m == null || h < 0 || h > 23 || m < 0 || m > 59) {
-      return null;
-    }
-    return DateTime(_day.year, _day.month, _day.day, h, m);
-  }
+  DateTime get _startsAt =>
+      DateTime(_day.year, _day.month, _day.day, _time.hour, _time.minute);
 
   Future<void> _save() async {
     final title = _title.text.trim();
-    final startsAt = _startsAt();
     if (title.isEmpty) {
       setState(() => _error = 'Give the event a title.');
-      return;
-    }
-    if (startsAt == null) {
-      setState(() => _error = 'Time must be HH:MM (24h).');
       return;
     }
     setState(() {
       _saving = true;
       _error = null;
     });
+    final location = _location.text.trim();
+    final notifier = ref.read(eventsControllerProvider.notifier);
     try {
-      await ref.read(eventsControllerProvider.notifier).add(
-            title: title,
-            startsAt: startsAt,
-            location: _location.text.trim().isEmpty
-                ? null
-                : _location.text.trim(),
-            remindMinutesBefore: _remind,
-          );
+      final existing = widget.existing;
+      if (existing == null) {
+        await notifier.add(
+          title: title,
+          startsAt: _startsAt,
+          location: location.isEmpty ? null : location,
+          remindMinutesBefore: _remind,
+        );
+      } else {
+        final startsAt = _startsAt;
+        await notifier.edit(
+          existing.id,
+          title: title == existing.title ? null : title,
+          startsAt: startsAt.toUtc() == existing.startsAt ? null : startsAt,
+          location: location.isEmpty || location == existing.location
+              ? null
+              : location,
+          clearLocation:
+              location.isEmpty && (existing.location ?? '').isNotEmpty,
+          remindMinutesBefore:
+              _remind == existing.remindMinutesBefore ? null : _remind,
+        );
+      }
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
       if (mounted) {
@@ -404,7 +425,8 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('New event', style: theme.textTheme.h4),
+            Text(_editing ? 'Edit event' : 'New event',
+                style: theme.textTheme.h4),
             const SizedBox(height: 12),
             ShadInput(
               controller: _title,
@@ -418,63 +440,31 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                SizedBox(
-                  width: 90,
-                  child: ShadInput(
-                    controller: _time,
-                    placeholder: const Text('HH:MM'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ShadInput(
-                    controller: _location,
-                    placeholder: const Text('Location (optional)'),
-                  ),
-                ),
-              ],
+            Text('Time', style: theme.textTheme.muted),
+            const SizedBox(height: 6),
+            // Hours and minutes, 24h, each its own field: no more HH:MM
+            // typed into a text box and parsed.
+            ShadTimePicker(
+              initialValue: _time,
+              showSeconds: false,
+              onChanged: (t) => _time = t,
+            ),
+            const SizedBox(height: 12),
+            ShadInput(
+              controller: _location,
+              placeholder: const Text('Location (optional)'),
             ),
             const SizedBox(height: 12),
             Text('Remind me', style: theme.textTheme.muted),
-            const SizedBox(height: 6),
             Wrap(
               spacing: 6,
               children: [
                 for (final m in _remindChoices)
-                  Semantics(
-                    button: true,
+                  ChoicePill(
+                    label: m == 0 ? 'at start' : '${m}m before',
+                    semanticLabel: m == 0 ? 'At start' : '$m minutes before',
                     selected: _remind == m,
-                    label: m == 0 ? 'At start' : '$m minutes before',
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() => _remind = m),
-                      // The pill is ~32 tall; the padding around it makes
-                      // the 44pt target (a centred box would take the
-                      // Wrap's whole row).
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: _remind == m
-                                ? scheme.primary
-                                : scheme.secondary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            m == 0 ? 'at start' : '${m}m before',
-                            style: theme.textTheme.small.copyWith(
-                              color: _remind == m
-                                  ? scheme.primaryForeground
-                                  : scheme.secondaryForeground,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                    onTap: () => setState(() => _remind = m),
                   ),
               ],
             ),
@@ -491,7 +481,13 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
               width: double.infinity,
               child: ShadButton(
                 onPressed: _saving ? null : _save,
-                child: const Text('Add event'),
+                child: Text(
+                  _saving
+                      ? 'Saving…'
+                      : _editing
+                          ? 'Save'
+                          : 'Add event',
+                ),
               ),
             ),
             const SizedBox(height: 8),

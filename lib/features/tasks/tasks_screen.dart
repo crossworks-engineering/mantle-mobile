@@ -5,13 +5,15 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/tasks/tasks_models.dart';
 import '../../core/format/dates.dart';
+import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
 import '../../widgets/confirm_dialog.dart';
 import 'tasks_controller.dart';
 
-/// The task list: quick-add on top, open tasks (tap the circle to check off),
-/// then done tasks muted below. Server-sorted; check-off and add are
-/// optimistic. Backed by `GET/POST/PATCH /api/tasks` via [TasksController].
+/// The task list: quick-add on top, open tasks (tap the circle to check off,
+/// tap the row to edit title, due date and priority), then done tasks muted
+/// below. Server-sorted; check-off and add are optimistic. Backed by
+/// `GET/POST/PATCH /api/tasks` via [TasksController].
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
 
@@ -45,6 +47,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     } finally {
       if (mounted) setState(() => _adding = false);
     }
+  }
+
+  void _edit(TaskRow task) {
+    showShadSheet<void>(
+      context: context,
+      builder: (_) => EditTaskSheet(task: task),
+    );
   }
 
   Future<void> _confirmDelete(TaskRow task) async {
@@ -175,6 +184,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                           onToggle: () => ref
                               .read(tasksControllerProvider.notifier)
                               .setDone(t.id, done: true),
+                          onTap: () => _edit(t),
                           onLongPress: () => _confirmDelete(t),
                         ),
                       if (done.isNotEmpty) ...[
@@ -192,6 +202,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                             onToggle: () => ref
                                 .read(tasksControllerProvider.notifier)
                                 .setDone(t.id, done: false),
+                            onTap: () => _edit(t),
                             onLongPress: () => _confirmDelete(t),
                           ),
                       ],
@@ -213,12 +224,14 @@ class _TaskTile extends StatelessWidget {
     required this.theme,
     required this.task,
     required this.onToggle,
+    required this.onTap,
     required this.onLongPress,
   });
 
   final ShadThemeData theme;
   final TaskRow task;
   final VoidCallback onToggle;
+  final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   @override
@@ -235,6 +248,7 @@ class _TaskTile extends StatelessWidget {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       onLongPress: onLongPress,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -297,6 +311,161 @@ class _TaskTile extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Edit a task: title, due date (a calendar that unfolds on demand, with a
+/// clear), and priority. Body, tags and comments stay on the web; the phone
+/// edits what its list shows. Saves via [TasksController.edit].
+class EditTaskSheet extends ConsumerStatefulWidget {
+  const EditTaskSheet({super.key, required this.task});
+
+  final TaskRow task;
+
+  @override
+  ConsumerState<EditTaskSheet> createState() => _EditTaskSheetState();
+}
+
+class _EditTaskSheetState extends ConsumerState<EditTaskSheet> {
+  late final _title = TextEditingController(text: widget.task.title);
+  late DateTime? _dueAt = widget.task.dueAt?.toLocal();
+  late String _priority = widget.task.priority;
+  bool _pickingDay = false;
+  bool _saving = false;
+  String? _error;
+
+  static const _priorities = ['low', 'normal', 'high'];
+
+  @override
+  void dispose() {
+    _title.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final title = _title.text.trim();
+    if (title.isEmpty) {
+      setState(() => _error = 'Give the task a title.');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final task = widget.task;
+    try {
+      await ref.read(tasksControllerProvider.notifier).edit(
+            task.id,
+            title: title == task.title ? null : title,
+            priority: _priority == task.priority ? null : _priority,
+            dueAt: _dueAt,
+            clearDueAt: _dueAt == null && task.dueAt != null,
+          );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _error = "Couldn't save the task.");
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    final scheme = theme.colorScheme;
+    final due = _dueAt;
+    return ShadSheet(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Edit task', style: theme.textTheme.h4),
+            const SizedBox(height: 12),
+            ShadInput(
+              controller: _title,
+              placeholder: const Text('Title'),
+              minLines: 1,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            Text('Due', style: theme.textTheme.muted),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    due == null ? 'No due date' : formatDue(due),
+                    style: theme.textTheme.p,
+                  ),
+                ),
+                ShadButton.outline(
+                  onPressed: () => setState(() => _pickingDay = !_pickingDay),
+                  child: Text(_pickingDay ? 'Done' : 'Pick a day'),
+                ),
+                if (due != null) ...[
+                  const SizedBox(width: 8),
+                  ShadButton.ghost(
+                    onPressed: () => setState(() {
+                      _dueAt = null;
+                      _pickingDay = false;
+                    }),
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ],
+            ),
+            if (_pickingDay) ...[
+              const SizedBox(height: 8),
+              Center(
+                child: ShadCalendar(
+                  selected: due,
+                  onChanged: (d) => setState(() {
+                    // Midnight local: a day, not an instant.
+                    if (d != null) _dueAt = DateTime(d.year, d.month, d.day);
+                  }),
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            Text('Priority', style: theme.textTheme.muted),
+            const SizedBox(height: 2),
+            Wrap(
+              spacing: 6,
+              children: [
+                for (final p in _priorities)
+                  ChoicePill(
+                    label: p,
+                    selected: _priority == p,
+                    semanticLabel: '$p priority',
+                    onTap: () => setState(() => _priority = p),
+                  ),
+              ],
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style:
+                    theme.textTheme.small.copyWith(color: scheme.destructive),
+              ),
+            ],
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ShadButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? 'Saving…' : 'Save'),
+              ),
+            ),
+            const SizedBox(height: 8),
           ],
         ),
       ),

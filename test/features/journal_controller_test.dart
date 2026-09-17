@@ -11,7 +11,13 @@ import 'package:mocktail/mocktail.dart';
 
 class MockJournalApi extends Mock implements JournalApi {}
 
-JournalRow _row(String id, {required DateTime created, DateTime? entry}) =>
+JournalRow _row(
+  String id, {
+  required DateTime created,
+  DateTime? entry,
+  String? kind,
+  String? status,
+}) =>
     JournalRow(
       id: id,
       title: id,
@@ -22,6 +28,8 @@ JournalRow _row(String id, {required DateTime created, DateTime? entry}) =>
       tags: const [],
       createdAt: created,
       updatedAt: created,
+      kind: kind,
+      status: status,
     );
 
 void main() {
@@ -86,5 +94,72 @@ void main() {
       c.read(journalControllerProvider).value!.map((r) => r.id).toList(),
       ['newer', 'backdated', 'older'],
     );
+  });
+
+  test('edit swaps the row in place', () async {
+    when(() => api.list()).thenAnswer((_) async => JournalPage(
+          journals: [
+            _row('newer', created: DateTime.utc(2026, 6, 11)),
+            _row('older', created: DateTime.utc(2026, 6, 6)),
+          ],
+          total: 2,
+        ));
+    when(() => api.update('older', body: 'rewritten')).thenAnswer(
+      (_) async =>
+          _row('older', created: DateTime.utc(2026, 6, 6)).copyWith(body: 'rewritten'),
+    );
+    final c = make();
+    await c.read(journalControllerProvider.future);
+    await c
+        .read(journalControllerProvider.notifier)
+        .edit('older', body: 'rewritten');
+    final rows = c.read(journalControllerProvider).value!;
+    expect(rows.map((r) => r.id).toList(), ['newer', 'older']);
+    expect(rows.last.body, 'rewritten');
+  });
+
+  test('delete drops the row at once and reloads if the server refuses',
+      () async {
+    when(() => api.list()).thenAnswer((_) async => JournalPage(
+          journals: [
+            _row('a', created: DateTime.utc(2026, 6, 11)),
+            _row('b', created: DateTime.utc(2026, 6, 6)),
+          ],
+          total: 2,
+        ));
+    when(() => api.delete('a')).thenThrow(Exception('offline'));
+    final c = make();
+    await c.read(journalControllerProvider.future);
+    await c.read(journalControllerProvider.notifier).delete('a');
+    // The failed delete reloaded from the server, which still has both.
+    expect(
+      c.read(journalControllerProvider).value!.map((r) => r.id).toList(),
+      ['a', 'b'],
+    );
+    verify(() => api.list()).called(2);
+  });
+
+  test('answerGap resolves the question in place and files the answer',
+      () async {
+    final gap = _row('q', created: DateTime.utc(2026, 6, 10), kind: 'gap', status: 'open');
+    when(() => api.list()).thenAnswer((_) async => JournalPage(
+          journals: [gap, _row('old', created: DateTime.utc(2026, 6, 1))],
+          total: 2,
+        ));
+    when(() => api.resolveGap('q', answer: 'Because.')).thenAnswer(
+      (_) async => (
+        gap: gap.copyWith(status: 'resolved'),
+        answer: _row('ans', created: DateTime.utc(2026, 6, 12)),
+      ),
+    );
+    final c = make();
+    expect((await c.read(journalControllerProvider.future)).first.isOpenGap, isTrue);
+    await c
+        .read(journalControllerProvider.notifier)
+        .answerGap('q', answer: 'Because.');
+    final rows = c.read(journalControllerProvider).value!;
+    expect(rows.map((r) => r.id).toList(), ['ans', 'q', 'old']);
+    expect(rows[1].isOpenGap, isFalse);
+    expect(rows[1].isGap, isTrue);
   });
 }

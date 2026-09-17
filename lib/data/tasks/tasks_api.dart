@@ -42,6 +42,30 @@ class TasksApi {
     return TaskRow.fromJson((res.data?['task'] as Map).cast<String, dynamic>());
   }
 
+  /// `PATCH /api/tasks/{id}` — edit the fields the phone shows. Only the
+  /// arguments given are sent; `clearDueAt` sends `dueAt: null`, which the
+  /// server reads as "no due date". Returns the updated row.
+  Future<TaskRow> update(
+    String id, {
+    String? title,
+    String? priority,
+    DateTime? dueAt,
+    bool clearDueAt = false,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/api/tasks/$id',
+      data: {
+        'title': ?title,
+        'priority': ?priority,
+        if (clearDueAt)
+          'dueAt': null
+        else if (dueAt != null)
+          'dueAt': dueAt.toUtc().toIso8601String(),
+      },
+    );
+    return TaskRow.fromJson((res.data?['task'] as Map).cast<String, dynamic>());
+  }
+
   /// `PATCH /api/tasks/{id}` — flip open/done. Returns the updated row.
   Future<TaskRow> setDone(String id, {required bool done}) async {
     final res = await _dio.patch<Map<String, dynamic>>(

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/search/search_models.dart';
 import '../../core/format/dates.dart';
+import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
 import 'search_controller.dart';
 
@@ -169,8 +170,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
                 for (final (label, type) in _typeChips)
-                  _FilterChip(
-                    theme: theme,
+                  ChoicePill(
                     label: label,
                     selected: s.type == type,
                     onTap: () => notifier.setType(type),
@@ -309,51 +309,3 @@ class _ResultTile extends StatelessWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.theme,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final ShadThemeData theme;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = theme.colorScheme;
-    // The pill stays small; the 44pt box it sits in is the target.
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: 44,
-          alignment: Alignment.center,
-          margin: const EdgeInsets.only(right: 6),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: selected ? scheme.primary : scheme.secondary,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              label,
-              style: theme.textTheme.small.copyWith(
-                color: selected
-                    ? scheme.primaryForeground
-                    : scheme.secondaryForeground,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

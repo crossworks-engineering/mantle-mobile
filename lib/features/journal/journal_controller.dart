@@ -46,6 +46,68 @@ class JournalController extends _$JournalController {
     }
   }
 
+  /// Rewrite an entry's body. Server first (the sheet shows a failure), then
+  /// the row is swapped in place; its date does not change, so its place in
+  /// the list does not either.
+  Future<void> edit(String id, {required String body}) async {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return;
+    final row = await ref.read(journalApiProvider).update(id, body: trimmed);
+    if (!ref.mounted) return;
+    final current = state.value;
+    if (current != null) {
+      state = AsyncData([
+        for (final r in current)
+          if (r.id == id) row else r,
+      ]);
+    }
+  }
+
+  /// Delete an entry, optimistically; a failure reloads so the list never
+  /// lies for long.
+  Future<void> delete(String id) async {
+    final current = state.value;
+    if (current != null) {
+      state = AsyncData([
+        for (final r in current)
+          if (r.id != id) r,
+      ]);
+    }
+    try {
+      await ref.read(journalApiProvider).delete(id);
+    } catch (_) {
+      await _reloadSilently();
+    }
+  }
+
+  /// Answer one of the assistant's open questions. The gap flips to
+  /// resolved in place and the answer lands where its date puts it.
+  Future<void> answerGap(String id, {required String answer}) async {
+    final trimmed = answer.trim();
+    if (trimmed.isEmpty) return;
+    final result =
+        await ref.read(journalApiProvider).resolveGap(id, answer: trimmed);
+    if (!ref.mounted) return;
+    final current = state.value;
+    if (current != null) {
+      state = AsyncData(newestFirst([
+        result.answer,
+        for (final r in current)
+          if (r.id == id) result.gap else r,
+      ]));
+    }
+  }
+
+  Future<void> _reloadSilently() async {
+    try {
+      final rows =
+          newestFirst((await ref.read(journalApiProvider).list()).journals);
+      if (ref.mounted) state = AsyncData(rows);
+    } catch (_) {
+      /* keep current; refresh reconciles */
+    }
+  }
+
   /// Voice note → text, via `POST /api/assistant/transcribe` (shared with the
   /// chat composer — one STT pipeline for the whole app).
   Future<String> transcribe(String audioPath) =>

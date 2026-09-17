@@ -72,6 +72,37 @@ class EventsController extends _$EventsController {
     }
   }
 
+  /// Edit an event from the sheet. Server first (the sheet shows a failure),
+  /// then the row is swapped in, the list re-sorted (the time may have
+  /// moved) and the alarms re-armed. Throws on failure.
+  Future<void> edit(
+    String id, {
+    String? title,
+    DateTime? startsAt,
+    String? location,
+    bool clearLocation = false,
+    int? remindMinutesBefore,
+  }) async {
+    final updated = await ref.read(eventsApiProvider).update(
+          id,
+          title: title,
+          startsAt: startsAt,
+          location: location,
+          clearLocation: clearLocation,
+          remindMinutesBefore: remindMinutesBefore,
+        );
+    if (!ref.mounted) return;
+    final current = state.value;
+    if (current != null) {
+      final next = [
+        for (final e in current)
+          if (e.id == id) updated else e,
+      ]..sort((a, b) => a.startsAt.compareTo(b.startsAt));
+      state = AsyncData(next);
+      unawaited(EventAlarms.sync(next));
+    }
+  }
+
   /// Flip the done tag, optimistically; the server row keeps every other tag.
   Future<void> setDone(String id, {required bool done}) async {
     final current = state.value;

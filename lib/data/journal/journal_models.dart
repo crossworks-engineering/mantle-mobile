@@ -14,6 +14,10 @@ class JournalRow {
     required this.tags,
     required this.createdAt,
     required this.updatedAt,
+    this.kind,
+    this.status,
+    this.author = 'user',
+    this.agentSlug,
   });
 
   final String id;
@@ -21,6 +25,23 @@ class JournalRow {
   final String body;
   final String? mood;
   final String? category;
+
+  /// The entry's kind (`context`, `lesson`, `gap`, …); null on old rows.
+  final String? kind;
+
+  /// Gap lifecycle, `open` or `resolved`; only a `gap` carries one.
+  final String? status;
+
+  /// `user` or `agent`: who wrote it. The server stamps this.
+  final String author;
+
+  /// The writing agent's slug when [author] is `agent`.
+  final String? agentSlug;
+
+  /// An assistant's question that still wants an answer.
+  bool get isOpenGap => kind == 'gap' && status != 'resolved';
+  bool get isGap => kind == 'gap';
+  bool get fromAgent => author == 'agent';
 
   /// The day the entry is about (may differ from when it was written).
   final DateTime? entryDate;
@@ -30,6 +51,24 @@ class JournalRow {
 
   /// The date the list groups/labels by: entryDate when set, else created.
   DateTime get displayDate => entryDate ?? createdAt;
+
+  JournalRow copyWith({String? body, String? title, String? status}) {
+    return JournalRow(
+      id: id,
+      title: title ?? this.title,
+      body: body ?? this.body,
+      mood: mood,
+      category: category,
+      entryDate: entryDate,
+      tags: tags,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      kind: kind,
+      status: status ?? this.status,
+      author: author,
+      agentSlug: agentSlug,
+    );
+  }
 
   static JournalRow fromJson(Map<String, dynamic> j) {
     final entry = j['entryDate'] as String?;
@@ -43,6 +82,10 @@ class JournalRow {
       tags: ((j['tags'] as List?) ?? const []).whereType<String>().toList(),
       createdAt: DateTime.parse(j['createdAt'] as String),
       updatedAt: DateTime.parse(j['updatedAt'] as String),
+      kind: j['kind'] as String?,
+      status: j['status'] as String?,
+      author: j['author'] == 'agent' ? 'agent' : 'user',
+      agentSlug: j['agentSlug'] as String?,
     );
   }
 }

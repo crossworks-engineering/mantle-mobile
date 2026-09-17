@@ -29,14 +29,21 @@ class TaskRow {
   bool get overdue =>
       !done && dueAt != null && dueAt!.isBefore(DateTime.now());
 
-  TaskRow copyWith({bool? done}) {
+  /// [clearDueAt] drops the due date; a null [dueAt] alone keeps it.
+  TaskRow copyWith({
+    bool? done,
+    String? title,
+    String? priority,
+    DateTime? dueAt,
+    bool clearDueAt = false,
+  }) {
     return TaskRow(
       id: id,
-      title: title,
+      title: title ?? this.title,
       body: body,
       done: done ?? this.done,
-      priority: priority,
-      dueAt: dueAt,
+      priority: priority ?? this.priority,
+      dueAt: clearDueAt ? null : (dueAt ?? this.dueAt),
       tags: tags,
       createdAt: createdAt,
       updatedAt: updatedAt,
