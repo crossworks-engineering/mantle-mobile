@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'local_notifications.dart';
 import 'push_decryptor.dart';
+import 'push_text.dart';
 
 const _channelId = 'mantle_messages';
 const _channelName = 'Messages';
@@ -51,9 +52,10 @@ class PushNotifier {
     final payload = await decryptor.open(ct);
     if (payload == null) return;
 
+    final text = pushNotificationText(payload);
     await showPlain(
-      title: (payload['t'] as String?) ?? 'Mantle',
-      body: (payload['b'] as String?) ?? 'You have a new message.',
+      title: text.title,
+      body: text.body,
       deepLink: payload['deepLink'] as String?,
     );
   }

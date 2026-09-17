@@ -7,6 +7,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import '../../core/network/auth_failure.dart';
 import '../auth/token_store.dart';
 import 'push_notifier.dart';
+import 'push_text.dart';
 
 // Keys shared with the foreground isolate via FlutterForegroundTask's data
 // store. That store is plain SharedPreferences, so ONLY the server address
@@ -186,9 +187,12 @@ class _DirectPushTaskHandler extends TaskHandler {
         if (m['slug'] != agentSlug) continue;
         final name = (m['name'] as String?) ?? agentSlug;
         final last = m['lastMessage'] as Map<String, dynamic>?;
+        // Same fallback as the FCM path: the SSE event fires on the reply's
+        // pending insert too, when lastMessage.text is still empty.
+        final text = pushNotificationText({'t': name, 'b': last?['text']});
         await PushNotifier.showPlain(
-          title: name,
-          body: _teaser((last?['text'] as String?) ?? ''),
+          title: text.title,
+          body: text.body,
           deepLink: '/chat/$agentSlug',
         );
         return;
@@ -196,11 +200,6 @@ class _DirectPushTaskHandler extends TaskHandler {
     } catch (_) {
       /* couldn't fetch — skip; the app reconciles on next open */
     }
-  }
-
-  String _teaser(String text, [int max = 140]) {
-    final s = text.replaceAll(RegExp(r'\s+'), ' ').trim();
-    return s.length > max ? '${s.substring(0, max - 1)}…' : s;
   }
 
   @override
