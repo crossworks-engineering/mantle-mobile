@@ -22,7 +22,7 @@ pushed. What remains is item 12, which needs a person and a phone._
 
 | What                     | State                                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Branch                   | `main`, two commits ahead of origin (item 11 and this doc). Items 1 to 10 are pushed; CI was green through item 9 (item 10's run: check `gh run list`). Push is Jason's call. |
+| Branch                   | `main`, everything pushed through `585cad6` (item 11 plus a hash fix). Item 10's own run went red on stale generated hashes; the fix is in. Push is Jason's call. |
 | Tests                    | 154 → 241. Analyzer clean.                                                                            |
 | CI                       | `.github/workflows/verify.yml` exists but has never run (nothing pushed). The Android job uses `tool/ci/google-services.ci.json`; that placeholder was proven to build a release APK locally. |
 | Simulator                | An iPhone 17 (iOS 26) on the Mac has the app installed and **signed in to the dev brain**. `fvm flutter build ios --simulator --debug`, then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app` and `xcrun simctl launch booted crossworks.engineering.jackdaw`. The login survives reinstalls. Do NOT sign it out; a session cannot type credentials. |
@@ -33,6 +33,9 @@ pushed. What remains is item 12, which needs a person and a phone._
 
 - `fvm flutter …` always. `fvm dart run build_runner build --delete-conflicting-outputs`
   after any provider change; generated files are committed and CI diffs them.
+  Run it **last**, after the final edit to any `@riverpod` class: the
+  generated hash covers the class body, so a rename after the run (item 10's
+  `update` → `edit`) went red on CI while analyzer and tests were green.
 - Commit on `main`, one commit per worklist item, message says *why*. **No
   `Co-Authored-By` trailer, no "Generated with" line.** Never push unasked.
 - The style ratchet (`test/style_ratchet_test.dart`) holds five counts at
