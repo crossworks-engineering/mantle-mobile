@@ -37,7 +37,10 @@ EventRow _event(
     );
 
 void main() {
-  final now = DateTime.utc(2026, 9, 17, 10);
+  // The real clock, not a fixed instant: `sync` has no clock parameter and
+  // drops alarms already in the past, so a fixed day went red the afternoon
+  // it was written. `plannedAlarms` gets this same `now` explicitly.
+  final now = DateTime.now().toUtc();
   final soon = now.add(const Duration(hours: 2));
 
   setUpAll(() {
