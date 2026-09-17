@@ -1,8 +1,8 @@
-# Handover: the audit worklist, item 11
+# Handover: the audit worklist is done, bar the human item
 
 _Written 2026-09-16 at the end of the session that wrote the audit and did
-items 1 to 6; updated 2026-09-17 after items 7 to 10. Item 10 is not
-pushed. Pick up here._
+items 1 to 6; updated 2026-09-17 after items 7 to 11. Item 11 is not
+pushed. What remains is item 12, which needs a person and a phone._
 
 > ### Start here
 >
@@ -13,9 +13,8 @@ pushed. Pick up here._
 > 2. `fvm flutter analyze && fvm flutter test` — expect clean and **201**
 >    passing. A failure before you touch anything is not yours.
 > 3. The audit is `docs/audit-2026-09-16.md`; the worklist at its end is the
->    plan. Items 1 to 10 are done (commits `939d982` … `16afe21`). This file
->    is what the doc does not say: the judgement calls, the traps, and where
->    item 11 starts.
+>    plan. Items 1 to 11 are done (commits `939d982` … `eaaff69`). This file
+>    is what the doc does not say: the judgement calls and the traps.
 
 ---
 
@@ -23,11 +22,11 @@ pushed. Pick up here._
 
 | What                     | State                                                                                                 |
 | ------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Branch                   | `main`, two commits ahead of origin (item 10 and this doc). Items 1 to 9 are pushed and CI was green through item 8 (item 9's run: check `gh run list`). Push is Jason's call. |
-| Tests                    | 154 → 219. Analyzer clean.                                                                            |
+| Branch                   | `main`, two commits ahead of origin (item 11 and this doc). Items 1 to 10 are pushed; CI was green through item 9 (item 10's run: check `gh run list`). Push is Jason's call. |
+| Tests                    | 154 → 241. Analyzer clean.                                                                            |
 | CI                       | `.github/workflows/verify.yml` exists but has never run (nothing pushed). The Android job uses `tool/ci/google-services.ci.json`; that placeholder was proven to build a release APK locally. |
 | Simulator                | An iPhone 17 (iOS 26) on the Mac has the app installed and **signed in to the dev brain**. `fvm flutter build ios --simulator --debug`, then `xcrun simctl install booted build/ios/iphonesimulator/Runner.app` and `xcrun simctl launch booted crossworks.engineering.jackdaw`. The login survives reinstalls. Do NOT sign it out; a session cannot type credentials. |
-| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 10 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
+| Brain                    | Task "Act on the jackdaw-mobile audit" (tag `mantle-roadmap`) has 11 of 12 ticked and a comment per item. Audit page `adcc0b73…` has an uncommitted draft with the scope rule. |
 | Owner's scope rule       | No full editors for Pages or complex screens on the phone. Notes is the exception. Formulas, recall, tables, drawing: decide with Jason before any work. |
 
 ## Habits this repo expects (the ones that bit)
@@ -157,10 +156,32 @@ What landed, and the choices a later reader might question:
 - The time picker is `ShadTimePicker` (hours + minutes, 24h). It replaced
   the HH:MM text box in the event sheet; no parsing remains.
 
-## Item 11, briefly
+## Item 11 is done (`eaaff69`)
 
-11. **Tests** for what is still uncovered: `EventAlarms.sync`,
-    `PushDecryptor`, flush-on-resume, and the first screen widget tests.
+- `test/helpers/pump_screen.dart` is how a screen gets a widget test: pass
+  a `ProviderContainer` (its overrides are typed where they are written;
+  flutter_riverpod does not re-export `Override`), and the helper wraps
+  the screen in `MantleColors` + `ShadApp(home:)` with a tall phone-width
+  view. Lazy lists only build what is on screen, so without the tall view
+  a Settings row below the fold is simply not there.
+- A `ShadSheet` builds only inside a sheet route (`ShadSheetInheritedWidget`
+  null-checks). Test a sheet by opening it through `showShadSheet` from a
+  tiny host widget, as `journal_entry_sheet_test.dart` does.
+- `JournalScreen` owns an `AudioRecorder`, whose constructor starts a
+  platform call; it has no widget test for that reason. Its sheet does.
+- `EventAlarms` gained `plannedAlarms` (pure) and `pluginForTesting`; the
+  reconcile is tested against a mocked plugin. `PushDecryptor` is tested
+  with `Sodium`, `Crypto`, `Box`, `SecureKey` and `FlutterSecureStorage`
+  all mocked; libsodium itself is never loaded in tests.
+- Still uncovered, and known: the Dio auth interceptor's full path, deep
+  links end to end, the direct-push Android handler, the location service,
+  the theme controllers.
+
+## Item 12 is Jason's
+
+The Android device pass, real-device push and alarm, the software keyboard
+on the four capture screens, and the `pub outdated` decision (117 held
+back, the file_picker pin). None of it can be done from a simulator.
 
 ## Two judgement calls to inherit
 
@@ -182,5 +203,5 @@ What landed, and the choices a later reader might question:
 
 ```bash
 cd ~/Projects/jackdaw-mobile && fvm flutter analyze && fvm flutter test
-git log --oneline -17  # 16afe21 feat: edit … fd98307 docs: audit
+git log --oneline -19  # eaaff69 test: alarms … fd98307 docs: audit
 ```
