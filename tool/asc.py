@@ -16,6 +16,12 @@ prints key material.
         [--locale en-US]
     tool/asc.py review set FILE.json         App Review contact + demo account
     tool/asc.py builds                       recent builds + processing state
+    tool/asc.py build attach [N]             attach build number N (default: the
+                                             newest VALID one) to the version
+    tool/asc.py age-rating set FILE.json     answer the age rating questionnaire
+    tool/asc.py rights none                  declare: no third-party content
+    tool/asc.py pricing free                 base price USD 0 (all territories)
+    tool/asc.py availability all             sell in every territory, new ones too
 
 Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_APP_ID override the defaults below.
 """
@@ -262,6 +268,74 @@ def cmd_builds(asc: ASC, _args):
               f"{a['uploadedDate']}")
 
 
+def _version(asc: ASC):
+    return asc.get(f"/apps/{APP_ID}/appStoreVersions",
+                   **{"filter[platform]": "IOS", "limit": 1})["data"][0]
+
+
+def cmd_build(asc: ASC, args):
+    builds = asc.get("/builds", **{"filter[app]": APP_ID, "sort": "-uploadedDate", "limit": 20})["data"]
+    pick = next((b for b in builds if b["attributes"]["processingState"] == "VALID"
+                 and (args.number is None or b["attributes"]["version"] == args.number)), None)
+    if pick is None:
+        sys.exit(f"asc.py: no VALID build {args.number or ''}".rstrip())
+    v = _version(asc)
+    asc.call("PATCH", f"/appStoreVersions/{v['id']}/relationships/build",
+             body={"data": {"type": "builds", "id": pick["id"]}})
+    print(f"build {pick['attributes']['version']} attached to version {v['attributes']['versionString']}")
+
+
+def cmd_age_rating(asc: ASC, args):
+    with open(args.file) as f:
+        attrs = json.load(f)
+    info = asc.get(f"/apps/{APP_ID}/appInfos")["data"][0]
+    decl = asc.get(f"/appInfos/{info['id']}/ageRatingDeclaration")["data"]
+    asc.patch(f"/ageRatingDeclarations/{decl['id']}", "ageRatingDeclarations", decl["id"], attrs)
+    print(f"age rating set ({len(attrs)} answers)")
+
+
+def cmd_rights(asc: ASC, _args):
+    asc.patch(f"/apps/{APP_ID}", "apps", APP_ID,
+              {"contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"})
+    print("contentRightsDeclaration: DOES_NOT_USE_THIRD_PARTY_CONTENT")
+
+
+def cmd_pricing(asc: ASC, _args):
+    points = asc.get(f"/apps/{APP_ID}/appPricePoints",
+                     **{"filter[territory]": "USA", "limit": 50})["data"]
+    free = next((p for p in points if float(p["attributes"]["customerPrice"]) == 0.0), None)
+    if free is None:
+        sys.exit("asc.py: no free price point found for USA")
+    asc.call("POST", "/appPriceSchedules", body={
+        "data": {"type": "appPriceSchedules", "relationships": {
+            "app": _rel("apps", APP_ID),
+            "baseTerritory": _rel("territories", "USA"),
+            "manualPrices": {"data": [{"type": "appPrices", "id": "${p0}"}]}}},
+        "included": [{"type": "appPrices", "id": "${p0}",
+                      "attributes": {"startDate": None},
+                      "relationships": {"appPricePoint": _rel("appPricePoints", free["id"])}}]})
+    print("price schedule: free, base territory USA")
+
+
+def cmd_availability(asc: ASC, _args):
+    terrs, url = [], "/territories?limit=200"
+    while url:
+        page = asc.get(url)
+        terrs += [t["id"] for t in page["data"]]
+        url = page.get("links", {}).get("next")
+    inc = [{"type": "territoryAvailabilities", "id": "${t%d}" % i,
+            "attributes": {"available": True},
+            "relationships": {"territory": _rel("territories", t)}} for i, t in enumerate(terrs)]
+    asc.call("POST", "https://api.appstoreconnect.apple.com/v2/appAvailabilities", body={
+        "data": {"type": "appAvailabilities",
+                 "attributes": {"availableInNewTerritories": True},
+                 "relationships": {"app": _rel("apps", APP_ID),
+                                   "territoryAvailabilities": {"data": [
+                                       {"type": "territoryAvailabilities", "id": x["id"]} for x in inc]}}},
+        "included": inc})
+    print(f"available in {len(terrs)} territories, new territories included")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -272,10 +346,18 @@ def main():
     sc.add_argument("--display", default="APP_IPHONE_67"); sc.add_argument("--locale", default="en-US")
     rv = sub.add_parser("review"); rv.add_argument("action", choices=["set"]); rv.add_argument("file")
     sub.add_parser("builds")
+    bd = sub.add_parser("build"); bd.add_argument("action", choices=["attach"])
+    bd.add_argument("number", nargs="?")
+    ag = sub.add_parser("age-rating"); ag.add_argument("action", choices=["set"]); ag.add_argument("file")
+    rt = sub.add_parser("rights"); rt.add_argument("action", choices=["none"])
+    pr = sub.add_parser("pricing"); pr.add_argument("action", choices=["free"])
+    av = sub.add_parser("availability"); av.add_argument("action", choices=["all"])
     args = p.parse_args()
     asc = ASC()
     {"app": cmd_app, "listing": cmd_listing, "screenshots": cmd_screenshots,
-     "review": cmd_review, "builds": cmd_builds}[args.cmd](asc, args)
+     "review": cmd_review, "builds": cmd_builds, "build": cmd_build,
+     "age-rating": cmd_age_rating, "rights": cmd_rights, "pricing": cmd_pricing,
+     "availability": cmd_availability}[args.cmd](asc, args)
 
 
 if __name__ == "__main__":
