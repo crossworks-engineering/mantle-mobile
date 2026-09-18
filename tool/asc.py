@@ -22,6 +22,10 @@ prints key material.
     tool/asc.py rights none                  declare: no third-party content
     tool/asc.py pricing free                 base price USD 0 (all territories)
     tool/asc.py availability all             sell in every territory, new ones too
+    tool/asc.py testflight public FILE.json  external group with a public link,
+        [N]                                  beta info + review contact, build N
+                                             (default newest VALID) to Beta Review
+    tool/asc.py submit                       send the version to App Store review
 
 Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_APP_ID override the defaults below.
 """
@@ -104,7 +108,9 @@ class ASC:
                                                        "attributes": attributes}})
 
     def post(self, type_, attributes, relationships=None):
-        d = {"type": type_, "attributes": attributes}
+        d = {"type": type_}
+        if attributes:
+            d["attributes"] = attributes
         if relationships:
             d["relationships"] = relationships
         return self.call("POST", f"/{type_}", body={"data": d})
@@ -183,6 +189,10 @@ def cmd_listing(asc: ASC, args):
 
     version = asc.get(f"/apps/{APP_ID}/appStoreVersions",
                       **{"filter[platform]": "IOS", "limit": 1})["data"][0]
+    if text.get("copyright") and text["copyright"] != version["attributes"].get("copyright"):
+        asc.patch(f"/appStoreVersions/{version['id']}", "appStoreVersions", version["id"],
+                  {"copyright": text["copyright"]})
+        print(f"copyright set: {text['copyright']}")
     if text.get("versionString") and text["versionString"] != version["attributes"]["versionString"]:
         asc.patch(f"/appStoreVersions/{version['id']}", "appStoreVersions", version["id"],
                   {"versionString": text["versionString"]})
@@ -336,6 +346,76 @@ def cmd_availability(asc: ASC, _args):
     print(f"available in {len(terrs)} territories, new territories included")
 
 
+def _valid_build(asc: ASC, number=None):
+    builds = asc.get("/builds", **{"filter[app]": APP_ID, "sort": "-uploadedDate", "limit": 20})["data"]
+    pick = next((b for b in builds if b["attributes"]["processingState"] == "VALID"
+                 and (number is None or b["attributes"]["version"] == number)), None)
+    if pick is None:
+        sys.exit(f"asc.py: no VALID build {number or ''}".rstrip())
+    return pick
+
+
+def cmd_testflight(asc: ASC, args):
+    with open(args.file) as f:
+        beta = json.load(f)
+    build = _valid_build(asc, args.number)
+    # beta app info (what external testers see)
+    attrs = {k: beta[k] for k in ("description", "feedbackEmail", "marketingUrl", "privacyPolicyUrl") if k in beta}
+    locs = asc.get(f"/apps/{APP_ID}/betaAppLocalizations")["data"]
+    loc = next((l for l in locs if l["attributes"]["locale"] == "en-US"), None)
+    if loc:
+        asc.patch(f"/betaAppLocalizations/{loc['id']}", "betaAppLocalizations", loc["id"], attrs)
+    else:
+        asc.post("betaAppLocalizations", {"locale": "en-US", **attrs}, {"app": _rel("apps", APP_ID)})
+    print("beta app info set")
+    # beta review contact + demo account, reusing the App Review file
+    with open(os.path.join(os.path.dirname(args.file), "review.json")) as f:
+        rv = json.load(f)
+    asc.patch(f"/betaAppReviewDetails/{APP_ID}", "betaAppReviewDetails", APP_ID, {
+        "contactFirstName": rv["contactFirstName"], "contactLastName": rv["contactLastName"],
+        "contactPhone": rv["contactPhone"], "contactEmail": rv["contactEmail"],
+        "demoAccountRequired": rv["demoAccountRequired"], "demoAccountName": rv["demoAccountName"],
+        "demoAccountPassword": rv["demoAccountPassword"], "notes": rv["notes"]})
+    print("beta review contact + demo account set")
+    # what to test, on the build
+    bl = asc.get(f"/builds/{build['id']}/betaBuildLocalizations")["data"]
+    bloc = next((l for l in bl if l["attributes"]["locale"] == "en-US"), None)
+    if bloc:
+        asc.patch(f"/betaBuildLocalizations/{bloc['id']}", "betaBuildLocalizations", bloc["id"],
+                  {"whatsNew": beta["whatsNew"]})
+    else:
+        asc.post("betaBuildLocalizations", {"locale": "en-US", "whatsNew": beta["whatsNew"]},
+                 {"build": _rel("builds", build["id"])})
+    print("what-to-test set")
+    # external group with a public link
+    groups = asc.get(f"/apps/{APP_ID}/betaGroups")["data"]
+    group = next((g for g in groups if g["attributes"]["name"] == beta["groupName"]), None)
+    if group is None:
+        group = asc.post("betaGroups", {"name": beta["groupName"], "publicLinkEnabled": True,
+                                        "publicLinkLimitEnabled": False, "feedbackEnabled": True},
+                         {"app": _rel("apps", APP_ID)})["data"]
+        print(f"group '{beta['groupName']}' created")
+    asc.call("POST", f"/betaGroups/{group['id']}/relationships/builds",
+             body={"data": [{"type": "builds", "id": build["id"]}]})
+    print(f"build {build['attributes']['version']} added to the group")
+    asc.post("betaAppReviewSubmissions", {}, {"build": _rel("builds", build["id"])})
+    print("submitted to Beta App Review")
+    g = asc.get(f"/betaGroups/{group['id']}")["data"]["attributes"]
+    print(f"public link: {g.get('publicLink')}")
+
+
+def cmd_submit(asc: ASC, _args):
+    v = _version(asc)
+    open_ = asc.get("/reviewSubmissions", **{"filter[app]": APP_ID, "filter[platform]": "IOS",
+                                             "filter[state]": "READY_FOR_REVIEW"})["data"]
+    sub_ = open_[0] if open_ else asc.post("reviewSubmissions", {"platform": "IOS"},
+                                           {"app": _rel("apps", APP_ID)})["data"]
+    asc.post("reviewSubmissionItems", {}, {"reviewSubmission": _rel("reviewSubmissions", sub_["id"]),
+                                           "appStoreVersion": _rel("appStoreVersions", v["id"])})
+    asc.patch(f"/reviewSubmissions/{sub_['id']}", "reviewSubmissions", sub_["id"], {"submitted": True})
+    print(f"version {v['attributes']['versionString']} submitted for App Store review ({sub_['id']})")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -352,12 +432,16 @@ def main():
     rt = sub.add_parser("rights"); rt.add_argument("action", choices=["none"])
     pr = sub.add_parser("pricing"); pr.add_argument("action", choices=["free"])
     av = sub.add_parser("availability"); av.add_argument("action", choices=["all"])
+    tf = sub.add_parser("testflight"); tf.add_argument("action", choices=["public"])
+    tf.add_argument("file"); tf.add_argument("number", nargs="?")
+    sub.add_parser("submit")
     args = p.parse_args()
     asc = ASC()
     {"app": cmd_app, "listing": cmd_listing, "screenshots": cmd_screenshots,
      "review": cmd_review, "builds": cmd_builds, "build": cmd_build,
      "age-rating": cmd_age_rating, "rights": cmd_rights, "pricing": cmd_pricing,
-     "availability": cmd_availability}[args.cmd](asc, args)
+     "availability": cmd_availability, "testflight": cmd_testflight,
+     "submit": cmd_submit}[args.cmd](asc, args)
 
 
 if __name__ == "__main__":

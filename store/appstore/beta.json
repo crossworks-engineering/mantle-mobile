@@ -1,0 +1,8 @@
+{
+  "groupName": "Public Beta",
+  "description": "Jackdaw is the phone app for a Mantle brain, the self-hosted AI memory you run on your own server. Chat with your assistant, search everything, notes, pages, tasks, journal, files and events. No Mantle server yet? Enter https://demo.mantle-ai.tech on the first screen and sign in with any email and password; the demo is read only.",
+  "feedbackEmail": "jason@crossworks.engineering",
+  "marketingUrl": "https://jackdaw.run",
+  "privacyPolicyUrl": "https://mantle-ai.tech/privacy/",
+  "whatsNew": "First public test build. Try: connect to your Mantle (or the demo at https://demo.mantle-ai.tech with any login), chat with streaming replies, search, notes, tasks, files, and push notifications."
+}
