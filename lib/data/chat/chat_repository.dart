@@ -214,6 +214,21 @@ class ChatRepository {
   /// Ask the runner to stop an in-flight streamed turn (keeps the partial).
   Future<void> cancelTurn(String turnId) => _api.cancelTurn(turnId);
 
+  /// Stop an in-flight turn and mark its pair replaced by [newTurnId]. Throws
+  /// on failure (see [ChatApi.supersedeTurn]).
+  Future<void> supersedeTurn(
+    String turnId, {
+    required String inboundId,
+    required String outboundId,
+    required String newTurnId,
+  }) =>
+      _api.supersedeTurn(
+        turnId,
+        inboundId: inboundId,
+        outboundId: outboundId,
+        newTurnId: newTurnId,
+      );
+
   /// The responder's current stage label (or null), for the typing indicator.
   Future<String?> turnStage() => _api.turnStage();
 

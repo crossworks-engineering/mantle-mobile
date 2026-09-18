@@ -296,6 +296,30 @@ class ChatApi {
     }
   }
 
+  /// Stop an in-flight streamed turn AND mark its message pair replaced by
+  /// [newTurnId], the combined turn about to be sent. The server stamps both
+  /// rows before it cancels, so the caller must AWAIT this before posting the
+  /// combined turn: that order keeps the abandoned pair out of the new turn's
+  /// prompt. Unlike [cancelTurn] this throws on failure; the caller must not
+  /// send the combined turn when the old pair was not stamped.
+  Future<void> supersedeTurn(
+    String turnId, {
+    required String inboundId,
+    required String outboundId,
+    required String newTurnId,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/api/assistant/turn/$turnId/cancel',
+      data: {
+        'supersede': {
+          'inboundId': inboundId,
+          'outboundId': outboundId,
+          'newTurnId': newTurnId,
+        },
+      },
+    );
+  }
+
   /// Turn outbound `artifacts[]` (live base64 audio/image) into attachments by
   /// writing each blob to a temp file the player / image widget can read. Non-
   /// audio/image kinds and empty payloads are skipped.
@@ -422,6 +446,7 @@ class ChatApi {
       attachments: attachments,
       thoughts: ThoughtStep.listFrom(j['thoughts']),
       toolStats: ToolStats.tryParse(j['toolStats']),
+      superseded: j['superseded'] == true,
     );
   }
 }

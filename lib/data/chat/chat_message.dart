@@ -30,6 +30,7 @@ class ChatMessage {
     this.attachments = const [],
     this.thoughts = const [],
     this.toolStats,
+    this.superseded = false,
   });
 
   final String id;
@@ -60,6 +61,11 @@ class ChatMessage {
   /// null when the turn ran no tools or the brain predates it.
   final ToolStats? toolStats;
 
+  /// This row belongs to a replaced turn pair: the user stopped the turn
+  /// mid-stream and re-sent it with a correction. The brain keeps the pair out
+  /// of later prompts; the thread shows it dimmed with a "Replaced" tag.
+  final bool superseded;
+
   bool get isFromUser => direction == MessageDirection.inbound;
 
   ChatMessage copyWith({
@@ -79,6 +85,7 @@ class ChatMessage {
       attachments: attachments ?? this.attachments,
       thoughts: thoughts,
       toolStats: toolStats,
+      superseded: superseded,
     );
   }
 }

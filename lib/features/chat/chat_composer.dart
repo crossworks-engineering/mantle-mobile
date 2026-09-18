@@ -30,6 +30,12 @@ const _docExtensions = [
 /// the web composer does the same (`use-voice-input.ts`), Whisper invents
 /// words on silence, and Send is one tap away on the same row. A dictated
 /// message therefore always gets a look before it reaches the agent.
+///
+/// **Stop and resend.** While a reply streams, the field stays live. Text typed
+/// then is a correction: the send slot shows a stop-and-resend button beside
+/// Stop, and one press (or the keyboard's send key) stops the turn and sends
+/// original + correction as one turn ([ChatController.replaceTurn]). Text-only
+/// turns only; anywhere it does not apply the draft stays put. Mirrors the web.
 class ChatComposer extends ConsumerStatefulWidget {
   const ChatComposer({
     super.key,
@@ -53,11 +59,53 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
 
   OutgoingAttachment? _attachment;
   int _attachmentBytes = 0;
-  bool _sending = false;
+
+  /// Sends in flight. A counter, not a flag: during a stop-and-resend the old
+  /// send unwinds while the combined one already runs, and the composer must
+  /// stay in its sending state across that overlap.
+  int _inFlight = 0;
+  bool get _sending => _inFlight > 0;
+
+  /// The turn in flight carried a file, so it cannot be replaced (text-only).
+  bool _lastHadFile = false;
+
+  /// A stop-and-resend is taking the old turn down; blocks a second one.
+  bool _replacing = false;
   String? _error;
 
   TextEditingController get _input => widget.textController;
   ChatController get _notifier => ref.read(widget.provider.notifier);
+
+  @override
+  void initState() {
+    super.initState();
+    _input.addListener(_onDraftChanged);
+  }
+
+  @override
+  void didUpdateWidget(ChatComposer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.textController != widget.textController) {
+      oldWidget.textController.removeListener(_onDraftChanged);
+      _input.addListener(_onDraftChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _input.removeListener(_onDraftChanged);
+    super.dispose();
+  }
+
+  /// The stop-and-resend button shows only while a draft exists mid-turn, so
+  /// the row must rebuild as the draft goes empty ↔ non-empty.
+  bool _hadDraft = false;
+  void _onDraftChanged() {
+    final hasDraft = _input.text.trim().isNotEmpty;
+    if (hasDraft == _hadDraft) return;
+    _hadDraft = hasDraft;
+    if (_sending && mounted) setState(() {});
+  }
 
   // ── Attachments ──────────────────────────────────────────────────────────
 
@@ -174,8 +222,8 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
   Future<void> _send() async {
     // The field stays editable while a turn is in flight (so the next message
     // can be drafted), but the keyboard's send key must not start a second
-    // turn on top of the first.
-    if (_sending) return;
+    // turn on top of the first. With a draft it means "stop and resend".
+    if (_sending) return _replace();
     final text = _input.text;
     final attachment = _attachment;
     final attachmentBytes = _attachmentBytes;
@@ -183,7 +231,8 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     _input.clear();
     setState(() {
       _attachment = null;
-      _sending = true;
+      _inFlight++;
+      _lastHadFile = attachment != null;
       _error = null;
     });
     var outcome = SendOutcome.failed;
@@ -192,7 +241,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
     } finally {
       if (mounted) {
         setState(() {
-          _sending = false;
+          _inFlight--;
           // Stop pressed → put the message back so the user can fix and resend.
           if (outcome == SendOutcome.cancelled) {
             _input.text = text;
@@ -200,6 +249,53 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                 TextSelection.collapsed(offset: text.length);
             _attachment = attachment;
             _attachmentBytes = attachmentBytes;
+          }
+        });
+      }
+    }
+  }
+
+  /// Stop the in-flight turn and send original + the typed correction as one
+  /// turn. Where it does not apply (see [ChatController.replaceTurn]) nothing
+  /// happens and the draft stays in the field.
+  Future<void> _replace() async {
+    final correction = _input.text;
+    if (_replacing || _lastHadFile || correction.trim().isEmpty) return;
+    _input.clear();
+    setState(() {
+      _replacing = true;
+      _inFlight++;
+      _error = null;
+    });
+    SendOutcome? outcome;
+    var stopFailed = false;
+    try {
+      outcome = await _notifier.replaceTurn(correction);
+    } on ReplaceTurnFailed {
+      stopFailed = true;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _replacing = false;
+          _inFlight--;
+          if (outcome == null) {
+            // Nothing was sent: hand the correction back (ahead of anything
+            // typed meanwhile).
+            final typed = _input.text;
+            final restored =
+                typed.isEmpty ? correction : '$correction\n$typed';
+            _input.text = restored;
+            _input.selection =
+                TextSelection.collapsed(offset: restored.length);
+            if (stopFailed) {
+              _error = "Couldn't stop the reply. Try again.";
+            }
+          } else if (outcome == SendOutcome.cancelled) {
+            // Stop pressed on the combined turn: restore the combined text.
+            final combined = _notifier.lastPrompt;
+            _input.text = combined;
+            _input.selection =
+                TextSelection.collapsed(offset: combined.length);
           }
         });
       }
@@ -302,7 +398,15 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
             ),
             const Spacer(),
             if (_sending) ...[
-              Text('Sending…', style: theme.textTheme.muted),
+              if (_canReplace) ...[
+                ShadButton.secondary(
+                  onPressed: _replace,
+                  child: const Icon(LucideIcons.listRestart,
+                      size: 18,
+                      semanticLabel: 'Stop and resend with this correction'),
+                ),
+              ] else
+                Text('Sending…', style: theme.textTheme.muted),
               const SizedBox(width: 8),
               ShadButton.destructive(
                 onPressed: _stop,
@@ -319,6 +423,14 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         ),
       ],
     );
+  }
+
+  /// A typed draft mid-turn can replace the turn: a streamed, text-only turn
+  /// whose stop was not already asked for. The controller re-checks all of it.
+  bool get _canReplace {
+    if (_replacing || _lastHadFile || _input.text.trim().isEmpty) return false;
+    final active = ref.watch(widget.provider).value?.active;
+    return active != null && active.phase == TurnPhase.streaming;
   }
 
   /// A round 44pt icon action (the theme sets the height; the padding makes

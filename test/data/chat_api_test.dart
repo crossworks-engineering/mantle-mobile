@@ -162,6 +162,48 @@ void main() {
     await expectLater(api.cancelTurn('abc123'), completes);
   });
 
+  test('supersedeTurn posts the supersede body, and throws on failure',
+      () async {
+    when(() => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+        )).thenAnswer((_) async => _resp({'ok': true, 'superseded': 2}));
+
+    await api.supersedeTurn('turn-1',
+        inboundId: 'i1', outboundId: 'o1', newTurnId: 'new-1');
+
+    final data = verify(() => dio.post<Map<String, dynamic>>(
+          '/api/assistant/turn/turn-1/cancel',
+          data: captureAny(named: 'data'),
+        )).captured.single as Map;
+    expect(data['supersede'],
+        {'inboundId': 'i1', 'outboundId': 'o1', 'newTurnId': 'new-1'});
+
+    // Unlike cancelTurn, a failure must reach the caller: the combined turn
+    // must not be sent when the old pair was not stamped.
+    when(() => dio.post<Map<String, dynamic>>(
+          any(),
+          data: any(named: 'data'),
+        )).thenThrow(DioException(requestOptions: RequestOptions(path: '/')));
+    await expectLater(
+      api.supersedeTurn('turn-1',
+          inboundId: 'i1', outboundId: 'o1', newTurnId: 'new-1'),
+      throwsA(isA<DioException>()),
+    );
+  });
+
+  test('messageFromHistory reads the superseded flag (absent = false)', () {
+    final row = {
+      'id': 'i1',
+      'direction': 'inbound',
+      'text': 'what is my number',
+      'createdAt': '2026-06-13T10:00:00.000Z',
+    };
+    expect(api.messageFromHistory(row).superseded, isFalse);
+    expect(api.messageFromHistory({...row, 'superseded': true}).superseded,
+        isTrue);
+  });
+
   test('sendTurn forwards the idempotency-key header when given', () async {
     when(() => dio.post<Map<String, dynamic>>(
           any(),

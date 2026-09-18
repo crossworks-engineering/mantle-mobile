@@ -540,8 +540,30 @@ class _Bubble extends StatelessWidget {
           if (showDay) _DayDivider(theme: theme, at: message.createdAt),
           GestureDetector(
             onLongPress: () => _showActions(context),
-            child: Opacity(opacity: sending || queued ? 0.6 : 1, child: bubble),
+            child: Opacity(
+              opacity: sending || queued || message.superseded ? 0.6 : 1,
+              child: bubble,
+            ),
           ),
+          // A replaced pair (stopped and re-sent with a correction) stays in
+          // the thread, dimmed and tagged; the brain keeps it out of prompts.
+          if (message.superseded)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.listRestart,
+                      size: 13, color: scheme.mutedForeground),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Replaced',
+                    style: theme.textTheme.small
+                        .copyWith(color: scheme.mutedForeground),
+                  ),
+                ],
+              ),
+            ),
           if (showTime)
             Padding(
               padding: const EdgeInsets.only(top: 4, left: 4, right: 4),

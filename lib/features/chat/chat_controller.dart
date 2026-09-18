@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show Completer, unawaited;
 import 'dart:math';
 
 import 'package:dio/dio.dart' show CancelToken, DioException, DioExceptionType;
@@ -21,8 +21,24 @@ part 'chat_controller.g.dart';
 
 /// The result of [ChatController.send] — lets the composer react: clear on
 /// [sent], leave the failed bubble on [failed], or restore the text for editing
-/// on [cancelled] (the user hit stop).
-enum SendOutcome { sent, failed, cancelled, queued }
+/// on [cancelled] (the user hit stop). [replaced] means the turn was stopped
+/// by [ChatController.replaceTurn]: a combined turn took its place, so the
+/// composer must NOT put the old text back.
+enum SendOutcome { sent, failed, cancelled, queued, replaced }
+
+/// [ChatController.replaceTurn] could not stop the in-flight turn. The old
+/// turn runs on untouched and nothing was sent; the composer keeps the draft.
+class ReplaceTurnFailed implements Exception {
+  const ReplaceTurnFailed();
+}
+
+/// The text of the turn that replaces a stopped one: original + newline +
+/// correction, verbatim. Mirrors the web's `combineCorrectedPrompt`.
+String combineCorrectedPrompt(String original, String correction) {
+  if (original.isEmpty) return correction;
+  if (correction.isEmpty) return original;
+  return '$original\n$correction';
+}
 
 /// Where a streamed turn is in its lifecycle, driven by the terminal bus events.
 enum TurnPhase { streaming, done, error }
@@ -138,15 +154,19 @@ class ActiveTurn {
   }
 }
 
-/// A fresh 128-bit hex `idempotency-key` for one send. The server replays a
+/// A fresh random `idempotency-key` for one send, in uuid v4 form (the cancel
+/// route's supersede body only accepts a uuid as the replacing turn's id). The server replays a
 /// cached result for a repeated key, so a retried/replayed POST that already
 /// completed server-side won't create a duplicate turn. It's also the turn id —
 /// the live-stream correlation id and the durable reconciliation handle.
 String _newIdempotencyKey() {
   final rand = Random.secure();
-  return List<int>.generate(16, (_) => rand.nextInt(256))
-      .map((b) => b.toRadixString(16).padLeft(2, '0'))
-      .join();
+  final bytes = List<int>.generate(16, (_) => rand.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
 /// The chat thread plus its paging state. [messages] is oldest-first (the screen
@@ -220,6 +240,24 @@ class ChatController extends _$ChatController {
   /// reasoning, across rounds) — the chars/4 live token estimate. Kept outside
   /// [ActiveTurn] so the round-scoped reply reset doesn't shrink it.
   int _outChars = 0;
+
+  /// The text of the turn now in flight (or the last one sent). [replaceTurn]
+  /// folds it into the combined turn; the composer restores it on a stop.
+  String _lastPrompt = '';
+  String get lastPrompt => _lastPrompt;
+
+  /// The turn in flight carried a file. Combining is text-only: a re-sent
+  /// upload would make a second file node.
+  bool _lastTurnHadFile = false;
+
+  /// True while [replaceTurn] is taking the in-flight turn down. The old
+  /// turn's `send` then drops its live view without a reconcile and returns
+  /// [SendOutcome.replaced].
+  bool _replacing = false;
+
+  /// Completes when the in-flight [send] has fully unwound. [replaceTurn]
+  /// waits on it so the combined turn never trips the one-turn-at-a-time guard.
+  Completer<void>? _sendDone;
 
   /// True while [_watchPendingRows] is looping (one poll per thread at a time).
   bool _pollingPending = false;
@@ -496,7 +534,14 @@ class ChatController extends _$ChatController {
   /// composer's stop button calls [stopTurn] to halt it server-side, keeping the
   /// partial; either path returns [SendOutcome.cancelled] on stop so the composer
   /// restores the text for editing.
-  Future<SendOutcome> send(String text, {OutgoingAttachment? attachment}) async {
+  ///
+  /// [idempotencyKey] is only passed by [replaceTurn]: the combined turn must
+  /// run under the id already stamped on the replaced pair.
+  Future<SendOutcome> send(
+    String text, {
+    OutgoingAttachment? attachment,
+    String? idempotencyKey,
+  }) async {
     final trimmed = text.trim();
     if (trimmed.isEmpty && attachment == null) return SendOutcome.sent;
     // One turn at a time. A second send would replace the active turn and
@@ -505,6 +550,11 @@ class ChatController extends _$ChatController {
     if (_postCancel != null || state.value?.active != null) {
       return SendOutcome.cancelled;
     }
+
+    final sendDone = Completer<void>();
+    _sendDone = sendDone;
+    _lastPrompt = trimmed;
+    _lastTurnHadFile = attachment != null;
 
     final base = state.value ?? const ChatState(messages: [], hasMore: false);
     final tempId = 'temp-${DateTime.now().microsecondsSinceEpoch}';
@@ -553,7 +603,7 @@ class ChatController extends _$ChatController {
       /* flush is best-effort here */
     }
 
-    final turnId = _newIdempotencyKey();
+    final turnId = idempotencyKey ?? _newIdempotencyKey();
     _stopRequested = false;
     _replyRound = -1;
     _outChars = 0;
@@ -628,7 +678,73 @@ class ChatController extends _$ChatController {
       return cancelled ? SendOutcome.cancelled : SendOutcome.failed;
     } finally {
       _postCancel = null;
+      sendDone.complete();
     }
+  }
+
+  /// The premature-send correction: the user typed [correction] while a turn
+  /// was still streaming. Stop that turn, have the server mark its message
+  /// pair replaced, then send original + newline + correction as ONE new turn.
+  /// The next prompt then holds the combined message and not the half answer.
+  /// Mirrors the web's stop-and-resend.
+  ///
+  /// Returns null when the replace does not apply (no streamed turn in flight,
+  /// a stop already asked for, a file on the turn, or the durable row ids not
+  /// known yet): nothing happened and the composer keeps the draft. Throws
+  /// [ReplaceTurnFailed] when the stop request itself failed. Otherwise
+  /// returns the combined turn's [SendOutcome].
+  Future<SendOutcome?> replaceTurn(String correction) async {
+    final text = correction.trim();
+    if (text.isEmpty || _replacing || _stopRequested || _lastTurnHadFile) {
+      return null;
+    }
+    var active = state.value?.active;
+    if (active == null || active.phase != TurnPhase.streaming) return null;
+    // The row ids ride the `turn-start` event; a very fast correction can beat
+    // it. One short wait, then give up (the draft stays, the user sends again).
+    if (active.inboundId == null || active.outboundId == null) {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (!ref.mounted || _replacing || _stopRequested) return null;
+      final turnId = active.turnId;
+      active = state.value?.active;
+      if (active == null ||
+          active.turnId != turnId ||
+          active.phase != TurnPhase.streaming ||
+          active.inboundId == null ||
+          active.outboundId == null) {
+        return null;
+      }
+    }
+
+    final original = _lastPrompt;
+    final newTurnId = _newIdempotencyKey();
+    _replacing = true;
+    try {
+      // AWAIT the stamp before the combined turn is sent. That order is the
+      // race fix: the pair is marked before the new turn loads its context,
+      // whenever the old turn's finalize lands.
+      try {
+        await ref.read(chatRepositoryProvider).supersedeTurn(
+              active.turnId,
+              inboundId: active.inboundId!,
+              outboundId: active.outboundId!,
+              newTurnId: newTurnId,
+            );
+      } catch (_) {
+        throw const ReplaceTurnFailed();
+      }
+      // Let the old `send` unwind (it sees [_replacing] and drops its live
+      // view), so the combined turn passes the one-turn-at-a-time guard.
+      _streamCancel?.cancel('replaced');
+      await _sendDone?.future;
+    } finally {
+      _replacing = false;
+    }
+    if (!ref.mounted) return null;
+    return send(
+      combineCorrectedPrompt(original, text),
+      idempotencyKey: newTurnId,
+    );
   }
 
   /// Drive a streamed turn: set [ChatState.active], consume the SSE bus until the
@@ -665,6 +781,23 @@ class ChatController extends _$ChatController {
     // server-side and reconciles on return; nothing more to do here.
     if (!ref.mounted) {
       return _stopRequested ? SendOutcome.cancelled : SendOutcome.sent;
+    }
+
+    // [replaceTurn] took this turn down: drop the optimistic bubble and the
+    // live view. No reconcile here; the replaced pair comes back (dimmed) with
+    // the combined turn's reconcile.
+    if (_replacing) {
+      final now = state.value;
+      if (now != null) {
+        state = AsyncData(now.copyWith(
+          messages: [
+            for (final m in now.messages)
+              if (m.id != tempId) m,
+          ],
+          clearActive: true,
+        ));
+      }
+      return SendOutcome.replaced;
     }
 
     final phase = state.value?.active?.phase ?? TurnPhase.done;

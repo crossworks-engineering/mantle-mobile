@@ -626,4 +626,174 @@ void main() {
     expect(state.active, isNull);
     expect(state.messages.map((m) => m.id), ['i1', 'o1']);
   });
+
+  // ── Stop and resend (the premature-send correction) ─────────────────────
+
+  test('combineCorrectedPrompt joins original and correction with a newline',
+      () {
+    expect(combineCorrectedPrompt('what is my number', 'cell'),
+        'what is my number\ncell');
+    expect(combineCorrectedPrompt('', 'cell'), 'cell');
+    expect(combineCorrectedPrompt('what is my number', ''),
+        'what is my number');
+  });
+
+  test('replaceTurn: stamps the pair, then sends original + correction as one '
+      'turn under the stamped id', () async {
+    final at = DateTime(2026, 1, 1, 10);
+    final canonical = [
+      ChatMessage(
+          id: 'i1',
+          direction: MessageDirection.inbound,
+          text: 'what is my number',
+          createdAt: at,
+          superseded: true),
+      ChatMessage(
+          id: 'o1',
+          direction: MessageDirection.outbound,
+          text: 'Your',
+          createdAt: at.add(const Duration(seconds: 1)),
+          superseded: true),
+      _msg('i2', MessageDirection.inbound, 'what is my number\ncell',
+          at: at.add(const Duration(seconds: 5))),
+      _msg('o2', MessageDirection.outbound, 'Your cell number is …',
+          at: at.add(const Duration(seconds: 6))),
+    ];
+    var historyCalls = 0;
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer(
+        (_) async => HistoryPage(
+            messages: historyCalls++ == 0 ? <ChatMessage>[] : canonical));
+
+    final sentTexts = <String>[];
+    final sentKeys = <String?>[];
+    whenSend().thenAnswer((inv) async {
+      sentTexts.add(inv.positionalArguments[0] as String);
+      sentKeys.add(inv.namedArguments[#idempotencyKey] as String?);
+      return const TurnAccepted('turn-1');
+    });
+
+    final first = StreamController<TurnEvent>();
+    final second = StreamController<TurnEvent>();
+    addTearDown(() => first.close());
+    addTearDown(() => second.close());
+    var streams = 0;
+    when(() => repo.streamTurn(any(), cancelToken: any(named: 'cancelToken')))
+        .thenAnswer((_) => streams++ == 0 ? first.stream : second.stream);
+
+    String? stampedId;
+    when(() => repo.supersedeTurn(
+          any(),
+          inboundId: any(named: 'inboundId'),
+          outboundId: any(named: 'outboundId'),
+          newTurnId: any(named: 'newTurnId'),
+        )).thenAnswer((inv) async {
+      stampedId = inv.namedArguments[#newTurnId] as String;
+      // The runner aborts the old turn and finalizes the partial → `done`.
+      first.add(_ev(3, 'done', {'status': 'complete'}));
+    });
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final notifier = c.read(chatControllerProvider(_slug).notifier);
+
+    final oldSend = notifier.send('what is my number');
+    first.add(_ev(0, 'turn-start', {'inboundId': 'i1', 'outboundId': 'o1'}));
+    await pumpUntil(c, (s) => s.active?.outboundId == 'o1');
+
+    final replace = notifier.replaceTurn('cell');
+    expect(await oldSend, SendOutcome.replaced);
+
+    await pumpUntil(c, (s) => streams == 2 && s.active != null);
+    second.add(_ev(0, 'turn-start', {'inboundId': 'i2', 'outboundId': 'o2'}));
+    second.add(_ev(1, 'done', {'status': 'complete'}));
+    expect(await replace, SendOutcome.sent);
+
+    verify(() => repo.supersedeTurn('turn-1',
+        inboundId: 'i1',
+        outboundId: 'o1',
+        newTurnId: any(named: 'newTurnId'))).called(1);
+    verifyNever(() => repo.cancelTurn(any()));
+    expect(sentTexts, ['what is my number', 'what is my number\ncell']);
+    // The cancel route only takes a uuid, and the combined turn must run
+    // under the id stamped on the replaced pair.
+    expect(
+      RegExp(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$')
+          .hasMatch(stampedId!),
+      isTrue,
+    );
+    expect(sentKeys[1], stampedId);
+
+    final state = c.read(chatControllerProvider(_slug)).value!;
+    expect(state.active, isNull);
+    expect(state.messages.map((m) => m.id), ['i1', 'o1', 'i2', 'o2']);
+    expect(state.messages.map((m) => m.superseded),
+        [true, true, false, false]);
+    expect(notifier.lastPrompt, 'what is my number\ncell');
+  });
+
+  test('replaceTurn: no turn in flight → null, nothing stamped or sent',
+      () async {
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer((_) async => const HistoryPage(messages: []));
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final notifier = c.read(chatControllerProvider(_slug).notifier);
+
+    expect(await notifier.replaceTurn('cell'), isNull);
+    verifyNever(() => repo.supersedeTurn(
+          any(),
+          inboundId: any(named: 'inboundId'),
+          outboundId: any(named: 'outboundId'),
+          newTurnId: any(named: 'newTurnId'),
+        ));
+  });
+
+  test('replaceTurn: a failed stop throws, sends nothing, the old turn runs on',
+      () async {
+    when(() => repo.history(
+          before: any(named: 'before'),
+          limit: any(named: 'limit'),
+          agentSlug: any(named: 'agentSlug'),
+        )).thenAnswer((_) async => const HistoryPage(messages: []));
+    var sends = 0;
+    whenSend().thenAnswer((_) async {
+      sends++;
+      return const TurnAccepted('turn-1');
+    });
+    final events = StreamController<TurnEvent>();
+    addTearDown(() => events.close());
+    when(() => repo.streamTurn(any(), cancelToken: any(named: 'cancelToken')))
+        .thenAnswer((_) => events.stream);
+    when(() => repo.supersedeTurn(
+          any(),
+          inboundId: any(named: 'inboundId'),
+          outboundId: any(named: 'outboundId'),
+          newTurnId: any(named: 'newTurnId'),
+        )).thenThrow(Exception('network'));
+
+    final c = makeContainer();
+    await c.read(chatControllerProvider(_slug).future);
+    final notifier = c.read(chatControllerProvider(_slug).notifier);
+
+    final oldSend = notifier.send('what is my number');
+    events.add(_ev(0, 'turn-start', {'inboundId': 'i1', 'outboundId': 'o1'}));
+    await pumpUntil(c, (s) => s.active?.outboundId == 'o1');
+
+    await expectLater(
+        notifier.replaceTurn('cell'), throwsA(isA<ReplaceTurnFailed>()));
+    expect(sends, 1);
+    expect(c.read(chatControllerProvider(_slug)).value!.active, isNotNull);
+
+    // The old turn still finishes the normal way.
+    events.add(_ev(1, 'done', {'status': 'complete'}));
+    expect(await oldSend, SendOutcome.sent);
+  });
 }
