@@ -141,6 +141,18 @@ Search
       a sent message carries the location.
 - [ ] Files: browse folders, upload a document through the picker, open an
       image preview.
+- [ ] Files: tap a PDF, then **Open**. Progress shows, then the phone's PDF
+      viewer (or an "open with" chooser) opens the file under its real name.
+- [ ] Same for a Word or Excel file and a video. A type nothing on the phone
+      opens (try a `.step` or `.bin`) falls back to the share sheet and the
+      sheet says so.
+- [ ] **Share** on any file offers the share sheet with the file attached.
+- [ ] A file over 100 MB shows "Download … MB and open"; Cancel mid-download
+      returns to the buttons and leaves nothing behind.
+- [ ] On a page, a file chip that is not an image opens the same sheet.
+- [ ] Sign out, sign back in: opening the same file downloads it again (the
+      cache went with the session).
+- [ ] App info → Permissions lists no storage, photos or videos permission.
 
 ## 11. Theme
 

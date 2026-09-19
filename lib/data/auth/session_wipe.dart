@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../db/database_provider.dart';
 import '../events/event_alarms.dart';
+import '../files/file_open_service.dart';
 import '../push/direct_push_service.dart';
 import '../push/push_api.dart';
 import '../push/push_keys.dart';
@@ -85,6 +86,9 @@ class SessionWipe {
   /// events, the background stream to its brain. Stopped when it leaves and
   /// when another login takes its place; the new one starts its own.
   Future<void> stopActiveServices() async {
+    // Files opened on the phone were downloaded to the cache as the login in
+    // use; they go when it leaves, and when another login takes its place.
+    await _best(() => _ref.read(fileOpenServiceProvider).clearCache());
     await _best(EventAlarms.cancelAll);
     if (Platform.isAndroid) {
       await _best(const DirectPush().stop);

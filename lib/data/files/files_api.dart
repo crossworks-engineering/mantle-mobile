@@ -81,6 +81,14 @@ class FilesApi {
     }
   }
 
+  /// `GET /api/files/files/{id}`: one file's row. For places that hold only an
+  /// id and a name (a `media:` chip on a page) and need the type and size
+  /// before opening it.
+  Future<FileRow> meta(String id) async {
+    final res = await _dio.get<Map<String, dynamic>>('/api/files/files/$id');
+    return FileRow.fromJson((res.data?['file'] as Map).cast<String, dynamic>());
+  }
+
   /// `DELETE /api/files/files/{id}`.
   Future<void> delete(String id) async {
     await _dio.delete<Map<String, dynamic>>('/api/files/files/$id');

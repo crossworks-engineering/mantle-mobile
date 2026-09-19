@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Chat composer voice notes (transcribed server-side). image_picker /
          file_picker use the system pickers, so they need no storage permission. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -18,6 +19,14 @@
          denied) + reschedule after reboot. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- open_filex (the file opener) declares storage and media-read permissions
+         for opening files OUTSIDE the app. Jackdaw only ever opens its own
+         downloads in the cache dir, which needs none of them, and the media
+         ones trip Play's photo and video permissions policy. Strip all four. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
     <application
         android:label="Jackdaw"
         android:name="${applicationName}"

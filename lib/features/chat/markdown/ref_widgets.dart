@@ -7,8 +7,10 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../data/chat/chat_api.dart' show fileBytesProvider;
+import '../../../data/files/files_api.dart';
 import '../../../data/nodes/nodes_api.dart';
 import '../../../data/server/server_config.dart';
+import '../../files/file_open_sheet.dart';
 import 'mantle_refs.dart';
 
 /// Renders a `mantleRef` element (see [RefInlineSyntax]): an image for
@@ -47,8 +49,10 @@ class RefBuilder extends MarkdownElementBuilder {
 /// - mention:node → resolved by type through `/api/nodes/{id}`; a type the
 ///   phone has no screen for opens the web permalink.
 /// - mention:entity → not tappable (no entity screen); reads as a name tag.
-/// - media → the image screen when the name says picture, else the web
-///   permalink (the file opener, when it lands, replaces that branch).
+/// - media → the image screen when the name says picture, else the file open
+///   sheet (download and hand to the phone's viewer). The chip holds only an
+///   id and a name, so the row is fetched first; if that fails, the web
+///   permalink.
 /// - draw → the web permalink (drawings are edited on the web).
 class RefChip extends ConsumerWidget {
   const RefChip({
@@ -67,18 +71,19 @@ class RefChip extends ConsumerWidget {
   bool get _navigable => !(kind == 'mention' && ref == 'entity');
 
   IconData get _icon => switch (kind) {
-        'page' => LucideIcons.fileText,
-        'media' => looksLikeImage(label) ? LucideIcons.image : LucideIcons.paperclip,
-        'draw' => LucideIcons.penTool,
-        _ => ref == 'entity' ? LucideIcons.atSign : LucideIcons.link2,
-      };
+    'page' => LucideIcons.fileText,
+    'media' =>
+      looksLikeImage(label) ? LucideIcons.image : LucideIcons.paperclip,
+    'draw' => LucideIcons.penTool,
+    _ => ref == 'entity' ? LucideIcons.atSign : LucideIcons.link2,
+  };
 
   String get _semantics => switch (kind) {
-        'page' => 'Open page $label',
-        'media' => 'Open file $label',
-        'draw' => 'Open drawing $label on the web',
-        _ => ref == 'entity' ? label : 'Open $label',
-      };
+    'page' => 'Open page $label',
+    'media' => 'Open file $label',
+    'draw' => 'Open drawing $label on the web',
+    _ => ref == 'entity' ? label : 'Open $label',
+  };
 
   Future<void> _open(BuildContext context, WidgetRef widgetRef) async {
     switch (kind) {
@@ -86,9 +91,17 @@ class RefChip extends ConsumerWidget {
         _push(context, '/pages/$id');
       case 'media':
         if (looksLikeImage(label)) {
-          _push(context, '/files/image/$id?name=${Uri.encodeQueryComponent(label)}');
+          _push(
+            context,
+            '/files/image/$id?name=${Uri.encodeQueryComponent(label)}',
+          );
         } else {
-          await openNodeOnWeb(widgetRef, id);
+          try {
+            final row = await widgetRef.read(filesApiProvider).meta(id);
+            if (context.mounted) await showFileOpenSheet(context, row);
+          } catch (_) {
+            await openNodeOnWeb(widgetRef, id);
+          }
         }
       case 'draw':
         await openNodeOnWeb(widgetRef, id);
@@ -207,22 +220,27 @@ class MantleImage extends ConsumerWidget {
       return _frame(SvgPicture.string(data, fit: BoxFit.contain));
     }
     if (uri.scheme == 'http' || uri.scheme == 'https') {
-      return _frame(Image.network(
-        uri.toString(),
-        fit: BoxFit.contain,
-        errorBuilder: (_, _, _) => _chip(theme),
-      ));
+      return _frame(
+        Image.network(
+          uri.toString(),
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => _chip(theme),
+        ),
+      );
     }
     return _chip(theme);
   }
 
   Widget _frame(Widget child) => ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: SizedBox(width: double.infinity, child: child),
-      );
+    borderRadius: BorderRadius.circular(8),
+    child: SizedBox(width: double.infinity, child: child),
+  );
 
-  Widget _chip(ShadThemeData theme,
-      {bool loading = false, IconData icon = LucideIcons.image}) {
+  Widget _chip(
+    ShadThemeData theme, {
+    bool loading = false,
+    IconData icon = LucideIcons.image,
+  }) {
     final scheme = theme.colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

@@ -85,6 +85,8 @@ dependencies:
   # GeneratedPluginRegistrant, delete build/package_info_plus and rebuild:
   # a stale module build dir from an older version left an empty jar once.
   package_info_plus: ^10.2.1
+  open_filex: ^4.7.0
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:

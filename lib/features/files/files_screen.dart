@@ -5,19 +5,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/files/files_api.dart' show FileUploadException;
 import '../../data/files/files_models.dart';
-import '../../data/server/server_config.dart';
 import '../../widgets/mantle_header.dart';
 import '../../widgets/confirm_dialog.dart';
+import 'file_open_sheet.dart';
 import 'files_controller.dart';
 
 /// One folder of the brain's file library: child folders first, then files.
 /// Tap a folder to drill in (each level is its own route push, so back just
-/// works); tap an image to preview it authed; anything else gets a detail
-/// sheet with "Open in Mantle". The bottom bar uploads into THIS folder —
+/// works); tap an image to preview it authed; anything else gets the open
+/// sheet (download and hand to the phone's viewer, share, or "Open in
+/// Mantle"). The bottom bar uploads into THIS folder —
 /// camera, photo library, or any document.
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key, this.path = 'files'});
@@ -107,67 +107,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     if (ok) await notifier.deleteFile(file.id);
   }
 
-  Future<void> _showFileDetails(FileRow f) async {
-    final theme = ShadTheme.of(context);
-    final scheme = theme.colorScheme;
-    final base = ref.read(serverConfigProvider).value;
-    await showShadSheet<void>(
-      context: context,
-      side: ShadSheetSide.bottom,
-      builder: (ctx) => ShadSheet(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 8, bottom: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                f.filename,
-                style: theme.textTheme.h4.copyWith(color: scheme.foreground),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '${f.mimeType} · ${f.sizeLabel}',
-                style: theme.textTheme.muted,
-              ),
-              if (f.summary != null && f.summary!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  f.summary!,
-                  style: theme.textTheme.p.copyWith(color: scheme.foreground),
-                ),
-              ],
-              const SizedBox(height: 16),
-              if (base != null)
-                SizedBox(
-                  width: double.infinity,
-                  child: ShadButton(
-                    onPressed: () async {
-                      final uri = Uri.tryParse('$base/n/${f.id}');
-                      if (uri != null) {
-                        await launchUrl(
-                          uri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      }
-                    },
-                    child: const Text('Open in Mantle'),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _openFile(FileRow f) {
     if (f.isImage) {
       context.push(
         '/files/image/${f.id}?name=${Uri.encodeComponent(f.filename)}',
       );
     } else {
-      _showFileDetails(f);
+      showFileOpenSheet(context, f);
     }
   }
 

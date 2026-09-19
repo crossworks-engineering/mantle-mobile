@@ -722,8 +722,25 @@ Three more surfaces over owner-gated JSON routes, same layering as v1.5:
   409 duplicate-name and 413 too-large surfaced inline), delete by id.
   Each drilled folder is its own route push (controller is a family by
   ltree path), so back just works. Image files open a full-screen authed
-  preview (`fileBytesProvider` + `InteractiveViewer`); others get a detail
-  sheet with "Open in Mantle".
+  preview (`fileBytesProvider` + `InteractiveViewer`); everything else gets
+  the open sheet (`file_open_sheet.dart`): **Open**, **Share**, and "Open in
+  Mantle". A `media:` chip on a page for a non-image opens the same sheet.
+- **Opening a file** (`FileOpenService`). A system viewer cannot send the
+  bearer, so the file is downloaded INSIDE the app with the bearer and the OS
+  is handed a local copy; no credential leaves the app. The download streams
+  to disk (dio `download`, `.part` then rename, progress, cancel), never into
+  memory. Hand-off is `open_filex` (Quick Look style preview on iOS,
+  `ACTION_VIEW` through its bundled FileProvider on Android); when no app
+  claims the type it falls back to the share sheet (`share_plus`). Copies live
+  in the CACHE directory under `opened_files/<id>/<filename>`, never
+  Documents, are capped at 500 MB (oldest first) and are removed by the
+  session wipe (sign-out and a dead token). Above 100 MB the button names the
+  size, so a large download is chosen and not triggered by a row tap. Viewing
+  only: editing stays on the web. `open_filex` declares storage and
+  media-read permissions the app does not need; the manifest strips them
+  (`tools:node="remove"`), which also keeps Play's photo and video policy out
+  of the picture. Not built yet: in-app PDF and video viewers, HTTP Range on
+  the server, and folding the two pick-then-upload copies into this service.
 
 ## Events & device alarms (v1.6)
 
