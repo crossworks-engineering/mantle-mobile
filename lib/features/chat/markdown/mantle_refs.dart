@@ -154,6 +154,6 @@ String? routeForNode(String type, String id) {
 /// Whether a file's name says it is a picture the image screen can show.
 bool looksLikeImage(String name) {
   final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
-  return const {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic'}
+  return const {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic', 'svg'}
       .contains(ext);
 }

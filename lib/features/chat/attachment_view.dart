@@ -8,6 +8,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../data/chat/chat_api.dart';
 import '../../data/chat/chat_attachment.dart';
 import 'audio_bubble.dart';
+import '../../widgets/bytes_image.dart';
 
 /// Renders one [ChatAttachment] beneath a message bubble. Images show inline
 /// (from disk when just-sent, else fetched authed by `nodeId`) and open full
@@ -65,7 +66,8 @@ class AttachmentView extends StatelessWidget {
     }
     // A voice reply / audio attachment with bytes on disk plays inline;
     // without a playable source it falls through to a chip.
-    final isAudio = attachment.kind == AttachmentKind.audio ||
+    final isAudio =
+        attachment.kind == AttachmentKind.audio ||
         attachment.kind == AttachmentKind.voice;
     if (isAudio && attachment.localPath != null) {
       return AudioBubble(
@@ -221,11 +223,13 @@ class _NetworkImageAttachment extends ConsumerWidget {
       data: (data) {
         if (data == null) return fallback();
         return frame(
-          Image.memory(
-            data,
-            fit: BoxFit.cover,
+          SizedBox(
             width: double.infinity,
-            errorBuilder: (_, _, _) => fallback(),
+            child: BytesImage(
+              data,
+              fit: BoxFit.cover,
+              onError: (_) => fallback(),
+            ),
           ),
         );
       },

@@ -11,6 +11,7 @@ import '../../../data/files/files_api.dart';
 import '../../../data/nodes/nodes_api.dart';
 import '../../../data/server/server_config.dart';
 import '../../files/file_open_sheet.dart';
+import '../../../widgets/bytes_image.dart';
 import 'mantle_refs.dart';
 
 /// Renders a `mantleRef` element (see [RefInlineSyntax]): an image for
@@ -206,7 +207,7 @@ class MantleImage extends ConsumerWidget {
               context,
               '/files/image/$fileId?name=${Uri.encodeQueryComponent(alt ?? 'Image')}',
             ),
-            child: Image.memory(data, fit: BoxFit.contain),
+            child: BytesImage(data, onError: (_) => _chip(theme)),
           ),
         ),
       );
