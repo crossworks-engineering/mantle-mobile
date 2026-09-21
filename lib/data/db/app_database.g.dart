@@ -211,12 +211,556 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
   }
 }
 
+class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _baseUrlMeta = const VerificationMeta(
+    'baseUrl',
+  );
+  @override
+  late final GeneratedColumn<String> baseUrl = GeneratedColumn<String>(
+    'base_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+    'email',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _displayNameMeta = const VerificationMeta(
+    'displayName',
+  );
+  @override
+  late final GeneratedColumn<String> displayName = GeneratedColumn<String>(
+    'display_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _siteNameMeta = const VerificationMeta(
+    'siteName',
+  );
+  @override
+  late final GeneratedColumn<String> siteName = GeneratedColumn<String>(
+    'site_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _addedAtMeta = const VerificationMeta(
+    'addedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> addedAt = GeneratedColumn<DateTime>(
+    'added_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastUsedAtMeta = const VerificationMeta(
+    'lastUsedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastUsedAt = GeneratedColumn<DateTime>(
+    'last_used_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _needsSignInMeta = const VerificationMeta(
+    'needsSignIn',
+  );
+  @override
+  late final GeneratedColumn<bool> needsSignIn = GeneratedColumn<bool>(
+    'needs_sign_in',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("needs_sign_in" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    baseUrl,
+    email,
+    displayName,
+    siteName,
+    addedAt,
+    lastUsedAt,
+    needsSignIn,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sessions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Session> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('base_url')) {
+      context.handle(
+        _baseUrlMeta,
+        baseUrl.isAcceptableOrUnknown(data['base_url']!, _baseUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_baseUrlMeta);
+    }
+    if (data.containsKey('email')) {
+      context.handle(
+        _emailMeta,
+        email.isAcceptableOrUnknown(data['email']!, _emailMeta),
+      );
+    }
+    if (data.containsKey('display_name')) {
+      context.handle(
+        _displayNameMeta,
+        displayName.isAcceptableOrUnknown(
+          data['display_name']!,
+          _displayNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('site_name')) {
+      context.handle(
+        _siteNameMeta,
+        siteName.isAcceptableOrUnknown(data['site_name']!, _siteNameMeta),
+      );
+    }
+    if (data.containsKey('added_at')) {
+      context.handle(
+        _addedAtMeta,
+        addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_addedAtMeta);
+    }
+    if (data.containsKey('last_used_at')) {
+      context.handle(
+        _lastUsedAtMeta,
+        lastUsedAt.isAcceptableOrUnknown(
+          data['last_used_at']!,
+          _lastUsedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastUsedAtMeta);
+    }
+    if (data.containsKey('needs_sign_in')) {
+      context.handle(
+        _needsSignInMeta,
+        needsSignIn.isAcceptableOrUnknown(
+          data['needs_sign_in']!,
+          _needsSignInMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Session map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Session(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      baseUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}base_url'],
+      )!,
+      email: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}email'],
+      )!,
+      displayName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}display_name'],
+      ),
+      siteName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}site_name'],
+      ),
+      addedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}added_at'],
+      )!,
+      lastUsedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_used_at'],
+      )!,
+      needsSignIn: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}needs_sign_in'],
+      )!,
+    );
+  }
+
+  @override
+  $SessionsTable createAlias(String alias) {
+    return $SessionsTable(attachedDatabase, alias);
+  }
+}
+
+class Session extends DataClass implements Insertable<Session> {
+  /// Random, device-local. Not a secret, and unknown to any brain.
+  final String id;
+  final String baseUrl;
+
+  /// Empty until known (a QR sign-in learns it from the claim, a session
+  /// migrated from the single-login build from the saved account email).
+  final String email;
+  final String? displayName;
+  final String? siteName;
+  final DateTime addedAt;
+  final DateTime lastUsedAt;
+
+  /// True once the brain has refused this session's bearer: it can be signed
+  /// back in to, not switched to.
+  final bool needsSignIn;
+  const Session({
+    required this.id,
+    required this.baseUrl,
+    required this.email,
+    this.displayName,
+    this.siteName,
+    required this.addedAt,
+    required this.lastUsedAt,
+    required this.needsSignIn,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['base_url'] = Variable<String>(baseUrl);
+    map['email'] = Variable<String>(email);
+    if (!nullToAbsent || displayName != null) {
+      map['display_name'] = Variable<String>(displayName);
+    }
+    if (!nullToAbsent || siteName != null) {
+      map['site_name'] = Variable<String>(siteName);
+    }
+    map['added_at'] = Variable<DateTime>(addedAt);
+    map['last_used_at'] = Variable<DateTime>(lastUsedAt);
+    map['needs_sign_in'] = Variable<bool>(needsSignIn);
+    return map;
+  }
+
+  SessionsCompanion toCompanion(bool nullToAbsent) {
+    return SessionsCompanion(
+      id: Value(id),
+      baseUrl: Value(baseUrl),
+      email: Value(email),
+      displayName: displayName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(displayName),
+      siteName: siteName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(siteName),
+      addedAt: Value(addedAt),
+      lastUsedAt: Value(lastUsedAt),
+      needsSignIn: Value(needsSignIn),
+    );
+  }
+
+  factory Session.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Session(
+      id: serializer.fromJson<String>(json['id']),
+      baseUrl: serializer.fromJson<String>(json['baseUrl']),
+      email: serializer.fromJson<String>(json['email']),
+      displayName: serializer.fromJson<String?>(json['displayName']),
+      siteName: serializer.fromJson<String?>(json['siteName']),
+      addedAt: serializer.fromJson<DateTime>(json['addedAt']),
+      lastUsedAt: serializer.fromJson<DateTime>(json['lastUsedAt']),
+      needsSignIn: serializer.fromJson<bool>(json['needsSignIn']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'baseUrl': serializer.toJson<String>(baseUrl),
+      'email': serializer.toJson<String>(email),
+      'displayName': serializer.toJson<String?>(displayName),
+      'siteName': serializer.toJson<String?>(siteName),
+      'addedAt': serializer.toJson<DateTime>(addedAt),
+      'lastUsedAt': serializer.toJson<DateTime>(lastUsedAt),
+      'needsSignIn': serializer.toJson<bool>(needsSignIn),
+    };
+  }
+
+  Session copyWith({
+    String? id,
+    String? baseUrl,
+    String? email,
+    Value<String?> displayName = const Value.absent(),
+    Value<String?> siteName = const Value.absent(),
+    DateTime? addedAt,
+    DateTime? lastUsedAt,
+    bool? needsSignIn,
+  }) => Session(
+    id: id ?? this.id,
+    baseUrl: baseUrl ?? this.baseUrl,
+    email: email ?? this.email,
+    displayName: displayName.present ? displayName.value : this.displayName,
+    siteName: siteName.present ? siteName.value : this.siteName,
+    addedAt: addedAt ?? this.addedAt,
+    lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+    needsSignIn: needsSignIn ?? this.needsSignIn,
+  );
+  Session copyWithCompanion(SessionsCompanion data) {
+    return Session(
+      id: data.id.present ? data.id.value : this.id,
+      baseUrl: data.baseUrl.present ? data.baseUrl.value : this.baseUrl,
+      email: data.email.present ? data.email.value : this.email,
+      displayName: data.displayName.present
+          ? data.displayName.value
+          : this.displayName,
+      siteName: data.siteName.present ? data.siteName.value : this.siteName,
+      addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
+      lastUsedAt: data.lastUsedAt.present
+          ? data.lastUsedAt.value
+          : this.lastUsedAt,
+      needsSignIn: data.needsSignIn.present
+          ? data.needsSignIn.value
+          : this.needsSignIn,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Session(')
+          ..write('id: $id, ')
+          ..write('baseUrl: $baseUrl, ')
+          ..write('email: $email, ')
+          ..write('displayName: $displayName, ')
+          ..write('siteName: $siteName, ')
+          ..write('addedAt: $addedAt, ')
+          ..write('lastUsedAt: $lastUsedAt, ')
+          ..write('needsSignIn: $needsSignIn')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    baseUrl,
+    email,
+    displayName,
+    siteName,
+    addedAt,
+    lastUsedAt,
+    needsSignIn,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Session &&
+          other.id == this.id &&
+          other.baseUrl == this.baseUrl &&
+          other.email == this.email &&
+          other.displayName == this.displayName &&
+          other.siteName == this.siteName &&
+          other.addedAt == this.addedAt &&
+          other.lastUsedAt == this.lastUsedAt &&
+          other.needsSignIn == this.needsSignIn);
+}
+
+class SessionsCompanion extends UpdateCompanion<Session> {
+  final Value<String> id;
+  final Value<String> baseUrl;
+  final Value<String> email;
+  final Value<String?> displayName;
+  final Value<String?> siteName;
+  final Value<DateTime> addedAt;
+  final Value<DateTime> lastUsedAt;
+  final Value<bool> needsSignIn;
+  final Value<int> rowid;
+  const SessionsCompanion({
+    this.id = const Value.absent(),
+    this.baseUrl = const Value.absent(),
+    this.email = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.siteName = const Value.absent(),
+    this.addedAt = const Value.absent(),
+    this.lastUsedAt = const Value.absent(),
+    this.needsSignIn = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SessionsCompanion.insert({
+    required String id,
+    required String baseUrl,
+    this.email = const Value.absent(),
+    this.displayName = const Value.absent(),
+    this.siteName = const Value.absent(),
+    required DateTime addedAt,
+    required DateTime lastUsedAt,
+    this.needsSignIn = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       baseUrl = Value(baseUrl),
+       addedAt = Value(addedAt),
+       lastUsedAt = Value(lastUsedAt);
+  static Insertable<Session> custom({
+    Expression<String>? id,
+    Expression<String>? baseUrl,
+    Expression<String>? email,
+    Expression<String>? displayName,
+    Expression<String>? siteName,
+    Expression<DateTime>? addedAt,
+    Expression<DateTime>? lastUsedAt,
+    Expression<bool>? needsSignIn,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (baseUrl != null) 'base_url': baseUrl,
+      if (email != null) 'email': email,
+      if (displayName != null) 'display_name': displayName,
+      if (siteName != null) 'site_name': siteName,
+      if (addedAt != null) 'added_at': addedAt,
+      if (lastUsedAt != null) 'last_used_at': lastUsedAt,
+      if (needsSignIn != null) 'needs_sign_in': needsSignIn,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SessionsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? baseUrl,
+    Value<String>? email,
+    Value<String?>? displayName,
+    Value<String?>? siteName,
+    Value<DateTime>? addedAt,
+    Value<DateTime>? lastUsedAt,
+    Value<bool>? needsSignIn,
+    Value<int>? rowid,
+  }) {
+    return SessionsCompanion(
+      id: id ?? this.id,
+      baseUrl: baseUrl ?? this.baseUrl,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      siteName: siteName ?? this.siteName,
+      addedAt: addedAt ?? this.addedAt,
+      lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+      needsSignIn: needsSignIn ?? this.needsSignIn,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (baseUrl.present) {
+      map['base_url'] = Variable<String>(baseUrl.value);
+    }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
+    }
+    if (displayName.present) {
+      map['display_name'] = Variable<String>(displayName.value);
+    }
+    if (siteName.present) {
+      map['site_name'] = Variable<String>(siteName.value);
+    }
+    if (addedAt.present) {
+      map['added_at'] = Variable<DateTime>(addedAt.value);
+    }
+    if (lastUsedAt.present) {
+      map['last_used_at'] = Variable<DateTime>(lastUsedAt.value);
+    }
+    if (needsSignIn.present) {
+      map['needs_sign_in'] = Variable<bool>(needsSignIn.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('baseUrl: $baseUrl, ')
+          ..write('email: $email, ')
+          ..write('displayName: $displayName, ')
+          ..write('siteName: $siteName, ')
+          ..write('addedAt: $addedAt, ')
+          ..write('lastUsedAt: $lastUsedAt, ')
+          ..write('needsSignIn: $needsSignIn, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $CachedMessagesTable extends CachedMessages
     with TableInfo<$CachedMessagesTable, CachedMessage> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $CachedMessagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _agentSlugMeta = const VerificationMeta(
     'agentSlug',
   );
@@ -258,7 +802,13 @@ class $CachedMessagesTable extends CachedMessages
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [agentSlug, id, json, createdAt];
+  List<GeneratedColumn> get $columns => [
+    sessionId,
+    agentSlug,
+    id,
+    json,
+    createdAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -271,6 +821,12 @@ class $CachedMessagesTable extends CachedMessages
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
     if (data.containsKey('agent_slug')) {
       context.handle(
         _agentSlugMeta,
@@ -304,11 +860,15 @@ class $CachedMessagesTable extends CachedMessages
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => {agentSlug, id};
+  Set<GeneratedColumn> get $primaryKey => {sessionId, agentSlug, id};
   @override
   CachedMessage map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return CachedMessage(
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
       agentSlug: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}agent_slug'],
@@ -335,11 +895,15 @@ class $CachedMessagesTable extends CachedMessages
 }
 
 class CachedMessage extends DataClass implements Insertable<CachedMessage> {
+  /// Whose cache this is. Two logins can both have an agent called
+  /// `assistant`; their threads must never be read as each other's.
+  final String sessionId;
   final String agentSlug;
   final String id;
   final String json;
   final DateTime createdAt;
   const CachedMessage({
+    required this.sessionId,
     required this.agentSlug,
     required this.id,
     required this.json,
@@ -348,6 +912,7 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    map['session_id'] = Variable<String>(sessionId);
     map['agent_slug'] = Variable<String>(agentSlug);
     map['id'] = Variable<String>(id);
     map['json'] = Variable<String>(json);
@@ -357,6 +922,7 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
 
   CachedMessagesCompanion toCompanion(bool nullToAbsent) {
     return CachedMessagesCompanion(
+      sessionId: Value(sessionId),
       agentSlug: Value(agentSlug),
       id: Value(id),
       json: Value(json),
@@ -370,6 +936,7 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return CachedMessage(
+      sessionId: serializer.fromJson<String>(json['sessionId']),
       agentSlug: serializer.fromJson<String>(json['agentSlug']),
       id: serializer.fromJson<String>(json['id']),
       json: serializer.fromJson<String>(json['json']),
@@ -380,6 +947,7 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
+      'sessionId': serializer.toJson<String>(sessionId),
       'agentSlug': serializer.toJson<String>(agentSlug),
       'id': serializer.toJson<String>(id),
       'json': serializer.toJson<String>(json),
@@ -388,11 +956,13 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
   }
 
   CachedMessage copyWith({
+    String? sessionId,
     String? agentSlug,
     String? id,
     String? json,
     DateTime? createdAt,
   }) => CachedMessage(
+    sessionId: sessionId ?? this.sessionId,
     agentSlug: agentSlug ?? this.agentSlug,
     id: id ?? this.id,
     json: json ?? this.json,
@@ -400,6 +970,7 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
   );
   CachedMessage copyWithCompanion(CachedMessagesCompanion data) {
     return CachedMessage(
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       agentSlug: data.agentSlug.present ? data.agentSlug.value : this.agentSlug,
       id: data.id.present ? data.id.value : this.id,
       json: data.json.present ? data.json.value : this.json,
@@ -410,6 +981,7 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
   @override
   String toString() {
     return (StringBuffer('CachedMessage(')
+          ..write('sessionId: $sessionId, ')
           ..write('agentSlug: $agentSlug, ')
           ..write('id: $id, ')
           ..write('json: $json, ')
@@ -419,11 +991,12 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
   }
 
   @override
-  int get hashCode => Object.hash(agentSlug, id, json, createdAt);
+  int get hashCode => Object.hash(sessionId, agentSlug, id, json, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CachedMessage &&
+          other.sessionId == this.sessionId &&
           other.agentSlug == this.agentSlug &&
           other.id == this.id &&
           other.json == this.json &&
@@ -431,12 +1004,14 @@ class CachedMessage extends DataClass implements Insertable<CachedMessage> {
 }
 
 class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
+  final Value<String> sessionId;
   final Value<String> agentSlug;
   final Value<String> id;
   final Value<String> json;
   final Value<DateTime> createdAt;
   final Value<int> rowid;
   const CachedMessagesCompanion({
+    this.sessionId = const Value.absent(),
     this.agentSlug = const Value.absent(),
     this.id = const Value.absent(),
     this.json = const Value.absent(),
@@ -444,6 +1019,7 @@ class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
     this.rowid = const Value.absent(),
   });
   CachedMessagesCompanion.insert({
+    this.sessionId = const Value.absent(),
     required String agentSlug,
     required String id,
     required String json,
@@ -454,6 +1030,7 @@ class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
        json = Value(json),
        createdAt = Value(createdAt);
   static Insertable<CachedMessage> custom({
+    Expression<String>? sessionId,
     Expression<String>? agentSlug,
     Expression<String>? id,
     Expression<String>? json,
@@ -461,6 +1038,7 @@ class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
+      if (sessionId != null) 'session_id': sessionId,
       if (agentSlug != null) 'agent_slug': agentSlug,
       if (id != null) 'id': id,
       if (json != null) 'json': json,
@@ -470,6 +1048,7 @@ class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
   }
 
   CachedMessagesCompanion copyWith({
+    Value<String>? sessionId,
     Value<String>? agentSlug,
     Value<String>? id,
     Value<String>? json,
@@ -477,6 +1056,7 @@ class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
     Value<int>? rowid,
   }) {
     return CachedMessagesCompanion(
+      sessionId: sessionId ?? this.sessionId,
       agentSlug: agentSlug ?? this.agentSlug,
       id: id ?? this.id,
       json: json ?? this.json,
@@ -488,6 +1068,9 @@ class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
     if (agentSlug.present) {
       map['agent_slug'] = Variable<String>(agentSlug.value);
     }
@@ -509,6 +1092,7 @@ class CachedMessagesCompanion extends UpdateCompanion<CachedMessage> {
   @override
   String toString() {
     return (StringBuffer('CachedMessagesCompanion(')
+          ..write('sessionId: $sessionId, ')
           ..write('agentSlug: $agentSlug, ')
           ..write('id: $id, ')
           ..write('json: $json, ')
@@ -533,6 +1117,18 @@ class $OutboxTurnsTable extends OutboxTurns
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
   );
   static const VerificationMeta _agentSlugMeta = const VerificationMeta(
     'agentSlug',
@@ -591,6 +1187,7 @@ class $OutboxTurnsTable extends OutboxTurns
   @override
   List<GeneratedColumn> get $columns => [
     id,
+    sessionId,
     agentSlug,
     body,
     locationJson,
@@ -613,6 +1210,12 @@ class $OutboxTurnsTable extends OutboxTurns
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     } else if (isInserting) {
       context.missing(_idMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
     }
     if (data.containsKey('agent_slug')) {
       context.handle(
@@ -666,6 +1269,10 @@ class $OutboxTurnsTable extends OutboxTurns
         DriftSqlType.string,
         data['${effectivePrefix}id'],
       )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}session_id'],
+      )!,
       agentSlug: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}agent_slug'],
@@ -697,6 +1304,11 @@ class $OutboxTurnsTable extends OutboxTurns
 
 class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
   final String id;
+
+  /// The login that wrote it. A queued turn is sent as that login or not at
+  /// all: flushing it under whoever is active now would post one person's
+  /// words into another's thread.
+  final String sessionId;
   final String agentSlug;
   final String body;
   final String? locationJson;
@@ -704,6 +1316,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
   final int attempts;
   const OutboxTurn({
     required this.id,
+    required this.sessionId,
     required this.agentSlug,
     required this.body,
     this.locationJson,
@@ -714,6 +1327,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<String>(id);
+    map['session_id'] = Variable<String>(sessionId);
     map['agent_slug'] = Variable<String>(agentSlug);
     map['body'] = Variable<String>(body);
     if (!nullToAbsent || locationJson != null) {
@@ -727,6 +1341,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
   OutboxTurnsCompanion toCompanion(bool nullToAbsent) {
     return OutboxTurnsCompanion(
       id: Value(id),
+      sessionId: Value(sessionId),
       agentSlug: Value(agentSlug),
       body: Value(body),
       locationJson: locationJson == null && nullToAbsent
@@ -744,6 +1359,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return OutboxTurn(
       id: serializer.fromJson<String>(json['id']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
       agentSlug: serializer.fromJson<String>(json['agentSlug']),
       body: serializer.fromJson<String>(json['body']),
       locationJson: serializer.fromJson<String?>(json['locationJson']),
@@ -756,6 +1372,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'id': serializer.toJson<String>(id),
+      'sessionId': serializer.toJson<String>(sessionId),
       'agentSlug': serializer.toJson<String>(agentSlug),
       'body': serializer.toJson<String>(body),
       'locationJson': serializer.toJson<String?>(locationJson),
@@ -766,6 +1383,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
 
   OutboxTurn copyWith({
     String? id,
+    String? sessionId,
     String? agentSlug,
     String? body,
     Value<String?> locationJson = const Value.absent(),
@@ -773,6 +1391,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
     int? attempts,
   }) => OutboxTurn(
     id: id ?? this.id,
+    sessionId: sessionId ?? this.sessionId,
     agentSlug: agentSlug ?? this.agentSlug,
     body: body ?? this.body,
     locationJson: locationJson.present ? locationJson.value : this.locationJson,
@@ -782,6 +1401,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
   OutboxTurn copyWithCompanion(OutboxTurnsCompanion data) {
     return OutboxTurn(
       id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
       agentSlug: data.agentSlug.present ? data.agentSlug.value : this.agentSlug,
       body: data.body.present ? data.body.value : this.body,
       locationJson: data.locationJson.present
@@ -796,6 +1416,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
   String toString() {
     return (StringBuffer('OutboxTurn(')
           ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
           ..write('agentSlug: $agentSlug, ')
           ..write('body: $body, ')
           ..write('locationJson: $locationJson, ')
@@ -806,13 +1427,21 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, agentSlug, body, locationJson, createdAt, attempts);
+  int get hashCode => Object.hash(
+    id,
+    sessionId,
+    agentSlug,
+    body,
+    locationJson,
+    createdAt,
+    attempts,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is OutboxTurn &&
           other.id == this.id &&
+          other.sessionId == this.sessionId &&
           other.agentSlug == this.agentSlug &&
           other.body == this.body &&
           other.locationJson == this.locationJson &&
@@ -822,6 +1451,7 @@ class OutboxTurn extends DataClass implements Insertable<OutboxTurn> {
 
 class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
   final Value<String> id;
+  final Value<String> sessionId;
   final Value<String> agentSlug;
   final Value<String> body;
   final Value<String?> locationJson;
@@ -830,6 +1460,7 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
   final Value<int> rowid;
   const OutboxTurnsCompanion({
     this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
     this.agentSlug = const Value.absent(),
     this.body = const Value.absent(),
     this.locationJson = const Value.absent(),
@@ -839,6 +1470,7 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
   });
   OutboxTurnsCompanion.insert({
     required String id,
+    this.sessionId = const Value.absent(),
     required String agentSlug,
     required String body,
     this.locationJson = const Value.absent(),
@@ -851,6 +1483,7 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
        createdAt = Value(createdAt);
   static Insertable<OutboxTurn> custom({
     Expression<String>? id,
+    Expression<String>? sessionId,
     Expression<String>? agentSlug,
     Expression<String>? body,
     Expression<String>? locationJson,
@@ -860,6 +1493,7 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
       if (agentSlug != null) 'agent_slug': agentSlug,
       if (body != null) 'body': body,
       if (locationJson != null) 'location_json': locationJson,
@@ -871,6 +1505,7 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
 
   OutboxTurnsCompanion copyWith({
     Value<String>? id,
+    Value<String>? sessionId,
     Value<String>? agentSlug,
     Value<String>? body,
     Value<String?>? locationJson,
@@ -880,6 +1515,7 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
   }) {
     return OutboxTurnsCompanion(
       id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
       agentSlug: agentSlug ?? this.agentSlug,
       body: body ?? this.body,
       locationJson: locationJson ?? this.locationJson,
@@ -894,6 +1530,9 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
     final map = <String, Expression>{};
     if (id.present) {
       map['id'] = Variable<String>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
     }
     if (agentSlug.present) {
       map['agent_slug'] = Variable<String>(agentSlug.value);
@@ -920,6 +1559,7 @@ class OutboxTurnsCompanion extends UpdateCompanion<OutboxTurn> {
   String toString() {
     return (StringBuffer('OutboxTurnsCompanion(')
           ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
           ..write('agentSlug: $agentSlug, ')
           ..write('body: $body, ')
           ..write('locationJson: $locationJson, ')
@@ -935,6 +1575,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
+  late final $SessionsTable sessions = $SessionsTable(this);
   late final $CachedMessagesTable cachedMessages = $CachedMessagesTable(this);
   late final $OutboxTurnsTable outboxTurns = $OutboxTurnsTable(this);
   @override
@@ -943,6 +1584,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     appSettings,
+    sessions,
     cachedMessages,
     outboxTurns,
   ];
@@ -1087,8 +1729,266 @@ typedef $$AppSettingsTableProcessedTableManager =
       AppSetting,
       PrefetchHooks Function()
     >;
+typedef $$SessionsTableCreateCompanionBuilder =
+    SessionsCompanion Function({
+      required String id,
+      required String baseUrl,
+      Value<String> email,
+      Value<String?> displayName,
+      Value<String?> siteName,
+      required DateTime addedAt,
+      required DateTime lastUsedAt,
+      Value<bool> needsSignIn,
+      Value<int> rowid,
+    });
+typedef $$SessionsTableUpdateCompanionBuilder =
+    SessionsCompanion Function({
+      Value<String> id,
+      Value<String> baseUrl,
+      Value<String> email,
+      Value<String?> displayName,
+      Value<String?> siteName,
+      Value<DateTime> addedAt,
+      Value<DateTime> lastUsedAt,
+      Value<bool> needsSignIn,
+      Value<int> rowid,
+    });
+
+class $$SessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $SessionsTable> {
+  $$SessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get baseUrl => $composableBuilder(
+    column: $table.baseUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get siteName => $composableBuilder(
+    column: $table.siteName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastUsedAt => $composableBuilder(
+    column: $table.lastUsedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get needsSignIn => $composableBuilder(
+    column: $table.needsSignIn,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SessionsTable> {
+  $$SessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get baseUrl => $composableBuilder(
+    column: $table.baseUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get email => $composableBuilder(
+    column: $table.email,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get siteName => $composableBuilder(
+    column: $table.siteName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastUsedAt => $composableBuilder(
+    column: $table.lastUsedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get needsSignIn => $composableBuilder(
+    column: $table.needsSignIn,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SessionsTable> {
+  $$SessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get baseUrl =>
+      $composableBuilder(column: $table.baseUrl, builder: (column) => column);
+
+  GeneratedColumn<String> get email =>
+      $composableBuilder(column: $table.email, builder: (column) => column);
+
+  GeneratedColumn<String> get displayName => $composableBuilder(
+    column: $table.displayName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get siteName =>
+      $composableBuilder(column: $table.siteName, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get addedAt =>
+      $composableBuilder(column: $table.addedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastUsedAt => $composableBuilder(
+    column: $table.lastUsedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get needsSignIn => $composableBuilder(
+    column: $table.needsSignIn,
+    builder: (column) => column,
+  );
+}
+
+class $$SessionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SessionsTable,
+          Session,
+          $$SessionsTableFilterComposer,
+          $$SessionsTableOrderingComposer,
+          $$SessionsTableAnnotationComposer,
+          $$SessionsTableCreateCompanionBuilder,
+          $$SessionsTableUpdateCompanionBuilder,
+          (Session, BaseReferences<_$AppDatabase, $SessionsTable, Session>),
+          Session,
+          PrefetchHooks Function()
+        > {
+  $$SessionsTableTableManager(_$AppDatabase db, $SessionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SessionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> baseUrl = const Value.absent(),
+                Value<String> email = const Value.absent(),
+                Value<String?> displayName = const Value.absent(),
+                Value<String?> siteName = const Value.absent(),
+                Value<DateTime> addedAt = const Value.absent(),
+                Value<DateTime> lastUsedAt = const Value.absent(),
+                Value<bool> needsSignIn = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SessionsCompanion(
+                id: id,
+                baseUrl: baseUrl,
+                email: email,
+                displayName: displayName,
+                siteName: siteName,
+                addedAt: addedAt,
+                lastUsedAt: lastUsedAt,
+                needsSignIn: needsSignIn,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String baseUrl,
+                Value<String> email = const Value.absent(),
+                Value<String?> displayName = const Value.absent(),
+                Value<String?> siteName = const Value.absent(),
+                required DateTime addedAt,
+                required DateTime lastUsedAt,
+                Value<bool> needsSignIn = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SessionsCompanion.insert(
+                id: id,
+                baseUrl: baseUrl,
+                email: email,
+                displayName: displayName,
+                siteName: siteName,
+                addedAt: addedAt,
+                lastUsedAt: lastUsedAt,
+                needsSignIn: needsSignIn,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SessionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SessionsTable,
+      Session,
+      $$SessionsTableFilterComposer,
+      $$SessionsTableOrderingComposer,
+      $$SessionsTableAnnotationComposer,
+      $$SessionsTableCreateCompanionBuilder,
+      $$SessionsTableUpdateCompanionBuilder,
+      (Session, BaseReferences<_$AppDatabase, $SessionsTable, Session>),
+      Session,
+      PrefetchHooks Function()
+    >;
 typedef $$CachedMessagesTableCreateCompanionBuilder =
     CachedMessagesCompanion Function({
+      Value<String> sessionId,
       required String agentSlug,
       required String id,
       required String json,
@@ -1097,6 +1997,7 @@ typedef $$CachedMessagesTableCreateCompanionBuilder =
     });
 typedef $$CachedMessagesTableUpdateCompanionBuilder =
     CachedMessagesCompanion Function({
+      Value<String> sessionId,
       Value<String> agentSlug,
       Value<String> id,
       Value<String> json,
@@ -1113,6 +2014,11 @@ class $$CachedMessagesTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get agentSlug => $composableBuilder(
     column: $table.agentSlug,
     builder: (column) => ColumnFilters(column),
@@ -1143,6 +2049,11 @@ class $$CachedMessagesTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get agentSlug => $composableBuilder(
     column: $table.agentSlug,
     builder: (column) => ColumnOrderings(column),
@@ -1173,6 +2084,9 @@ class $$CachedMessagesTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
   GeneratedColumn<String> get agentSlug =>
       $composableBuilder(column: $table.agentSlug, builder: (column) => column);
 
@@ -1219,12 +2133,14 @@ class $$CachedMessagesTableTableManager
               $$CachedMessagesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
+                Value<String> sessionId = const Value.absent(),
                 Value<String> agentSlug = const Value.absent(),
                 Value<String> id = const Value.absent(),
                 Value<String> json = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CachedMessagesCompanion(
+                sessionId: sessionId,
                 agentSlug: agentSlug,
                 id: id,
                 json: json,
@@ -1233,12 +2149,14 @@ class $$CachedMessagesTableTableManager
               ),
           createCompanionCallback:
               ({
+                Value<String> sessionId = const Value.absent(),
                 required String agentSlug,
                 required String id,
                 required String json,
                 required DateTime createdAt,
                 Value<int> rowid = const Value.absent(),
               }) => CachedMessagesCompanion.insert(
+                sessionId: sessionId,
                 agentSlug: agentSlug,
                 id: id,
                 json: json,
@@ -1273,6 +2191,7 @@ typedef $$CachedMessagesTableProcessedTableManager =
 typedef $$OutboxTurnsTableCreateCompanionBuilder =
     OutboxTurnsCompanion Function({
       required String id,
+      Value<String> sessionId,
       required String agentSlug,
       required String body,
       Value<String?> locationJson,
@@ -1283,6 +2202,7 @@ typedef $$OutboxTurnsTableCreateCompanionBuilder =
 typedef $$OutboxTurnsTableUpdateCompanionBuilder =
     OutboxTurnsCompanion Function({
       Value<String> id,
+      Value<String> sessionId,
       Value<String> agentSlug,
       Value<String> body,
       Value<String?> locationJson,
@@ -1302,6 +2222,11 @@ class $$OutboxTurnsTableFilterComposer
   });
   ColumnFilters<String> get id => $composableBuilder(
     column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1345,6 +2270,11 @@ class $$OutboxTurnsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get agentSlug => $composableBuilder(
     column: $table.agentSlug,
     builder: (column) => ColumnOrderings(column),
@@ -1382,6 +2312,9 @@ class $$OutboxTurnsTableAnnotationComposer
   });
   GeneratedColumn<String> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
 
   GeneratedColumn<String> get agentSlug =>
       $composableBuilder(column: $table.agentSlug, builder: (column) => column);
@@ -1433,6 +2366,7 @@ class $$OutboxTurnsTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> id = const Value.absent(),
+                Value<String> sessionId = const Value.absent(),
                 Value<String> agentSlug = const Value.absent(),
                 Value<String> body = const Value.absent(),
                 Value<String?> locationJson = const Value.absent(),
@@ -1441,6 +2375,7 @@ class $$OutboxTurnsTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => OutboxTurnsCompanion(
                 id: id,
+                sessionId: sessionId,
                 agentSlug: agentSlug,
                 body: body,
                 locationJson: locationJson,
@@ -1451,6 +2386,7 @@ class $$OutboxTurnsTableTableManager
           createCompanionCallback:
               ({
                 required String id,
+                Value<String> sessionId = const Value.absent(),
                 required String agentSlug,
                 required String body,
                 Value<String?> locationJson = const Value.absent(),
@@ -1459,6 +2395,7 @@ class $$OutboxTurnsTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => OutboxTurnsCompanion.insert(
                 id: id,
+                sessionId: sessionId,
                 agentSlug: agentSlug,
                 body: body,
                 locationJson: locationJson,
@@ -1497,6 +2434,8 @@ class $AppDatabaseManager {
   $AppDatabaseManager(this._db);
   $$AppSettingsTableTableManager get appSettings =>
       $$AppSettingsTableTableManager(_db, _db.appSettings);
+  $$SessionsTableTableManager get sessions =>
+      $$SessionsTableTableManager(_db, _db.sessions);
   $$CachedMessagesTableTableManager get cachedMessages =>
       $$CachedMessagesTableTableManager(_db, _db.cachedMessages);
   $$OutboxTurnsTableTableManager get outboxTurns =>

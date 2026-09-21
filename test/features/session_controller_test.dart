@@ -1,6 +1,7 @@
 // SessionController: the app's auth gate. Real ServerConfig over in-memory
 // Drift; TokenStore, AuthRepository and SessionWipe mocked.
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,9 +33,33 @@ void main() {
     authRepo = MockAuthRepository();
     wipe = MockSessionWipe();
     when(() => wipe.unpairPush()).thenAnswer((_) async {});
-    when(() => wipe.wipeLocal()).thenAnswer((_) async {});
+    when(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')))
+        .thenAnswer((_) async {});
+    when(() => wipe.stopActiveServices()).thenAnswer((_) async {});
+    when(() => tokenStore.clearFor(any())).thenAnswer((_) async {});
+    when(() => tokenStore.readFor(any())).thenAnswer((_) async => null);
   });
   tearDown(() => db.close());
+
+  /// A signed-in device as the app leaves it: a session row, made active,
+  /// with the two settings that mirror it.
+  Future<String> seedSignedIn({String email = 'owner@example.com'}) async {
+    const id = 'session-1';
+    final now = DateTime.now();
+    await db.into(db.sessions).insert(
+          SessionsCompanion.insert(
+            id: id,
+            baseUrl: 'https://m.example.com',
+            email: Value(email),
+            addedAt: now,
+            lastUsedAt: now,
+          ),
+        );
+    await db.setSetting('active_session_id', id);
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    await db.setSetting('account_email', email);
+    return id;
+  }
 
   ProviderContainer makeContainer() {
     final c = ProviderContainer(
@@ -132,7 +157,7 @@ void main() {
   });
 
   test('signOut unpairs push, revokes, wipes, and flips to loggedOut', () async {
-    await db.setSetting('server_base_url', 'https://m.example.com');
+    await seedSignedIn();
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
     when(() => authRepo.logout()).thenAnswer((_) async {});
 
@@ -144,13 +169,12 @@ void main() {
     verifyInOrder([
       () => wipe.unpairPush(),
       () => authRepo.logout(),
-      () => wipe.wipeLocal(),
+      () => wipe.wipeLocal(sessionId: any(named: 'sessionId')),
     ]);
   });
 
   test('signOut forgets the account email', () async {
-    await db.setSetting('server_base_url', 'https://m.example.com');
-    await db.setSetting('account_email', 'owner@example.com');
+    await seedSignedIn();
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
     when(() => authRepo.logout()).thenAnswer((_) async {});
 
@@ -163,7 +187,7 @@ void main() {
 
   test('changeServer signs out, forgets the address, and lands on needsServer',
       () async {
-    await db.setSetting('server_base_url', 'https://m.example.com');
+    await seedSignedIn();
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
     when(() => authRepo.logout()).thenAnswer((_) async {});
 
@@ -171,7 +195,7 @@ void main() {
     await c.read(sessionControllerProvider.future);
     await c.read(sessionControllerProvider.notifier).changeServer();
 
-    verify(() => wipe.wipeLocal()).called(1);
+    verify(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).called(1);
     expect(await db.getSetting('server_base_url'), '');
     expect(
       await c.read(sessionControllerProvider.future),
@@ -180,10 +204,10 @@ void main() {
   });
 
   test('changeServer keeps the address when the local wipe fails', () async {
-    await db.setSetting('server_base_url', 'https://m.example.com');
+    await seedSignedIn();
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
     when(() => authRepo.logout()).thenAnswer((_) async {});
-    when(() => wipe.wipeLocal()).thenThrow(Exception('keychain'));
+    when(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).thenThrow(Exception('keychain'));
 
     final c = makeContainer();
     await c.read(sessionControllerProvider.future);
@@ -196,10 +220,10 @@ void main() {
 
   test('signOut keeps the session when the local wipe cannot clear the token',
       () async {
-    await db.setSetting('server_base_url', 'https://m.example.com');
+    await seedSignedIn();
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
     when(() => authRepo.logout()).thenAnswer((_) async {});
-    when(() => wipe.wipeLocal()).thenThrow(Exception('keychain'));
+    when(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).thenThrow(Exception('keychain'));
 
     final c = makeContainer();
     await c.read(sessionControllerProvider.future);
@@ -211,7 +235,7 @@ void main() {
   });
 
   test('sessionInvalidated flips to loggedOut and wipes locally, once', () async {
-    await db.setSetting('server_base_url', 'https://m.example.com');
+    await seedSignedIn();
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
 
     final c = makeContainer();
@@ -221,7 +245,7 @@ void main() {
     await n.sessionInvalidated();
 
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
-    verify(() => wipe.wipeLocal()).called(1);
+    verify(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).called(1);
     verifyNever(() => wipe.unpairPush()); // no network from the 401 path
     verifyNever(() => authRepo.logout());
   });
@@ -234,6 +258,6 @@ void main() {
     await c.read(sessionControllerProvider.future); // loggedOut
     await c.read(sessionControllerProvider.notifier).sessionInvalidated();
 
-    verifyNever(() => wipe.wipeLocal());
+    verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
   });
 }

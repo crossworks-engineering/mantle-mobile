@@ -9,10 +9,9 @@ part of 'journal_controller.dart';
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
 /// Owns the journal: newest-first entries (first page) and quick capture.
-/// [capture] posts the body and slots the saved row in date order;
-/// [transcribe] routes a voice note through the assistant's STT endpoint (the
-/// same pipeline the chat composer uses) so an entry can be spoken instead of
-/// typed.
+/// [capture] posts the body and slots the saved row in date order. (A spoken
+/// entry is dictated into the composer's field by [VoiceTextField]; the
+/// controller only ever sees text.)
 ///
 /// The list is ordered here, by the date the screen shows
 /// ([JournalRow.displayDate]: the entry's own date when it has one, else when
@@ -23,10 +22,9 @@ part of 'journal_controller.dart';
 final journalControllerProvider = JournalControllerProvider._();
 
 /// Owns the journal: newest-first entries (first page) and quick capture.
-/// [capture] posts the body and slots the saved row in date order;
-/// [transcribe] routes a voice note through the assistant's STT endpoint (the
-/// same pipeline the chat composer uses) so an entry can be spoken instead of
-/// typed.
+/// [capture] posts the body and slots the saved row in date order. (A spoken
+/// entry is dictated into the composer's field by [VoiceTextField]; the
+/// controller only ever sees text.)
 ///
 /// The list is ordered here, by the date the screen shows
 /// ([JournalRow.displayDate]: the entry's own date when it has one, else when
@@ -35,10 +33,9 @@ final journalControllerProvider = JournalControllerProvider._();
 final class JournalControllerProvider
     extends $AsyncNotifierProvider<JournalController, List<JournalRow>> {
   /// Owns the journal: newest-first entries (first page) and quick capture.
-  /// [capture] posts the body and slots the saved row in date order;
-  /// [transcribe] routes a voice note through the assistant's STT endpoint (the
-  /// same pipeline the chat composer uses) so an entry can be spoken instead of
-  /// typed.
+  /// [capture] posts the body and slots the saved row in date order. (A spoken
+  /// entry is dictated into the composer's field by [VoiceTextField]; the
+  /// controller only ever sees text.)
   ///
   /// The list is ordered here, by the date the screen shows
   /// ([JournalRow.displayDate]: the entry's own date when it has one, else when
@@ -63,13 +60,12 @@ final class JournalControllerProvider
   JournalController create() => JournalController();
 }
 
-String _$journalControllerHash() => r'da6d232bf0006f340bd7d7fa61d809b91edc21c2';
+String _$journalControllerHash() => r'fd65ee2bd0af3fa268199b1ca7c20523d5963aef';
 
 /// Owns the journal: newest-first entries (first page) and quick capture.
-/// [capture] posts the body and slots the saved row in date order;
-/// [transcribe] routes a voice note through the assistant's STT endpoint (the
-/// same pipeline the chat composer uses) so an entry can be spoken instead of
-/// typed.
+/// [capture] posts the body and slots the saved row in date order. (A spoken
+/// entry is dictated into the composer's field by [VoiceTextField]; the
+/// controller only ever sees text.)
 ///
 /// The list is ordered here, by the date the screen shows
 /// ([JournalRow.displayDate]: the entry's own date when it has one, else when
