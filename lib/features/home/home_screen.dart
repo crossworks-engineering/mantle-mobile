@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../data/dashboard/dashboard_models.dart';
 import '../../theme/mantle_theme.dart';
 import '../../widgets/mantle_header.dart';
+import '../auth/logins_screen.dart';
 import '../dashboard/dashboard_controller.dart';
 
 /// The landing dashboard: quick actions (chat / pending / settings) and Mantle's
@@ -24,7 +25,17 @@ class HomeScreen extends ConsumerWidget {
       child: Column(
         children: [
           MantleHeader(
-            leading: const MantleHeaderTitle('Jackdaw'),
+            // The wordmark is the quick switch: the logins this phone holds,
+            // one tap from home.
+            leading: Semantics(
+              button: true,
+              label: 'Switch login',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => QuickSwitchSheet.show(context),
+                child: const MantleHeaderTitle('Jackdaw'),
+              ),
+            ),
             trailing: [
               HeaderAction(
                 icon: LucideIcons.search,

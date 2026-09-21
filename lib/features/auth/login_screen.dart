@@ -29,6 +29,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    // Sent here to sign BACK in to a login the phone still lists: start with
+    // its email. Read once; a later visit starts clean.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final email = ref.read(pendingLoginEmailProvider.notifier).take();
+      if (email != null && _email.text.isEmpty) _email.text = email;
+    });
+  }
+
+  @override
   void dispose() {
     _email.dispose();
     _password.dispose();
@@ -64,6 +76,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final server = ref.watch(serverConfigProvider).value;
+    // Re-read when the session state changes, which is when this can change.
+    ref.watch(sessionControllerProvider);
+    final adding =
+        ref.read(sessionControllerProvider.notifier).isAddingLogin;
 
     return Container(
       color: theme.colorScheme.background,
@@ -79,7 +95,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   const JackdawLockup(),
                   const SizedBox(height: 24),
-                  Text('Sign in', style: theme.textTheme.h2),
+                  Text(adding ? 'Add a login' : 'Sign in',
+                      style: theme.textTheme.h2),
                   const SizedBox(height: 8),
                   Text(
                     server == null ? 'Sign in to Mantle.' : 'Signing in to $server',
@@ -154,6 +171,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: const Text('Change server'),
                     ),
                   ),
+                  // Adding a login on top of ones already held: the way back
+                  // to the login that was in use. It never signed out.
+                  if (adding)
+                    Center(
+                      child: ShadButton.link(
+                        onPressed: _submitting
+                            ? null
+                            : () => ref
+                                .read(sessionControllerProvider.notifier)
+                                .cancelAddLogin(),
+                        child: const Text('Back to the login I was using'),
+                      ),
+                    ),
                 ],
               ),
             ),
