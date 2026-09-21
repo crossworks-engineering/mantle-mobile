@@ -188,6 +188,7 @@ void main() {
       'them with the delivered server rows', () async {
     final turn = OutboxTurn(
       id: 'k1',
+      sessionId: '',
       agentSlug: _slug,
       body: 'written offline',
       locationJson: null,
@@ -268,6 +269,7 @@ void main() {
       'the queue, not the error screen', () async {
     final turn = OutboxTurn(
       id: 'k1',
+      sessionId: '',
       agentSlug: _slug,
       body: 'still queued',
       locationJson: null,
