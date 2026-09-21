@@ -172,6 +172,7 @@ class _IdentityCardState extends ConsumerState<_IdentityCard> {
     final scheme = theme.colorScheme;
     final server = ref.watch(serverConfigProvider).value;
     final email = ref.watch(accountEmailProvider).value;
+    final heldCount = ref.watch(heldSessionsProvider).value?.length ?? 0;
     final app = ref.watch(appVersionProvider).value;
     final mantle = ref.watch(serverVersionProvider);
     final mantleText = mantle.when(
@@ -204,6 +205,18 @@ class _IdentityCardState extends ConsumerState<_IdentityCard> {
                 style: theme.textTheme.small.copyWith(color: scheme.destructive),
               ),
             ),
+          divider,
+          _InfoRow(
+            theme: theme,
+            icon: LucideIcons.users,
+            label: 'Logins on this phone',
+            value: heldCount == 1 ? '1 login' : '$heldCount logins',
+            trailing: ShadButton.link(
+              onPressed: _busy ? null : () => context.push('/settings/logins'),
+              padding: EdgeInsets.zero,
+              child: const Text('Manage'),
+            ),
+          ),
           // A session signed in before the email was recorded has none to
           // show; the row appears from the next sign-in.
           if (email != null) ...[

@@ -83,6 +83,9 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
+    ref.watch(sessionControllerProvider);
+    final adding =
+        ref.read(sessionControllerProvider.notifier).isAddingLogin;
 
     return Container(
       color: theme.colorScheme.background,
@@ -180,6 +183,21 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                       ),
                     ],
                   ),
+                  // Reached while adding a login on another brain: the way
+                  // back to the login that was in use. It never signed out.
+                  if (adding) ...[
+                    const SizedBox(height: 4),
+                    Center(
+                      child: ShadButton.link(
+                        onPressed: _checking
+                            ? null
+                            : () => ref
+                                .read(sessionControllerProvider.notifier)
+                                .cancelAddLogin(),
+                        child: const Text('Back to the login I was using'),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
