@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../features/auth/login_screen.dart';
+import '../features/auth/logins_screen.dart';
 import '../features/auth/scan_sign_in_screen.dart';
 import '../features/auth/server_setup_screen.dart';
 import '../features/auth/session_controller.dart';
@@ -117,6 +118,10 @@ GoRouter goRouter(Ref ref) {
       GoRoute(path: '/journal', builder: (_, _) => const JournalScreen()),
       GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings/logins',
+        builder: (_, _) => const LoginsScreen(),
+      ),
       GoRoute(
         path: '/settings/appearance',
         builder: (_, _) => const AppearanceScreen(),

@@ -172,14 +172,21 @@ never touches Dio/Drift directly.
   `outbox_turns` is the offline send-queue (row id = the turn's idempotency
   key). Migrations live in Drift's `schemaVersion`/`onUpgrade`. Tests use
   `AppDatabase.forTesting(NativeDatabase.memory())`.
-- **Secure storage** — only the bearer token (`mantle_bearer_token`).
+- **Secure storage**: only bearer tokens, one item per login held
+  (`mantle_bearer_token.<sessionId>`), plus the push keypair.
 
 ## Networking
 
 `dioProvider` builds a Dio whose base URL comes from `ServerConfig` (so it
 rebuilds when the server changes). The interceptor:
 
-- **onRequest** — injects `Authorization: Bearer <token>` from `TokenStore`.
+- **onRequest**: injects `Authorization: Bearer <token>` from `TokenStore`,
+  but ONLY when the active login belongs to the brain this client was built
+  for. A bearer is never sent to a brain that did not mint it, whatever order
+  a switch happens in.
+- The client is rebuilt on `sessionEpochProvider`, bumped whenever the login in
+  use changes. The address alone would miss a switch between two logins on one
+  brain, and what was fetched as the last login would be served to this one.
 - **onError** — on **401** OR a **3xx redirect to `/login`** (a revoked-but-
   unexpired token; see Auth), clears the token and invalidates the session →
   router bounces to login. Login opts out via `extra: {'skipAuthHandler': true}`
@@ -200,6 +207,37 @@ token is HMAC-signed like the session cookie but carries a `jti` + `k:'m'`;
 `getSessionUser()` and the gate accept it, so **every existing endpoint works
 with the mobile token, no per-route changes**. `mobile-logout` revokes by `jti`.
 
+### Several logins
+
+The phone holds several logins, on one brain or many
+(`data/auth/session_repository.dart`). A **session** is one (brain address,
+login) row in the Drift `sessions` table; its bearer is a keychain item under
+its id; exactly one is active (`active_session_id`). The `server_base_url` and
+`account_email` settings are kept as **mirrors of the active session**, so the
+Dio client, Settings and everything else that reads them needs no idea that
+there can be more than one. `TokenStore.read/write/clear` are likewise a view
+over the active session.
+
+- **Adding a login steps OUT of the one in use first** (`startAddLogin`), then
+  walks the same setup → login screens as a first sign-in; "Back to the login I
+  was using" returns. Nothing runs alongside, because the client is built from
+  the active address and must never be pointed at a second brain while the
+  first login's bearer is attached.
+- A sign-in makes its session active BEFORE the token is minted, so the token
+  lands under the right id; a failed one removes a row made for it and nothing
+  else. Signing in again as a held login reuses its row.
+- `cached_messages` and `outbox_turns` are keyed by session. An unsent message
+  is sent as the login that wrote it or not at all.
+- Push: the keypair is the device's, the subscription id is per login, and the
+  keypair goes only when no login is connected. Event alarms and the Android
+  direct-connection stream follow the ACTIVE login and restart on a switch.
+- Screens: Settings → Logins (`features/auth/logins_screen.dart`) and the quick
+  switch, a bottom sheet opened from the home wordmark. A list with tap to
+  switch, sign out and add. No editor, per the phone's scope rule.
+- The update from the single-login build (schema v2 → v3) turns the saved
+  server and email into session #1, gives unsent messages to it, and moves the
+  old keychain item under it on first read. Nobody is signed out.
+
 **When a session ends** — the user signs out, or a request comes back 401 /
 redirected to `/login` (`core/network/auth_failure.dart` is the one
 definition, shared with the SSE stream and the direct-push isolate) — the
@@ -211,6 +249,11 @@ while the token is still valid; the 401 path makes no network calls (it runs
 inside the failed request) and is idempotent, so a burst of failures wipes
 once. Only a failure to clear the *token* keeps the session, and sign-out
 shows it inline.
+
+With several logins, "the session" is the ACTIVE one and the wipe is scoped to
+it. Signing out also forgets its row and lands on the next login held; a
+refused bearer keeps the row, marked as needing a sign-in, switches to nobody,
+and the login screen starts with that email.
 
 **Server address rules** (`serverUrlProblem`): `https://` anywhere;
 `http://` only for a private host (loopback, RFC 1918, link-local, `.local`,
