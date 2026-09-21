@@ -101,6 +101,11 @@ void main() {
     final container = await pump(tester);
 
     await tester.tap(find.text('b@example.com'));
+    // A switch stops the leaving login's services first, and some of that is
+    // real I/O (clearing opened files), which the test clock does not run.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
     await tester.pumpAndSettle();
 
     expect(await container.read(sessionRepositoryProvider).activeId(), 'b');
