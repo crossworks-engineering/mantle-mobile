@@ -7,6 +7,7 @@ import '../events/event_alarms.dart';
 import '../push/direct_push_service.dart';
 import '../push/push_api.dart';
 import '../push/push_keys.dart';
+import 'session_repository.dart';
 import 'token_store.dart';
 
 part 'session_wipe.g.dart';
@@ -18,6 +19,12 @@ part 'session_wipe.g.dart';
 /// no cached messages, no queued turns that would flush under the next login,
 /// no push keypair that keeps decrypting the old account's notifications, no
 /// alarms for its events, no background service holding its stream open.
+///
+/// With several logins on the device, "the session" is ONE of them. Its bearer,
+/// its cached rows, its unsent messages and its push subscription go. The
+/// other logins keep theirs. The things there is only one of (the event
+/// alarms, the background stream) belong to whichever login is ACTIVE, so
+/// they stop only when that is the one leaving.
 ///
 /// Split in two because the 401 path runs INSIDE a failed request: it may make
 /// no network calls of its own (a wipe that unsubscribes push would 401 again
@@ -46,25 +53,41 @@ class SessionWipe {
   /// even when an earlier one fails; only a failure to clear the TOKEN is
   /// rethrown at the end, because that is the one that would leave the user
   /// signed in on the next launch.
-  Future<void> wipeLocal() async {
+  ///
+  /// [sessionId] defaults to the active login. The session's ROW is not this
+  /// class's business: a refused bearer keeps it (to sign back in to), a
+  /// sign-out removes it, and the session controller decides which.
+  Future<void> wipeLocal({String? sessionId}) async {
+    final activeId = await _ref.read(sessionRepositoryProvider).activeId();
+    final id = sessionId ?? activeId;
+    if (id == null) return;
     Object? tokenError;
     try {
-      await _ref.read(tokenStoreProvider).clear();
+      await _ref.read(tokenStoreProvider).clearFor(id);
     } catch (e) {
       tokenError = e;
     }
-    await _best(() => _ref.read(appDatabaseProvider).clearUserData());
+    await _best(
+      () => _ref.read(appDatabaseProvider).clearUserData(sessionId: id),
+    );
     await _best(() async {
       final keys = await _ref.read(pushKeyStoreProvider.future);
-      await keys.clear();
+      await keys.clearFor(id);
     });
-    await _best(EventAlarms.cancelAll);
-    if (Platform.isAndroid) {
-      await _best(const DirectPush().stop);
-    }
+    if (id == activeId) await stopActiveServices();
     if (tokenError != null) {
       // ignore: only_throw_errors
       throw tokenError;
+    }
+  }
+
+  /// The device-wide things that follow the ACTIVE login: alarms for its
+  /// events, the background stream to its brain. Stopped when it leaves and
+  /// when another login takes its place; the new one starts its own.
+  Future<void> stopActiveServices() async {
+    await _best(EventAlarms.cancelAll);
+    if (Platform.isAndroid) {
+      await _best(const DirectPush().stop);
     }
   }
 

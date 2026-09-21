@@ -51,10 +51,26 @@ void main() {
   setUp(() async {
     db = AppDatabase.forTesting(NativeDatabase.memory());
     await db.setSetting('server_base_url', 'https://m.example.com');
+    // The login that server address belongs to: the client attaches a bearer
+    // only when the active session is for the brain it is talking to.
+    final now = DateTime.now();
+    await db.into(db.sessions).insert(
+          SessionsCompanion.insert(
+            id: 'session-1',
+            baseUrl: 'https://m.example.com',
+            addedAt: now,
+            lastUsedAt: now,
+          ),
+        );
+    await db.setSetting('active_session_id', 'session-1');
     tokenStore = MockTokenStore();
     when(() => tokenStore.read()).thenAnswer((_) async => 'tok');
     wipe = MockSessionWipe();
-    when(() => wipe.wipeLocal()).thenAnswer((_) async {});
+    when(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')))
+        .thenAnswer((_) async {});
+    when(() => wipe.stopActiveServices()).thenAnswer((_) async {});
+    when(() => tokenStore.clearFor(any())).thenAnswer((_) async {});
+    when(() => tokenStore.readFor(any())).thenAnswer((_) async => null);
   });
   tearDown(() => db.close());
 
@@ -85,7 +101,7 @@ void main() {
     final (c, dio) = await boot(_StubAdapter(401));
     await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
-    verify(() => wipe.wipeLocal()).called(1);
+    verify(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).called(1);
   });
 
   test('a redirect to /login ends the session too', () async {
@@ -94,7 +110,7 @@ void main() {
     );
     await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
-    verify(() => wipe.wipeLocal()).called(1);
+    verify(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).called(1);
   });
 
   test('a redirect elsewhere is an ordinary error', () async {
@@ -103,7 +119,7 @@ void main() {
     );
     await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
-    verifyNever(() => wipe.wipeLocal());
+    verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
   });
 
   test('a 401 on a request that opted out (login) is left alone', () async {
@@ -114,7 +130,7 @@ void main() {
       throwsA(isA<DioException>()),
     );
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
-    verifyNever(() => wipe.wipeLocal());
+    verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
   });
 
   test('a burst of 401s wipes once', () async {
@@ -123,6 +139,6 @@ void main() {
       await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
     }
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
-    verify(() => wipe.wipeLocal()).called(1);
+    verify(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).called(1);
   });
 }

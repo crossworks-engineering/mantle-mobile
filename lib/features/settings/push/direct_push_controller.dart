@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../data/auth/session_repository.dart';
 import '../../../data/auth/token_store.dart';
 import '../../../data/push/direct_push_service.dart';
 import '../../../data/server/server_config.dart';
@@ -22,11 +23,16 @@ class DirectPushController extends _$DirectPushController {
       await direct.requestPermissions();
       final baseUrl = ref.read(serverConfigProvider).value ?? '';
       final token = await ref.read(tokenStoreProvider).read();
-      if (baseUrl.isEmpty || token == null || token.isEmpty) {
+      final sessionId = await ref.read(sessionRepositoryProvider).activeId();
+      if (baseUrl.isEmpty ||
+          token == null ||
+          token.isEmpty ||
+          sessionId == null) {
         throw const PushException('You need to be signed in to a server first.');
       }
-      // The token stays in secure storage; the service reads it there.
-      await direct.start(baseUrl: baseUrl);
+      // The token stays in secure storage; the service reads it there, by the
+      // id of the login whose stream this is. One stream: the ACTIVE login's.
+      await direct.start(baseUrl: baseUrl, sessionId: sessionId);
       return true;
     });
     // This is an auto-dispose provider; if it was disposed during the await

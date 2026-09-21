@@ -14,6 +14,9 @@ import 'push_text.dart';
 // goes through it; the bearer is read by the isolate straight from secure
 // storage ([TokenStore.readDirect]).
 const _kBaseUrl = 'directPushBaseUrl';
+// Which login's stream this is. Not a secret: it only names the secure-storage
+// item the service reads the bearer from.
+const _kSessionId = 'directPushSessionId';
 
 /// The key an earlier version used to hand the bearer to the isolate through
 /// the plain store. Scrubbed on every start and stop so an upgraded install
@@ -46,9 +49,10 @@ class DirectPush {
 
   /// Start the service against [baseUrl]. The isolate reads the bearer from
   /// secure storage itself, so nothing secret is written here.
-  Future<void> start({required String baseUrl}) async {
+  Future<void> start({required String baseUrl, required String sessionId}) async {
     await FlutterForegroundTask.removeData(key: _kLegacyToken);
     await FlutterForegroundTask.saveData(key: _kBaseUrl, value: baseUrl);
+    await FlutterForegroundTask.saveData(key: _kSessionId, value: sessionId);
 
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
@@ -124,7 +128,11 @@ class _DirectPushTaskHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     final baseUrl = await FlutterForegroundTask.getData<String>(key: _kBaseUrl);
-    final token = await TokenStore.readDirect();
+    final sessionId =
+        await FlutterForegroundTask.getData<String>(key: _kSessionId);
+    final token = (sessionId == null || sessionId.isEmpty)
+        ? null
+        : await TokenStore.readDirect(sessionId);
     if (baseUrl == null || baseUrl.isEmpty || token == null || token.isEmpty) {
       // Signed out (or never signed in): nothing to listen for.
       await FlutterForegroundTask.stopService();

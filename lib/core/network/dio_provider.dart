@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../data/auth/session_repository.dart';
 import '../../data/auth/token_store.dart';
 import '../../data/server/server_config.dart';
 import '../../features/auth/session_controller.dart';
@@ -21,6 +22,10 @@ part 'dio_provider.g.dart';
 @Riverpod(keepAlive: true)
 Dio dio(Ref ref) {
   final baseUrl = ref.watch(serverConfigProvider).value ?? '';
+  // A new client, and so a rebuild of everything built on it, whenever the
+  // login in use changes. The address alone would miss a switch between two
+  // logins on the same brain.
+  ref.watch(sessionEpochProvider);
 
   final dio = Dio(
     BaseOptions(
@@ -34,9 +39,18 @@ Dio dio(Ref ref) {
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final token = await ref.read(tokenStoreProvider).read();
-        if (token != null && token.isNotEmpty) {
-          options.headers['Authorization'] = 'Bearer $token';
+        // A bearer goes ONLY to the brain it was minted by. This client is
+        // built for one address and the active login can change under it (a
+        // switch to a login on another brain re-reads the address a moment
+        // after the login becomes active), so the two are checked against
+        // each other on every request instead of trusting the order things
+        // happen in. A mismatch sends the request bare, and it fails closed.
+        final active = await ref.read(sessionRepositoryProvider).active();
+        if (active != null && active.baseUrl == baseUrl) {
+          final token = await ref.read(tokenStoreProvider).read();
+          if (token != null && token.isNotEmpty) {
+            options.headers['Authorization'] = 'Bearer $token';
+          }
         }
         handler.next(options);
       },
