@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../widgets/jackdaw_lockup.dart';
 
@@ -13,6 +14,11 @@ import 'session_controller.dart';
 /// by hitting the public `GET /api/version` before saving it. Or scan the web
 /// app's sign-in QR, which names the server and signs in in one go
 /// ([ScanSignInScreen]).
+/// The public read-only brain. Filling it in is the fastest way to see the
+/// app with no server of your own, and the way App Review gets in.
+const _demoServerUrl = 'https://demo.mantle-ai.tech';
+const _mantleSiteUrl = 'https://mantle-ai.tech';
+
 class ServerSetupScreen extends ConsumerStatefulWidget {
   const ServerSetupScreen({super.key});
 
@@ -138,6 +144,40 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                       leading: const Icon(LucideIcons.scanLine, size: 16),
                       child: const Text('Scan a sign-in code'),
                     ),
+                  ),
+                  const SizedBox(height: 28),
+                  // What this screen is asking for, for someone who has never
+                  // heard of Mantle: it is software you run, not an account
+                  // with us. The demo fills the field; the site opens outside.
+                  Text(
+                    'Mantle is free, open-source software you run yourself. '
+                    'No server yet? Try the demo.',
+                    style: theme.textTheme.muted,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      ShadButton.link(
+                        padding: EdgeInsets.zero,
+                        onPressed: _checking
+                            ? null
+                            : () => setState(() {
+                                _controller.text = _demoServerUrl;
+                                _error = null;
+                                _notice = null;
+                              }),
+                        child: const Text('Use the demo server'),
+                      ),
+                      const SizedBox(width: 16),
+                      ShadButton.link(
+                        padding: EdgeInsets.zero,
+                        onPressed: () => launchUrl(
+                          Uri.parse(_mantleSiteUrl),
+                          mode: LaunchMode.externalApplication,
+                        ),
+                        child: const Text('About Mantle'),
+                      ),
+                    ],
                   ),
                 ],
               ),
