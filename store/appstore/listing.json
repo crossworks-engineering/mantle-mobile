@@ -1,5 +1,5 @@
 {
-  "versionString": "1.12.0",
+  "versionString": "1.12.1",
   "primaryCategory": "PRODUCTIVITY",
   "name": "Jackdaw Mantle",
   "subtitle": "Mantle brain in your pocket",
@@ -9,5 +9,6 @@
   "promotionalText": "Your self-hosted Mantle brain, on your phone. Chat, search, notes, files and reminders. Your data stays on your server.",
   "supportUrl": "https://jackdaw.run",
   "marketingUrl": "https://mantle-ai.tech",
-  "copyright": "2026 Cross Works Engineering"
+  "copyright": "2026 Cross Works Engineering",
+  "whatsNew": "The Connect screen now explains what Mantle is and offers the public demo server. Chat: stop and resend a reply."
 }
