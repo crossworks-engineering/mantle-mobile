@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/services.dart' show TextInputAction, TextSelection;
+import 'package:flutter/services.dart'
+    show PlatformException, TextInputAction, TextSelection;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,7 +17,16 @@ import 'chat_controller.dart';
 /// Documents Mantle can ingest on a turn (mirrors the server's
 /// `INGESTABLE_EXTS` / the web composer's file picker `accept`).
 const _docExtensions = [
-  'pdf', 'docx', 'xlsx', 'xls', 'csv', 'txt', 'md', 'json', 'yaml', 'yml',
+  'pdf',
+  'docx',
+  'xlsx',
+  'xls',
+  'csv',
+  'txt',
+  'md',
+  'json',
+  'yaml',
+  'yml',
 ];
 
 /// The chat composer: a text input flanked by an attach button (photo / camera
@@ -174,15 +184,21 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         imageQuality: 85,
       );
       if (picked == null) return;
-      final mime = picked.mimeType ??
-          lookupMimeType(picked.path) ??
-          'image/jpeg';
+      final mime =
+          picked.mimeType ?? lookupMimeType(picked.path) ?? 'image/jpeg';
       _setAttachment(
         OutgoingAttachment(
           path: picked.path,
           filename: picked.name,
           mime: mime,
         ),
+      );
+    } on PlatformException catch (e) {
+      // A refused camera is the user's decision; offer the library instead.
+      _showError(
+        e.code == 'camera_access_denied'
+            ? 'Camera access is off, so you can attach a photo from your library instead.'
+            : "Couldn't attach that image.",
       );
     } catch (e) {
       _showError("Couldn't attach that image.");
@@ -245,8 +261,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
           // Stop pressed → put the message back so the user can fix and resend.
           if (outcome == SendOutcome.cancelled) {
             _input.text = text;
-            _input.selection =
-                TextSelection.collapsed(offset: text.length);
+            _input.selection = TextSelection.collapsed(offset: text.length);
             _attachment = attachment;
             _attachmentBytes = attachmentBytes;
           }
@@ -282,11 +297,9 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
             // Nothing was sent: hand the correction back (ahead of anything
             // typed meanwhile).
             final typed = _input.text;
-            final restored =
-                typed.isEmpty ? correction : '$correction\n$typed';
+            final restored = typed.isEmpty ? correction : '$correction\n$typed';
             _input.text = restored;
-            _input.selection =
-                TextSelection.collapsed(offset: restored.length);
+            _input.selection = TextSelection.collapsed(offset: restored.length);
             if (stopFailed) {
               _error = "Couldn't stop the reply. Try again.";
             }
@@ -294,8 +307,7 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
             // Stop pressed on the combined turn: restore the combined text.
             final combined = _notifier.lastPrompt;
             _input.text = combined;
-            _input.selection =
-                TextSelection.collapsed(offset: combined.length);
+            _input.selection = TextSelection.collapsed(offset: combined.length);
           }
         });
       }
@@ -351,8 +363,9 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
                 _error!,
-                style: theme.textTheme.small
-                    .copyWith(color: theme.colorScheme.destructive),
+                style: theme.textTheme.small.copyWith(
+                  color: theme.colorScheme.destructive,
+                ),
               ),
             ),
           _inputRow(theme),
@@ -388,9 +401,12 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         const SizedBox(height: 8),
         Row(
           children: [
-            _circleIcon(LucideIcons.paperclip, muted,
-                label: 'Attach a photo or file',
-                onPressed: _sending ? null : _openAttachMenu),
+            _circleIcon(
+              LucideIcons.paperclip,
+              muted,
+              label: 'Attach a photo or file',
+              onPressed: _sending ? null : _openAttachMenu,
+            ),
             HoldToTalkButton(
               enabled: !_sending,
               onTranscript: _dictated,
@@ -401,23 +417,31 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
               if (_canReplace) ...[
                 ShadButton.secondary(
                   onPressed: _replace,
-                  child: const Icon(LucideIcons.listRestart,
-                      size: 18,
-                      semanticLabel: 'Stop and resend with this correction'),
+                  child: const Icon(
+                    LucideIcons.listRestart,
+                    size: 18,
+                    semanticLabel: 'Stop and resend with this correction',
+                  ),
                 ),
               ] else
                 Text('Sending…', style: theme.textTheme.muted),
               const SizedBox(width: 8),
               ShadButton.destructive(
                 onPressed: _stop,
-                child: const Icon(LucideIcons.square,
-                    size: 16, semanticLabel: 'Stop the reply'),
+                child: const Icon(
+                  LucideIcons.square,
+                  size: 16,
+                  semanticLabel: 'Stop the reply',
+                ),
               ),
             ] else
               ShadButton(
                 onPressed: _send,
-                child: const Icon(LucideIcons.arrowUp,
-                    size: 18, semanticLabel: 'Send'),
+                child: const Icon(
+                  LucideIcons.arrowUp,
+                  size: 18,
+                  semanticLabel: 'Send',
+                ),
               ),
           ],
         ),
@@ -472,8 +496,11 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                   : Container(
                       color: scheme.background,
                       alignment: Alignment.center,
-                      child: Icon(LucideIcons.fileText,
-                          size: 22, color: scheme.foreground),
+                      child: Icon(
+                        LucideIcons.fileText,
+                        size: 22,
+                        color: scheme.foreground,
+                      ),
                     ),
             ),
           ),
@@ -487,8 +514,9 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
                   a.filename,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.small
-                      .copyWith(color: scheme.accentForeground),
+                  style: theme.textTheme.small.copyWith(
+                    color: scheme.accentForeground,
+                  ),
                 ),
                 Text(
                   _attachmentBytes > 0
@@ -504,10 +532,12 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
           ShadButton.ghost(
             onPressed: _clearAttachment,
             padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Icon(LucideIcons.x,
-                size: 16,
-                color: scheme.accentForeground,
-                semanticLabel: 'Remove attachment'),
+            child: Icon(
+              LucideIcons.x,
+              size: 16,
+              color: scheme.accentForeground,
+              semanticLabel: 'Remove attachment',
+            ),
           ),
         ],
       ),

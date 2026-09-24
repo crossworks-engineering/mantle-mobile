@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -52,9 +53,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           .upload(localPath: localPath, filename: filename);
     } catch (e) {
       if (mounted) {
-        setState(() => _error = e is FileUploadException
-            ? e.message
-            : "Couldn't upload the file.");
+        setState(
+          () => _error = e is FileUploadException
+              ? e.message
+              : "Couldn't upload the file.",
+        );
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -70,6 +73,13 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       );
       if (picked == null) return;
       await _upload(picked.path, picked.name);
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _error = e.code == 'camera_access_denied'
+            ? 'Camera access is off, so you can upload a photo from your library instead.'
+            : "Couldn't pick that image.",
+      );
     } catch (_) {
       if (mounted) setState(() => _error = "Couldn't pick that image.");
     }
@@ -111,16 +121,21 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(f.filename,
-                  style: theme.textTheme.h4.copyWith(color: scheme.foreground)),
+              Text(
+                f.filename,
+                style: theme.textTheme.h4.copyWith(color: scheme.foreground),
+              ),
               const SizedBox(height: 4),
-              Text('${f.mimeType} · ${f.sizeLabel}',
-                  style: theme.textTheme.muted),
+              Text(
+                '${f.mimeType} · ${f.sizeLabel}',
+                style: theme.textTheme.muted,
+              ),
               if (f.summary != null && f.summary!.isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text(f.summary!,
-                    style:
-                        theme.textTheme.p.copyWith(color: scheme.foreground)),
+                Text(
+                  f.summary!,
+                  style: theme.textTheme.p.copyWith(color: scheme.foreground),
+                ),
               ],
               const SizedBox(height: 16),
               if (base != null)
@@ -130,8 +145,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                     onPressed: () async {
                       final uri = Uri.tryParse('$base/n/${f.id}');
                       if (uri != null) {
-                        await launchUrl(uri,
-                            mode: LaunchMode.externalApplication);
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
                       }
                     },
                     child: const Text('Open in Mantle'),
@@ -195,15 +212,18 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
               children: [
                 Expanded(
                   child: ShadButton.outline(
-                    onPressed: _uploading ? null : () => _pickImage(ImageSource.camera),
+                    onPressed: _uploading
+                        ? null
+                        : () => _pickImage(ImageSource.camera),
                     child: const Icon(LucideIcons.camera, size: 16),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: ShadButton.outline(
-                    onPressed:
-                        _uploading ? null : () => _pickImage(ImageSource.gallery),
+                    onPressed: _uploading
+                        ? null
+                        : () => _pickImage(ImageSource.gallery),
                     child: const Icon(LucideIcons.image, size: 16),
                   ),
                 ),
@@ -232,8 +252,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   _error!,
-                  style:
-                      theme.textTheme.small.copyWith(color: scheme.destructive),
+                  style: theme.textTheme.small.copyWith(
+                    color: scheme.destructive,
+                  ),
                 ),
               ),
             ),
@@ -248,8 +269,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text("Couldn't load this folder.",
-                          style: theme.textTheme.muted),
+                      Text(
+                        "Couldn't load this folder.",
+                        style: theme.textTheme.muted,
+                      ),
                       const SizedBox(height: 12),
                       ShadButton.outline(
                         onPressed: () => ref
@@ -263,8 +286,10 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 data: (c) {
                   if (c.isEmpty) {
                     return Center(
-                      child: Text('Nothing here yet. Upload something above.',
-                          style: theme.textTheme.muted),
+                      child: Text(
+                        'Nothing here yet. Upload something above.',
+                        style: theme.textTheme.muted,
+                      ),
                     );
                   }
                   return ListView(
@@ -338,8 +363,10 @@ class _FolderTile extends StatelessWidget {
                     style: theme.textTheme.p.copyWith(color: scheme.foreground),
                   ),
                   if (counts.isNotEmpty)
-                    Text(counts,
-                        style: theme.textTheme.small.copyWith(color: muted)),
+                    Text(
+                      counts,
+                      style: theme.textTheme.small.copyWith(color: muted),
+                    ),
                 ],
               ),
             ),
@@ -394,8 +421,10 @@ class _FileTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.p.copyWith(color: scheme.foreground),
                   ),
-                  Text(file.sizeLabel,
-                      style: theme.textTheme.small.copyWith(color: muted)),
+                  Text(
+                    file.sizeLabel,
+                    style: theme.textTheme.small.copyWith(color: muted),
+                  ),
                 ],
               ),
             ),

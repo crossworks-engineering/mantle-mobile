@@ -81,7 +81,10 @@ class _ScanSignInScreenState extends ConsumerState<ScanSignInScreen> {
       child: Column(
         children: [
           MantleHeader(
-            leading: const MantleHeaderTitle('Scan to sign in', wordmark: false),
+            leading: const MantleHeaderTitle(
+              'Scan to sign in',
+              wordmark: false,
+            ),
             trailing: [
               HeaderAction(
                 icon: LucideIcons.x,
@@ -121,16 +124,18 @@ class _ScanSignInScreenState extends ConsumerState<ScanSignInScreen> {
                     const SizedBox(height: 12),
                     Text(
                       _error!,
-                      style: theme.textTheme.small
-                          .copyWith(color: scheme.destructive),
+                      style: theme.textTheme.small.copyWith(
+                        color: scheme.destructive,
+                      ),
                     ),
                   ],
                   const SizedBox(height: 12),
                   Text(
                     'The code is single-use and expires in about a minute; '
                     'it never contains your password.',
-                    style: theme.textTheme.small
-                        .copyWith(color: scheme.mutedForeground),
+                    style: theme.textTheme.small.copyWith(
+                      color: scheme.mutedForeground,
+                    ),
                   ),
                 ],
               ),
@@ -143,9 +148,10 @@ class _ScanSignInScreenState extends ConsumerState<ScanSignInScreen> {
 
   static String _describeCamera(MobileScannerException error) =>
       switch (error.errorCode) {
+        // A refusal is respected, not argued with: say what still works.
         MobileScannerErrorCode.permissionDenied =>
-          'Camera access is off for Jackdaw. Allow it in your phone\'s '
-              'settings, then come back.',
+          'Camera access is off, so the code can\'t be scanned here. '
+              'You can type the server address and sign in instead.',
         MobileScannerErrorCode.unsupported =>
           'This device has no camera the app can use.',
         _ => "Couldn't start the camera.",

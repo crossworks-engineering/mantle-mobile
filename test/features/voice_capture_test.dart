@@ -140,7 +140,7 @@ void main() {
     await h.capture.start();
     expect(h.recorder.starts, 0);
     expect(h.capture.state, VoiceCaptureState.idle);
-    expect(h.errors.single.message, contains('Microphone permission'));
+    expect(h.errors.single.message, contains('Microphone access is off'));
     expect(h.errors.single.sttUnavailable, isFalse);
     h.capture.dispose();
   });

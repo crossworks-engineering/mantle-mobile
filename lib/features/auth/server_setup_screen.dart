@@ -155,7 +155,9 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                     style: theme.textTheme.muted,
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  // Wrap, not Row: on a narrow phone the two links stack.
+                  Wrap(
+                    spacing: 16,
                     children: [
                       ShadButton.link(
                         padding: EdgeInsets.zero,
@@ -168,7 +170,6 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                               }),
                         child: const Text('Use the demo server'),
                       ),
-                      const SizedBox(width: 16),
                       ShadButton.link(
                         padding: EdgeInsets.zero,
                         onPressed: () => launchUrl(

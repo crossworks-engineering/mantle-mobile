@@ -107,13 +107,13 @@ class VoiceCapture extends ChangeNotifier {
     required this.onError,
     this.maxDuration = const Duration(seconds: 60),
     Future<Directory> Function()? tempDirectory,
-  })  // Named parameters cannot be `this._private`, so the lint's fix
-      // does not apply here.
-      // ignore: prefer_initializing_formals
-      : _recorder = recorder,
-        // ignore: prefer_initializing_formals
-        _transcribe = transcribe,
-        _tempDirectory = tempDirectory ?? getTemporaryDirectory;
+  }) // Named parameters cannot be `this._private`, so the lint's fix
+    // does not apply here.
+    // ignore: prefer_initializing_formals
+    : _recorder = recorder,
+       // ignore: prefer_initializing_formals
+       _transcribe = transcribe,
+       _tempDirectory = tempDirectory ?? getTemporaryDirectory;
 
   final VoiceRecorder _recorder;
   final VoiceTranscriber _transcribe;
@@ -151,8 +151,12 @@ class VoiceCapture extends ChangeNotifier {
   Future<void> _start() async {
     try {
       if (!await _recorder.hasPermission()) {
-        _fail(const VoiceCaptureError(
-            'Microphone permission is needed to dictate.'));
+        _fail(
+          const VoiceCaptureError(
+            'Microphone access is off, so voice notes are unavailable. '
+            'You can type your message instead.',
+          ),
+        );
         return;
       }
       final dir = await _tempDirectory();
