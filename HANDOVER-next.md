@@ -11,18 +11,88 @@ and three roles" work. Older handovers are history: `docs/handover.md` (to
    `docs/architecture.md`; its sections "Several logins" and "The folder
    tree" are what this work added.
 2. `fvm flutter analyze && fvm flutter test`: expect clean and **474**
-   passing. A failure before you touch anything is not yours.
+   passing on `feat/folder-tree` (367 on `feat/home-last-message`). A
+   failure before you touch anything is not yours.
 3. The plan has three phases. This file says where each stands.
 
 ## Where things stand
 
 | What | State |
 | --- | --- |
-| Branch | `feat/folder-tree`, based on `main` at `a31ac85` (1.12.1+24). Not pushed. Nothing is tagged or uploaded. |
+| `feat/folder-tree` | Phase 1. Based on `main` at `a31ac85` (1.12.1+24). Analyze clean, 474 tests, release APK and iOS `--no-codesign` both exit 0. Not pushed. |
 | Landed on it first | `feat/multi-login` (three commits, replayed; one conflict in the server setup screen, both sides kept) and `feat/file-open` (two commits; conflicts in the session wipe and the files screen). `feat/pages-list-rollup` was NOT landed: it builds on `parentId` and `childCount`, which the brain no longer sends. |
-| Phase 1 | Done: Pages, Notes and Files on the folder tree, the Folder index block, capture and upload into the open folder, the older-brain fallback. |
-| Phase 2 | Not started. The brain contract is on mantle branch `feat/mobile-roles`, `docs/mobile-companion-backend.md`, section "Three roles on the phone". It is in security review and not merged; ask the brain session before relying on a route. |
+| `feat/home-last-message` | Three commits on `main` (NOT on folder-tree), asked for by the owner through the audit session so they can ship ahead of the role work: plain-text notification previews with a Swift twin for the iOS extension, the last-message card on Home, and a `Podfile.lock` entry main was missing. Analyze clean, 367 tests, both release builds exit 0, `tool/check_push_text_swift.sh` passes. Not yet seen on a device: its build has the v2 database, so do not install it over a folder-tree build. |
+| Phase 1 seen on | iOS simulator (a CLONE named "jdm iPhone 17", so the original keeps its real sign-in) and the owner's Galaxy S20 Ultra (release build, fresh install at the owner's choice, signed in to the test brain only). |
+| Phase 1 report | NOT yet sent to the session "Recall and folder systems audit". It is owed: branch heads, test counts, both builds, the screenshots under `build/shots/` (git-ignored; already sent to the owner), what is blocked on the brain, the showcase scope below. |
+| Phase 2 | Not started. First step: branch `feat/roles` from `feat/folder-tree` and merge `feat/home-last-message` into it (expect a small conflict in `home_screen.dart`). The brain contract is mantle branch `feat/mobile-roles`, `docs/mobile-companion-backend.md`, section "Three roles on the phone" (read it with `git -C ~/Projects/mantle show feat/mobile-roles:docs/mobile-companion-backend.md`). It passed a security review round and is not merged. |
 | Phase 3 | Not started. No version bump, no store upload, until the audit session says GO and the owner agrees. |
+
+## Phase 2: what is known, what is asked
+
+Known from the contract: `POST /api/auth/device-login` (admin or member,
+answers `role` and `loginId`, 30 days, `POST /api/auth/token/refresh` at
+launch and always store the token it answers); a client signs in with
+`POST /api/auth/client-code {email, device: true}` then `.../verify` with the
+`requestId`; `GET /api/auth/whoami` answers the role, the shell route and the
+push base; push routes are the admin's shapes under the role's `pushBase`;
+push payloads for a member or client carry `kind` (`chat`, `review`,
+`comment`), `itemId` and a `/portal/...` deep link (the router and the
+deep-link allowlist know none of those yet); unread is
+`GET {role}/chat/unread` and `POST {role}/chat/read`; chat is push plus
+refetch, no stream; a member token reaches only member routes.
+
+Asked of the brain session ("Finish feat/mobile-roles: docs, verify, report",
+earlier "Brain: phone sign-in and push for members and clients") and not yet
+answered: how a store reviewer signs in as a CLIENT with no mailbox on the
+demo brain (without an answer the client role cannot pass App Review);
+whether an older brain answers 404 for `device-login` (the plan is to fall
+back to the frozen `mobile-login`); the body of `mobile-login`'s 403 for a
+member, which the app shows as "Could not reach Mantle" today
+(`lib/data/auth/auth_api.dart`); whether admins should move to
+`device-login`; whether a QR claim answers the role; and when the branch
+reaches main, the fleet and the demo brain.
+
+Not yet read: the exact shapes of the member and client shell, chat, "my
+items" and "shared with you" routes (mantle `docs/member-logins.md`,
+`docs/client-logins.md`, `packages/client-types/src/dto/member.ts` and
+`client.ts`, the allow-lists in `server/web/lib/auth/*-routes.ts`).
+
+The session table needs a `role` (Drift v4), set from the sign-in answer and
+re-read from `whoami`; navigation and the home screen follow it, and a
+member or client build path must never construct an admin screen.
+
+## The showcase (about two weeks from 2026-10-01)
+
+- Admins: realistic. Folders, several logins, the home card and plain-text
+  notifications are built; they need the audit's GO, a version bump and one
+  review cycle.
+- Members and clients: possible but tight. It needs the brain branch merged
+  and rolled to the brains that will be shown, roughly a week of app work
+  (sign-in for three roles, role-driven home, member and client chat with an
+  offline queue, the read-only library, items, push with the new deep links)
+  and a pass on real phones for push. It should be submitted about five days
+  before the date to survive one rejection. The reviewer's client login is
+  the open risk.
+
+## The test rig left running (tear down when done)
+
+- A throwaway brain from mantle `feat/mobile-roles` at `1701a87a`: systemd
+  user unit `jdm-web` and container `jdm_pg` on the workstation, worktree
+  `.claude/worktrees/jdm` there (ref `jdm-live`), data under `/tmp/jdm-*`.
+  The Mac reaches it on port 3947 through an `ssh -f -N -L` tunnel; the
+  phone through `adb reverse tcp:3947 tcp:3947` (the address in the app is
+  the loopback one). Web process only: no workers, so no summaries and no
+  chat replies. It is seeded with folders for pages, notes and files; the
+  fixtures in `test/fixtures/tree/` came from it.
+- The owner login's generated test credentials are in a `creds.env` in the
+  scratchpad of the session that built it (under `/private/tmp/claude-501/`),
+  which may not survive. If it is gone, tear the brain down and build a new
+  one from the recipe.
+- Teardown: stop the unit, `docker rm -f -v jdm_pg`, remove the worktree and
+  the `jdm-live` branch, `rm -rf /tmp/jdm-*` on the workstation; kill the
+  tunnel and `xcrun simctl delete "jdm iPhone 17"` on the Mac.
+- An AOSP emulator image (`system-images/android-35/default`) was downloaded
+  before the owner said to use the phone instead. No AVD was made.
 
 ## What Phase 1 decided, and why
 
