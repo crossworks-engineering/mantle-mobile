@@ -41,21 +41,52 @@ deep-link allowlist know none of those yet); unread is
 `GET {role}/chat/unread` and `POST {role}/chat/read`; chat is push plus
 refetch, no stream; a member token reaches only member routes.
 
-Asked of the brain session ("Finish feat/mobile-roles: docs, verify, report",
-earlier "Brain: phone sign-in and push for members and clients") and not yet
-answered: how a store reviewer signs in as a CLIENT with no mailbox on the
-demo brain (without an answer the client role cannot pass App Review);
-whether an older brain answers 404 for `device-login` (the plan is to fall
-back to the frozen `mobile-login`); the body of `mobile-login`'s 403 for a
-member, which the app shows as "Could not reach Mantle" today
-(`lib/data/auth/auth_api.dart`); whether admins should move to
-`device-login`; whether a QR claim answers the role; and when the branch
-reaches main, the fleet and the demo brain.
+Answered by the brain session on 2026-10-01 (brain head then `882de3a4`,
+verify green, not merged, waiting for the audit GO):
 
-Not yet read: the exact shapes of the member and client shell, chat, "my
-items" and "shared with you" routes (mantle `docs/member-logins.md`,
-`docs/client-logins.md`, `packages/client-types/src/dto/member.ts` and
-`client.ts`, the allow-lists in `server/web/lib/auth/*-routes.ts`).
+- **Older brains.** `POST /api/auth/device-login` answers 404 `{error: "not
+  found"}` on a brain before this release, and so does `whoami`. 404 means
+  old brain: fall back to the frozen `mobile-login` (admins only). A wrong
+  password on a new brain is 401 `{error: "Invalid email or password."}`.
+- **What `mobile-login` says to the other roles** (the app shows "Could not
+  reach Mantle" for these today, `lib/data/auth/auth_api.dart`): member 403
+  `{error: "Member logins use the web app. Sign in from a browser instead.",
+  reason: "member-login"}`; client 403 `{error: "This login cannot use this
+  app.", reason: "client-login"}`. Show the brain's `error` as it is.
+- **Admins move to `device-login`** on a brain that has it (role, loginId,
+  30 days, refresh). An old 1-year `mobile-login` token still works with
+  `whoami` (role admin) and with refresh.
+- **QR pairing** stays admin only, payload version 1. Its answer is
+  `{token, expiresIn, expiresAt, deviceId, email}`, with no role: call
+  `whoami` after a claim.
+- **Refresh, changed in the last review round.** A lost refresh answer: retry
+  with the OLD token and the same new token comes back, with no time limit,
+  until the new one is first used. A rotated token presented after its
+  successor was used ends every session of the login. So store the newest
+  token and use only it; keep the token on any refresh failure that is not
+  401 (a 403 or a network error is not a sign-out).
+- **Push.** `mobile-logout` removes only the push devices this token
+  enrolled. The collapse key of a member or client push is opaque: read
+  `kind` and `itemId` from the sealed payload.
+- **The demo brain cannot serve members or clients as it is.** Its edge
+  refuses every write with 403 before the brain: `device-login`, refresh,
+  the client code routes, push enrol, both chat POSTs and the read cursor.
+  Only `mobile-login` and `mobile-logout` pass (the edge answers them with a
+  static owner token). GETs work with a valid bearer; there are no pushes.
+  The brain session advises against a "no-mail sign-in" flag in the brain
+  and proposes that the demo edge answer `device-login` and the client code
+  routes statically with pre-minted tokens (a client token lasts at most 30
+  days, so it must be re-minted monthly). That is demo-branch work and the
+  owner's call. If App Review must see working chat, it needs a writable
+  review brain. THIS IS THE OPEN RISK FOR THE STORE REVIEW OF THE MEMBER AND
+  CLIENT ROLES.
+- **Timing.** No dates promised: audit GO, a rebase, then the owner merges,
+  releases and rolls. "Two weeks is possible if GO comes this week."
+
+The member and client route shapes are in `docs/phase2-brain-routes.md`
+(read from the brain's code). Its headline: those roles get pages as
+ProseMirror documents and cannot export markdown, so the Library needs either
+a brain route or a renderer on the phone. Ask the brain session first.
 
 The session table needs a `role` (Drift v4), set from the sign-in answer and
 re-read from `whoami`; navigation and the home screen follow it, and a
