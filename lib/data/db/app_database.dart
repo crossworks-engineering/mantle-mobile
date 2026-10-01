@@ -296,7 +296,7 @@ class AppDatabase extends _$AppDatabase {
   // ─── Offline send-queue ─────────────────────────────────────────────────
 
   /// Queue a text-only turn that failed on connectivity. `id` is the turn's
-  /// idempotency key — replays are safe. [sessionId] is the login that
+  /// idempotency key, so replays are safe. [sessionId] is the login that
   /// wrote it (default: the active one).
   Future<void> enqueueOutboxTurn({
     required String id,

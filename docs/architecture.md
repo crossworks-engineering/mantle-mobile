@@ -242,16 +242,34 @@ over the active session.
   lands under the right id; a failed one removes a row made for it and nothing
   else. Signing in again as a held login reuses its row.
 - `cached_messages` and `outbox_turns` are keyed by session. An unsent message
-  is sent as the login that wrote it or not at all.
+  is sent as the login that wrote it or not at all. Work that spans an await
+  (a fetch, a send, a flush) reads the session id once, when it starts, and
+  files its rows under that id; a flush stops when the active login changes.
+- The way back while a login is being added (`resume_session_id`) is kept in
+  `app_settings`, so it survives the app being killed. The sign-in screen
+  lists the logins still held: after a refused bearer, or a restart mid-add,
+  the others are a tap away with no password.
+- Data controllers watch their API provider, so a switch (even between two
+  logins on one brain) fetches the screens again as the new login. A request
+  that went out with no bearer (mid-switch to another brain, before the
+  address catches up) never signs the login in use out on a 401.
 - Push: the keypair is the device's, the subscription id is per login, and the
   keypair goes only when no login is connected. Event alarms and the Android
-  direct-connection stream follow the ACTIVE login and restart on a switch.
+  direct-connection stream follow the ACTIVE login: the session wipe stops
+  them, and the alarm sync and `DirectPushFollow` start them again for the
+  next login. Wanting the direct connection is a device setting
+  (`direct_push_wanted`), not a login's; an install updated from a build
+  before several logins keeps it on.
 - Screens: Settings → Logins (`features/auth/logins_screen.dart`) and the quick
   switch, a bottom sheet opened from the home wordmark. A list with tap to
   switch, sign out and add. No editor, per the phone's scope rule.
 - The update from the single-login build (schema v2 → v3) turns the saved
-  server and email into session #1, gives unsent messages to it, and moves the
-  old keychain item under it on first read. Nobody is signed out.
+  server and email into session #1, gives unsent messages to it, and records
+  it as the ONE owner of the old keychain item, which moves under it at the
+  next start-up. Nobody is signed out. Without a recorded owner (an iOS
+  reinstall keeps the Keychain but not the database) the old item is never
+  adopted, so another brain never receives it, and the next sign-in deletes
+  it. The upgrade runs in one transaction and is safe to run twice.
 
 **When a session ends** — the user signs out, or a request comes back 401 /
 redirected to `/login` (`core/network/auth_failure.dart` is the one
@@ -754,7 +772,9 @@ Three more surfaces over owner-gated JSON routes, same layering as v1.5:
   memory. Hand-off is `open_filex` (Quick Look style preview on iOS,
   `ACTION_VIEW` through its bundled FileProvider on Android); when no app
   claims the type it falls back to the share sheet (`share_plus`). Copies live
-  in the CACHE directory under `opened_files/<id>/<filename>`, never
+  in the CACHE directory under `opened_files/<id>/<version>/<filename>` (the
+  id escaped as one path segment, the version the file's last change and
+  size, older versions removed), never
   Documents, are capped at 500 MB (oldest first) and are removed by the
   session wipe (sign-out and a dead token). Above 100 MB the button names the
   size, so a large download is chosen and not triggered by a row tap. Viewing
@@ -802,7 +822,8 @@ its folder. Pages, Notes and Files on the phone are that tree.
   is a brain from before the tree (`TreeUnavailable`): the kind is marked in
   `treeUnavailableKindsProvider` and its screen shows the list it had before
   (`PagesListScreen`, `NotesListScreen`, `FilesListScreen`), without asking
-  again until the brain or the login changes. A 404 WITH a folder named is
+  again until the brain or the login changes, or the app comes back to the
+  front more than ten minutes after the mark. A 404 WITH a folder named is
   that folder, gone or not shared (`TreeFolderMissing`).
 - **Writes that change who can read.** Filing into a shared folder shares
   the item. The brain refuses such a write with **409** `{error:

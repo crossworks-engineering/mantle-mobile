@@ -139,7 +139,8 @@ member or client build path must never construct an admin screen.
   `confirm` on a yes. A note the person declines to share stays at the top
   level and the screen says so.
 - **The older-brain fallback is per kind and remembered**: a 404 on a kind's
-  root marks it until the brain or the login changes. The pages fallback is
+  root marks it until the brain or the login changes, or the app returns to
+  the front more than ten minutes later. The pages fallback is
   a flat list, not the old `parentId` hierarchy.
 - **Tree reads do not auto-retry.** Riverpod 3 retries a failed provider
   with backoff; the tree's refusals are answers, so `noTreeRetry` turns it
