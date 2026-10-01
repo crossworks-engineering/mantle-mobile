@@ -49,10 +49,19 @@ class SessionRepository {
     return id == null ? null : byId(id);
   }
 
-  /// Point the database's cache scope at the active session. Called once at
-  /// start-up, before anything reads the chat cache.
+  /// Point the database's cache scope at the active session, and settle the
+  /// single-login build's keychain item: it moves under the session the v3
+  /// migration made for it, and only that one, or it is deleted. Called once
+  /// at start-up, before anything reads the chat cache or sends a request.
   Future<void> hydrate() async {
     _db.currentSessionId = await activeId() ?? '';
+    final owner = await _db.getSetting(AppDatabase.legacyBearerOwnerKey);
+    final ownerRow =
+        (owner == null || owner.isEmpty) ? null : await byId(owner);
+    await _tokens.adoptLegacy(owner: ownerRow?.id);
+    if (owner != null) {
+      await _db.setSetting(AppDatabase.legacyBearerOwnerKey, '');
+    }
   }
 
   /// A sign-in is about to be attempted: make sure there is a session for it

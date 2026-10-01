@@ -21,8 +21,8 @@ class TokenStore {
   /// Resolves the active session's id, or null when nobody is signed in.
   final Future<String?> Function() _activeSessionId;
 
-  /// The single item every build before sessions wrote. Read once more, by
-  /// [read], to move it under the session it belongs to.
+  /// The single item every build before sessions wrote. Read once more, at
+  /// start-up ([adoptLegacy]), to move it under the session it belongs to.
   static const legacyKey = 'mantle_bearer_token';
 
   /// The secure-storage key for one session's bearer. Public so a background
@@ -31,24 +31,35 @@ class TokenStore {
   /// a plain copy.
   static String keyFor(String sessionId) => '$legacyKey.$sessionId';
 
-  /// The active session's bearer.
-  ///
-  /// The update from the single-login build lands here: the v3 database
-  /// migration turns the saved server into session #1, and the first read
-  /// finds that session empty and the old item present, so it moves one to
-  /// the other. Written before the old item is deleted: there is no moment at
-  /// which the bearer is in neither place, and nobody is signed out by
-  /// updating the app.
+  /// The active session's bearer. Only ever that session's own item: the
+  /// single-login build's item is never read here (see [adoptLegacy]).
   Future<String?> read() async {
     final id = await _activeSessionId();
     if (id == null || id.isEmpty) return null;
     final held = await _storage.read(key: keyFor(id));
-    if (held != null && held.isNotEmpty) return held;
+    return (held == null || held.isEmpty) ? null : held;
+  }
+
+  /// The update from the single-login build: move its keychain item under
+  /// [owner], the session the v3 migration made from that build's saved
+  /// server, so updating the app signs nobody out. Written before the old
+  /// item is deleted, so there is no moment at which the bearer is in
+  /// neither place.
+  ///
+  /// With no [owner] the old item is deleted and nothing adopts it. That is
+  /// the iOS reinstall: the Keychain outlives the app, the database does not,
+  /// and the item belongs to whatever brain the old install used. Adopting
+  /// it for the next sign-in would send that brain's bearer to another.
+  Future<void> adoptLegacy({String? owner}) async {
     final legacy = await _storage.read(key: legacyKey);
-    if (legacy == null || legacy.isEmpty) return null;
-    await _storage.write(key: keyFor(id), value: legacy);
+    if (legacy == null) return;
+    if (owner != null && owner.isNotEmpty && legacy.isNotEmpty) {
+      final held = await _storage.read(key: keyFor(owner));
+      if (held == null || held.isEmpty) {
+        await _storage.write(key: keyFor(owner), value: legacy);
+      }
+    }
     await _storage.delete(key: legacyKey);
-    return legacy;
   }
 
   /// Store the active session's bearer. The session layer makes a session

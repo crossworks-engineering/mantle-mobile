@@ -71,6 +71,9 @@ void main() {
     when(() => wipe.stopActiveServices()).thenAnswer((_) async {});
     when(() => tokenStore.clearFor(any())).thenAnswer((_) async {});
     when(() => tokenStore.readFor(any())).thenAnswer((_) async => null);
+    when(() => tokenStore.adoptLegacy(owner: any(named: 'owner')))
+        .thenAnswer((_) async {});
+    when(() => tokenStore.readFor('session-1')).thenAnswer((_) async => 'tok');
   });
   tearDown(() => db.close());
 

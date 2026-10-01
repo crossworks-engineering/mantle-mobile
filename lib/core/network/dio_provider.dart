@@ -45,9 +45,12 @@ Dio dio(Ref ref) {
         // after the login becomes active), so the two are checked against
         // each other on every request instead of trusting the order things
         // happen in. A mismatch sends the request bare, and it fails closed.
+        // The bearer is read for THAT session, not "the active one" a
+        // second time: a switch between the two reads would pair this
+        // session's address check with another session's bearer.
         final active = await ref.read(sessionRepositoryProvider).active();
         if (active != null && active.baseUrl == baseUrl) {
-          final token = await ref.read(tokenStoreProvider).read();
+          final token = await ref.read(tokenStoreProvider).readFor(active.id);
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
           }

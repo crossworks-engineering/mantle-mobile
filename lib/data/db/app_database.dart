@@ -103,9 +103,13 @@ class AppDatabase extends _$AppDatabase {
   static const legacyEmailKey = 'account_email';
 
   /// The session whose rows the cache and outbox methods below read and
-  /// write. Set by the session layer at start-up and on every switch
-  /// ([SessionRepository]); empty means "nobody signed in", which matches no
-  /// row a login ever wrote.
+  /// write when no `sessionId` is given. Set by the session layer at start-up
+  /// and on every switch ([SessionRepository]); empty means "nobody signed
+  /// in", which matches no row a login ever wrote.
+  ///
+  /// Work that spans an await (a fetch, a send) must read this ONCE, when it
+  /// starts, and pass that id to the write: by the time the answer comes the
+  /// person may have switched, and the rows belong to the login that asked.
   String currentSessionId = '';
 
   @override
@@ -113,7 +117,13 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onUpgrade: (m, from, to) async {
+        // One transaction: an upgrade the app is killed in the middle of
+        // leaves the old schema whole, and the next launch runs it again.
+        // Drift records the new version only after this returns, so a re-run
+        // is also possible after a complete one; every step below is safe to
+        // repeat (tables are created IF NOT EXISTS, the legacy login is
+        // adopted once).
+        onUpgrade: (m, from, to) => transaction(() async {
           if (from < 2) {
             await m.createTable(cachedMessages);
             await m.createTable(outboxTurns);
@@ -122,7 +132,7 @@ class AppDatabase extends _$AppDatabase {
             await m.createTable(sessions);
             // The login this device already holds becomes session #1, so the
             // update signs nobody out. Its bearer moves to the session's own
-            // secure-storage key on first read (see TokenStore).
+            // secure-storage key at the next start-up (see TokenStore).
             final legacyId = await _adoptLegacyLogin();
             if (from >= 2) {
               // A read cache: cheaper to refetch than to carry across a
@@ -142,15 +152,32 @@ class AppDatabase extends _$AppDatabase {
               );
             }
           }
-        },
+        }),
       );
+
+  /// [AppSettings] key naming the ONE session the single-login build's
+  /// keychain item may move to: the session the v3 migration made from that
+  /// build's saved server. Read and cleared at start-up
+  /// ([SessionRepository.hydrate]). Without it the old item is deleted, never
+  /// adopted: a keychain item that survived a reinstall belongs to whatever
+  /// brain the old install used, not to the one being signed in to now.
+  static const legacyBearerOwnerKey = 'legacy_bearer_owner';
 
   /// Turn the single-login build's saved server (and email, when it kept one)
   /// into a session row and make it active. Null when there was no server,
   /// which means there was no login either.
+  ///
+  /// A second run (see the migration) finds the session it made the first
+  /// time, through the active id, and returns it instead of adding another.
   Future<String?> _adoptLegacyLogin() async {
     final baseUrl = await getSetting(legacyServerKey);
     if (baseUrl == null || baseUrl.isEmpty) return null;
+    final already = await getSetting(activeSessionKey);
+    if (already != null && already.isNotEmpty) {
+      final row = await (select(sessions)..where((s) => s.id.equals(already)))
+          .getSingleOrNull();
+      if (row != null) return row.id;
+    }
     final id = newSessionId();
     final now = DateTime.now();
     await into(sessions).insert(
@@ -163,6 +190,7 @@ class AppDatabase extends _$AppDatabase {
       ),
     );
     await setSetting(activeSessionKey, id);
+    await setSetting(legacyBearerOwnerKey, id);
     return id;
   }
 
@@ -207,16 +235,19 @@ class AppDatabase extends _$AppDatabase {
   // ─── Chat read cache ────────────────────────────────────────────────────
 
   /// Upsert a fetched latest-page's rows for one agent, then prune that
-  /// agent's cache to the newest [chatCacheKeep] rows.
+  /// agent's cache to the newest [chatCacheKeep] rows. [sessionId] is the
+  /// login the rows were fetched as (default: the active one).
   Future<void> cacheChatRows(
     String agentSlug,
-    List<({String id, String json, DateTime createdAt})> rows,
-  ) {
+    List<({String id, String json, DateTime createdAt})> rows, {
+    String? sessionId,
+  }) {
+    final mine = sessionId ?? currentSessionId;
     return transaction(() async {
       for (final r in rows) {
         await into(cachedMessages).insertOnConflictUpdate(
           CachedMessagesCompanion.insert(
-            sessionId: Value(currentSessionId),
+            sessionId: Value(mine),
             agentSlug: agentSlug,
             id: r.id,
             json: r.json,
@@ -224,7 +255,6 @@ class AppDatabase extends _$AppDatabase {
           ),
         );
       }
-      final mine = currentSessionId;
       final keepIds = await ((select(cachedMessages)
                 ..where((r) =>
                     r.sessionId.equals(mine) & r.agentSlug.equals(agentSlug))
@@ -243,10 +273,11 @@ class AppDatabase extends _$AppDatabase {
 
   /// One agent's cached rows, oldest-first (render order). Raw JSON — the
   /// caller re-parses through [ChatApi]'s history parser.
-  Future<List<String>> cachedChatRows(String agentSlug) {
+  Future<List<String>> cachedChatRows(String agentSlug, {String? sessionId}) {
+    final mine = sessionId ?? currentSessionId;
     return ((select(cachedMessages)
               ..where((r) =>
-                  r.sessionId.equals(currentSessionId) &
+                  r.sessionId.equals(mine) &
                   r.agentSlug.equals(agentSlug))
               ..orderBy([(r) => OrderingTerm.asc(r.createdAt)]))
             .map((r) => r.json))
@@ -256,17 +287,19 @@ class AppDatabase extends _$AppDatabase {
   // ─── Offline send-queue ─────────────────────────────────────────────────
 
   /// Queue a text-only turn that failed on connectivity. `id` is the turn's
-  /// idempotency key — replays are safe.
+  /// idempotency key — replays are safe. [sessionId] is the login that
+  /// wrote it (default: the active one).
   Future<void> enqueueOutboxTurn({
     required String id,
     required String agentSlug,
     required String body,
     String? locationJson,
+    String? sessionId,
   }) {
     return into(outboxTurns).insertOnConflictUpdate(
       OutboxTurnsCompanion.insert(
         id: id,
-        sessionId: Value(currentSessionId),
+        sessionId: Value(sessionId ?? currentSessionId),
         agentSlug: agentSlug,
         body: body,
         locationJson: Value(locationJson),
@@ -276,10 +309,14 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Queued turns for one agent, oldest-first (send order).
-  Future<List<OutboxTurn>> outboxTurnsFor(String agentSlug) {
+  Future<List<OutboxTurn>> outboxTurnsFor(
+    String agentSlug, {
+    String? sessionId,
+  }) {
+    final mine = sessionId ?? currentSessionId;
     return (select(outboxTurns)
           ..where((r) =>
-              r.sessionId.equals(currentSessionId) &
+              r.sessionId.equals(mine) &
               r.agentSlug.equals(agentSlug))
           ..orderBy([(r) => OrderingTerm.asc(r.createdAt)]))
         .get();

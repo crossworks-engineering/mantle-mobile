@@ -78,6 +78,9 @@ class ChatRepository {
     String? agentSlug,
   }) async {
     final isLatestPage = before == null;
+    // The login this page is fetched as, read once: a switch during the
+    // fetch must not file A's thread under B.
+    final sessionId = _db.currentSessionId;
     try {
       final rows = await _api.fetchHistoryRaw(
         before: before,
@@ -86,14 +89,15 @@ class ChatRepository {
       );
       final messages = rows.map(_api.messageFromHistory).toList();
       if (isLatestPage && agentSlug != null) {
-        await _cacheRows(agentSlug, rows, messages);
+        await _cacheRows(sessionId, agentSlug, rows, messages);
       }
       return HistoryPage(messages: messages);
     } catch (e) {
       // Only the latest page falls back to cache (older pages beyond the
       // cached window can't be answered honestly offline).
       if (isLatestPage && agentSlug != null && isOfflineError(e)) {
-        final cached = await _db.cachedChatRows(agentSlug);
+        final cached =
+            await _db.cachedChatRows(agentSlug, sessionId: sessionId);
         if (cached.isNotEmpty) {
           return HistoryPage(
             messages: [
@@ -111,6 +115,7 @@ class ChatRepository {
   }
 
   Future<void> _cacheRows(
+    String sessionId,
     String agentSlug,
     List<Map<String, dynamic>> rows,
     List<ChatMessage> messages,
@@ -123,7 +128,7 @@ class ChatRepository {
             json: jsonEncode(rows[i]),
             createdAt: messages[i].createdAt,
           ),
-      ]);
+      ], sessionId: sessionId);
     } catch (_) {
       /* cache writes are best-effort — never fail a successful fetch */
     }
@@ -137,6 +142,9 @@ class ChatRepository {
     String? idempotencyKey,
     LocationPing? location,
   }) async {
+    // The login that wrote the turn, read before the send: if it is queued,
+    // it is queued as this login even when the person switched meanwhile.
+    final sessionId = _db.currentSessionId;
     try {
       return await _api.sendTurn(
         text,
@@ -157,6 +165,7 @@ class ChatRepository {
         agentSlug: agentSlug,
         body: text,
         locationJson: location == null ? null : jsonEncode(location.toJson()),
+        sessionId: sessionId,
       );
       throw TurnQueuedOffline(idempotencyKey);
     }
@@ -172,9 +181,15 @@ class ChatRepository {
   /// server REJECTS (4xx/5xx) is retried on later flushes and dropped after
   /// [maxAttempts] so one poisoned row can't wedge the queue forever.
   /// Returns how many turns were delivered.
+  ///
+  /// Only the active login's turns are sent, and the flush stops as soon as
+  /// the active login changes: the rest wait for their own login.
   Future<int> flushOutbox(String agentSlug, {int maxAttempts = 3}) async {
     var delivered = 0;
-    for (final turn in await _db.outboxTurnsFor(agentSlug)) {
+    final sessionId = _db.currentSessionId;
+    final turns = await _db.outboxTurnsFor(agentSlug, sessionId: sessionId);
+    for (final turn in turns) {
+      if (_db.currentSessionId != sessionId) return delivered;
       try {
         await _api.sendTurn(
           turn.body,

@@ -231,6 +231,84 @@ void main() {
     });
   });
 
+  // M1: work in flight across a login switch stays with the login that
+  // started it.
+  group('a login switch while a request is in flight', () {
+    test('a send that fails offline after a switch is queued under the login '
+        'that wrote it', () async {
+      db.currentSessionId = 'login-a';
+      when(() => api.sendTurn(
+            any(),
+            agentSlug: any(named: 'agentSlug'),
+            attachment: any(named: 'attachment'),
+            cancelToken: any(named: 'cancelToken'),
+            idempotencyKey: any(named: 'idempotencyKey'),
+            location: any(named: 'location'),
+          )).thenAnswer((_) async {
+        db.currentSessionId = 'login-b'; // the person switched meanwhile
+        throw _offline();
+      });
+
+      await expectLater(
+        repo.send('from a', agentSlug: _slug, idempotencyKey: 'k-a'),
+        throwsA(isA<TurnQueuedOffline>()),
+      );
+
+      expect(await db.outboxTurnsFor(_slug, sessionId: 'login-b'), isEmpty);
+      final mine = await db.outboxTurnsFor(_slug, sessionId: 'login-a');
+      expect(mine.single.body, 'from a');
+    });
+
+    test('a page fetched as A is cached under A even when B is active by '
+        'the time it lands', () async {
+      db.currentSessionId = 'login-a';
+      when(() => api.fetchHistoryRaw(
+            before: any(named: 'before'),
+            limit: any(named: 'limit'),
+            agentSlug: _slug,
+          )).thenAnswer((_) async {
+        db.currentSessionId = 'login-b';
+        return [_row('m0', text: 'for a')];
+      });
+
+      await repo.history(agentSlug: _slug);
+
+      expect(await db.cachedChatRows(_slug, sessionId: 'login-b'), isEmpty);
+      expect(await db.cachedChatRows(_slug, sessionId: 'login-a'), hasLength(1));
+    });
+
+    test('a flush stops when the active login changes, and sends nothing of '
+        'one login as another', () async {
+      db.currentSessionId = 'login-a';
+      await db.enqueueOutboxTurn(id: 'a1', agentSlug: _slug, body: 'a one');
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await db.enqueueOutboxTurn(id: 'a2', agentSlug: _slug, body: 'a two');
+      await db.enqueueOutboxTurn(
+          id: 'b1', agentSlug: _slug, body: 'b one', sessionId: 'login-b');
+
+      final sent = <String>[];
+      when(() => api.sendTurn(
+            any(),
+            agentSlug: any(named: 'agentSlug'),
+            attachment: any(named: 'attachment'),
+            cancelToken: any(named: 'cancelToken'),
+            idempotencyKey: any(named: 'idempotencyKey'),
+            location: any(named: 'location'),
+          )).thenAnswer((inv) async {
+        sent.add(inv.namedArguments[#idempotencyKey] as String);
+        db.currentSessionId = 'login-b'; // switched after the first send
+        return const TurnAccepted('t');
+      });
+
+      expect(await repo.flushOutbox(_slug), 1);
+      expect(sent, ['a1']);
+      final leftA = await db.outboxTurnsFor(_slug, sessionId: 'login-a');
+      expect(leftA.single.id, 'a2');
+      final leftB = await db.outboxTurnsFor(_slug, sessionId: 'login-b');
+      expect(leftB.single.id, 'b1');
+    });
+  });
+
   group('isOfflineError', () {
     test('classifies connectivity vs server errors', () {
       expect(isOfflineError(_offline()), isTrue);

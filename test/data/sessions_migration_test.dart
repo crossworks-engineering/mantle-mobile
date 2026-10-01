@@ -5,6 +5,8 @@
 // messages keep their rows and gain that session; the read cache, which is
 // only a cache, starts empty.
 
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/db/app_database.dart';
@@ -77,6 +79,72 @@ void main() {
     // What the rest of the app reads is untouched.
     expect(await db.getSetting('server_base_url'), 'https://m.example.com');
     expect(await db.getSetting('account_email'), 'owner@example.com');
+  });
+
+  test('the migrated session is recorded as the one owner of the old '
+      'keychain item', () async {
+    final db = AppDatabase.forTesting(
+      v2Database(server: 'https://m.example.com'),
+    );
+    addTearDown(db.close);
+    final session = (await db.select(db.sessions).get()).single;
+    expect(await db.getSetting(AppDatabase.legacyBearerOwnerKey), session.id);
+  });
+
+  // L4: Drift records the new version only after the upgrade returns, so an
+  // upgrade can run twice. The second run must not add a second session.
+  test('an upgrade that runs again adds no second session', () async {
+    final dir = await Directory.systemTemp.createTemp('jdm-migration');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/app.sqlite');
+    var rollBack = false;
+    NativeDatabase open() => NativeDatabase(
+          file,
+          setup: (raw) {
+            if (raw.userVersion == 0) {
+              raw.execute(
+                'CREATE TABLE app_settings (key TEXT NOT NULL, value TEXT NOT '
+                'NULL, PRIMARY KEY (key));',
+              );
+              raw.execute(
+                'CREATE TABLE cached_messages (agent_slug TEXT NOT NULL, id '
+                'TEXT NOT NULL, json TEXT NOT NULL, created_at INTEGER NOT '
+                'NULL, PRIMARY KEY (agent_slug, id));',
+              );
+              raw.execute(
+                'CREATE TABLE outbox_turns (id TEXT NOT NULL, agent_slug TEXT '
+                'NOT NULL, body TEXT NOT NULL, location_json TEXT, created_at '
+                'INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, '
+                'PRIMARY KEY (id));',
+              );
+              raw.execute(
+                "INSERT INTO app_settings VALUES ('server_base_url', "
+                "'https://m.example.com')",
+              );
+              raw.execute(
+                "INSERT INTO outbox_turns VALUES ('k1', 'assistant', 'unsent', "
+                'NULL, 1700000000, 0)',
+              );
+              raw.userVersion = 2;
+            }
+            // The app was killed after the upgrade but before the version
+            // was written: the next launch sees v2 again.
+            if (rollBack) raw.userVersion = 2;
+          },
+        );
+
+    final first = AppDatabase.forTesting(open());
+    final id = (await first.select(first.sessions).get()).single.id;
+    await first.close();
+
+    rollBack = true;
+    final second = AppDatabase.forTesting(open());
+    addTearDown(second.close);
+    final sessions = await second.select(second.sessions).get();
+    expect(sessions.map((s) => s.id), [id]);
+    expect(await second.getSetting(AppDatabase.activeSessionKey), id);
+    final turn = (await second.select(second.outboxTurns).get()).single;
+    expect(turn.sessionId, id);
   });
 
   test('an unsent message keeps its row and gains the login that wrote it',

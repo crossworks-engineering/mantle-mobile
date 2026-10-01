@@ -44,28 +44,34 @@ void main() {
   }
 
   group('the update from the single-login build', () {
-    test('the old keychain item moves under session #1 on first read',
-        () async {
-      FlutterSecureStorage.setMockInitialValues({
-        TokenStore.legacyKey: 'legacy-token',
-      });
+    Future<void> heldSession(String id, String baseUrl) async {
       final now = DateTime.now();
       await db.into(db.sessions).insert(
             SessionsCompanion.insert(
-              id: 's1',
-              baseUrl: _brain,
+              id: id,
+              baseUrl: baseUrl,
               email: const Value('owner@example.com'),
               addedAt: now,
               lastUsedAt: now,
             ),
           );
+    }
+
+    test('the old keychain item moves under the migrated session at start-up',
+        () async {
+      FlutterSecureStorage.setMockInitialValues({
+        TokenStore.legacyKey: 'legacy-token',
+      });
+      await heldSession('s1', _brain);
       await db.setSetting(AppDatabase.activeSessionKey, 's1');
+      await db.setSetting(AppDatabase.legacyBearerOwnerKey, 's1');
+
+      await sessions.hydrate();
 
       expect(await tokens.read(), 'legacy-token');
       expect(await storage.read(key: TokenStore.keyFor('s1')), 'legacy-token');
       expect(await storage.read(key: TokenStore.legacyKey), isNull);
-      // And again, from the session's own item now.
-      expect(await tokens.read(), 'legacy-token');
+      expect(await db.getSetting(AppDatabase.legacyBearerOwnerKey), '');
     });
 
     test('with nobody active, the old item is NOT handed out', () async {
@@ -73,6 +79,57 @@ void main() {
         TokenStore.legacyKey: 'legacy-token',
       });
       expect(await tokens.read(), isNull);
+    });
+
+    // M4: an iOS reinstall keeps the Keychain and loses the database. The
+    // old item is another brain's bearer; the next sign-in must not send it.
+    test('a leftover item with no migrated owner is deleted, and a new '
+        'sign-in to another brain never sends it', () async {
+      FlutterSecureStorage.setMockInitialValues({
+        TokenStore.legacyKey: 'old-brain-token',
+      });
+
+      await sessions.hydrate(); // a fresh database: no owner recorded
+      expect(await storage.read(key: TokenStore.legacyKey), isNull);
+
+      // Typing another brain's address and signing in: the session is active
+      // before the token is minted, which is when the login POST goes out.
+      await sessions.beginSignIn(baseUrl: _other, email: 'me@example.com');
+      expect(await tokens.read(), isNull);
+    });
+
+    test('a sign-in before start-up settles the item still does not adopt it',
+        () async {
+      FlutterSecureStorage.setMockInitialValues({
+        TokenStore.legacyKey: 'old-brain-token',
+      });
+      await sessions.beginSignIn(baseUrl: _other, email: 'me@example.com');
+      expect(await tokens.read(), isNull);
+      expect(await storage.read(key: TokenStore.legacyKey), 'old-brain-token');
+    });
+
+    test('an owner that names a session no longer held adopts nothing',
+        () async {
+      FlutterSecureStorage.setMockInitialValues({
+        TokenStore.legacyKey: 'legacy-token',
+      });
+      await db.setSetting(AppDatabase.legacyBearerOwnerKey, 'gone');
+      await sessions.hydrate();
+      expect(await storage.read(key: TokenStore.keyFor('gone')), isNull);
+      expect(await storage.read(key: TokenStore.legacyKey), isNull);
+    });
+
+    test("the owner's own newer bearer is never overwritten by the old item",
+        () async {
+      FlutterSecureStorage.setMockInitialValues({
+        TokenStore.legacyKey: 'legacy-token',
+        TokenStore.keyFor('s1'): 'newer-token',
+      });
+      await heldSession('s1', _brain);
+      await db.setSetting(AppDatabase.activeSessionKey, 's1');
+      await db.setSetting(AppDatabase.legacyBearerOwnerKey, 's1');
+      await sessions.hydrate();
+      expect(await tokens.read(), 'newer-token');
     });
   });
 
