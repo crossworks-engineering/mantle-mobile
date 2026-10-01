@@ -341,6 +341,65 @@ void main() {
     });
   });
 
+  group('capturing a note: the move fails (M6)', () {
+    NoteRow note(String id) => NoteRow(
+          id: id,
+          title: 'Idea',
+          content: '',
+          tags: const [],
+          summary: null,
+          createdAt: DateTime.utc(2026, 10, 1),
+          updatedAt: DateTime.utc(2026, 10, 1),
+        );
+
+    test('a failed move is "saved, not filed", with the note', () async {
+      when(() => notes.create('Idea')).thenAnswer((_) async => note('n1'));
+      when(() => api.move(TreeKind.notes, ['n1'], 'f1'))
+          .thenThrow(Exception('offline'));
+      final c = make();
+
+      await expectLater(
+        c.read(noteFilingProvider).capture('Idea', folderId: 'f1'),
+        throwsA(isA<NoteNotFiled>().having((e) => e.note?.id, 'note', 'n1')),
+      );
+    });
+
+    test("the move's failed ids are read, not ignored", () async {
+      when(() => notes.create('Idea')).thenAnswer((_) async => note('n1'));
+      when(() => api.move(TreeKind.notes, ['n1'], 'f1'))
+          .thenAnswer((_) async => const ['n1']);
+      final c = make();
+
+      await expectLater(
+        c.read(noteFilingProvider).capture('Idea', folderId: 'f1'),
+        throwsA(isA<NoteNotFiled>()),
+      );
+    });
+
+    test('a confirmed move that fails for the note says so', () async {
+      final refusal =
+          TreeVisibilityRefusal.tryParse(fixture('tree_move_visibility_409'))!;
+      when(() => api.move(TreeKind.notes, ['n1'], 'f1',
+          confirm: true, seen: 1)).thenAnswer((_) async => const ['n1']);
+      final c = make();
+
+      await expectLater(
+        c.read(noteFilingProvider).fileConfirmed('n1', 'f1', refusal),
+        throwsA(isA<NoteNotFiled>()),
+      );
+    });
+
+    test('a failed create is not "saved"', () async {
+      when(() => notes.create('Idea')).thenThrow(Exception('offline'));
+      final c = make();
+
+      await expectLater(
+        c.read(noteFilingProvider).capture('Idea', folderId: 'f1'),
+        throwsA(isNot(isA<NoteNotFiled>())),
+      );
+    });
+  });
+
   group('a Folder index', () {
     test('reads the whole folder by name, page after page', () async {
       final p1 = page('tree_pages_archive_p1');

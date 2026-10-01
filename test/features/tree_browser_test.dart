@@ -343,6 +343,41 @@ void main() {
       verifyNever(() => tree.move(TreeKind.notes, ['n1'], ideas,
           confirm: true, seen: 1));
     });
+
+    // M6: the note exists; the screen must say where, and must not keep the
+    // text for a retry that would make a second note.
+    for (final (label, stub) in [
+      (
+        'the move fails',
+        () => when(() => tree.move(TreeKind.notes, ['n1'], ideas))
+            .thenThrow(Exception('offline')),
+      ),
+      (
+        'the move answers the note as failed',
+        () => when(() => tree.move(TreeKind.notes, ['n1'], ideas))
+            .thenAnswer((_) async => const ['n1']),
+      ),
+    ]) {
+      testWidgets('saved but not filed when $label: it says so and clears '
+          'the text', (tester) async {
+        when(() => notes.create('A thought'))
+            .thenAnswer((_) async => saved('n1'));
+        stub();
+        await pump(tester, const NotesScreen(folderId: ideas));
+
+        await tester.enterText(find.byType(ShadInput).last, 'A thought');
+        await tester.tap(find.bySemanticsLabel('Add note'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Saved at the top level: it could not be filed here.'),
+          findsOneWidget,
+        );
+        expect(find.text("Couldn't add the note."), findsNothing);
+        expect(find.text('A thought'), findsNothing);
+        verify(() => notes.create('A thought')).called(1);
+      });
+    }
   });
 
   group('Files', () {

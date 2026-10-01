@@ -66,6 +66,18 @@ class NoteNeedsConfirm implements Exception {
   final TreeVisibilityRefusal refusal;
 }
 
+/// Thrown by [NoteFiling.capture] and [NoteFiling.fileConfirmed] when the
+/// note was saved but the move into the folder failed (the network, the
+/// brain, or the move answered the note's id as `failed`). The note exists
+/// at the top level, so the screen must say so and must not offer the same
+/// text again: a retry would make a second note.
+class NoteNotFiled implements Exception {
+  const NoteNotFiled(this.note);
+
+  /// The saved note, when the capture has it (null from [fileConfirmed]).
+  final NoteRow? note;
+}
+
 /// Capturing and deleting notes from the folder tree. The brain creates a
 /// note at the top level (`POST /api/notes` takes no folder), so capturing
 /// into a folder is a create followed by the tree's item move.
@@ -81,15 +93,21 @@ class NoteFiling {
 
   /// Save a title-only note and file it in [folderId] (null is the top
   /// level). Throws [NoteNeedsConfirm] when the folder is shared: the note
-  /// exists, at the top level, and [fileConfirmed] finishes the job.
+  /// exists, at the top level, and [fileConfirmed] finishes the job. Throws
+  /// [NoteNotFiled] when the note was saved and the move failed. Any other
+  /// error means the note was not saved.
   Future<NoteRow> capture(String title, {String? folderId}) async {
     final note = await _notes.create(title.trim());
     if (folderId == null) return note;
+    final List<String> failed;
     try {
-      await _tree.move(TreeKind.notes, [note.id], folderId);
+      failed = await _tree.move(TreeKind.notes, [note.id], folderId);
     } on TreeVisibilityRefusal catch (refusal) {
       throw NoteNeedsConfirm(note: note, refusal: refusal);
+    } catch (_) {
+      throw NoteNotFiled(note);
     }
+    if (failed.contains(note.id)) throw NoteNotFiled(note);
     return note;
   }
 
@@ -100,13 +118,14 @@ class NoteFiling {
     String folderId,
     TreeVisibilityRefusal refusal,
   ) async {
-    await _tree.move(
+    final failed = await _tree.move(
       TreeKind.notes,
       [noteId],
       folderId,
       confirm: true,
       seen: refusal.seen,
     );
+    if (failed.contains(noteId)) throw const NoteNotFiled(null);
   }
 
   Future<void> delete(String id) => _notes.delete(id);

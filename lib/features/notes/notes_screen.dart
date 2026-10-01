@@ -148,6 +148,14 @@ class _NoteCaptureState extends ConsumerState<_NoteCapture> {
       } else if (mounted) {
         setState(() => _error = 'Saved at the top level, not in this folder.');
       }
+    } on NoteNotFiled {
+      // Saved, but not moved. The text goes, so a retry does not make a
+      // second note.
+      _input.clear();
+      if (mounted) {
+        setState(() =>
+            _error = 'Saved at the top level: it could not be filed here.');
+      }
     } catch (_) {
       if (mounted) setState(() => _error = "Couldn't add the note.");
     } finally {
