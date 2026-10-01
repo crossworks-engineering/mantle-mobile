@@ -76,7 +76,8 @@ const _imageExtensions = {
 bool treeFileIsImage(TreeItem item) => _imageExtensions.contains(item.subtype);
 
 /// A folder's tile: its tint as the fill, its icon (emoji, lucide, or the
-/// default folder) in the tint's ink. With no tint it sits on `secondary`.
+/// default folder) in the tint's ink. With no tint it is the quiet pair,
+/// `muted` and `mutedForeground`, so it sits back beside the tinted ones.
 class FolderGlyph extends StatelessWidget {
   const FolderGlyph({super.key, required this.icon, required this.color});
 
@@ -87,9 +88,9 @@ class FolderGlyph extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
-    final fill = AppTints.fill(color, scheme.background) ?? scheme.secondary;
+    final fill = AppTints.fill(color, scheme.background) ?? scheme.muted;
     final ink =
-        AppTints.ink(color, scheme.foreground) ?? scheme.secondaryForeground;
+        AppTints.ink(color, scheme.foreground) ?? scheme.mutedForeground;
     final emoji = emojiIconFor(icon);
     return Container(
       width: 32,
@@ -106,7 +107,9 @@ class FolderGlyph extends StatelessWidget {
   }
 }
 
-/// A small pill: who a folder is shared with, an item's level or state.
+/// A small pill: who a folder is shared with, an item's level or state. It
+/// is information, not a control, so it takes the quiet pair (`muted`), not
+/// the chip pair a pressable pill uses.
 class TreeBadge extends StatelessWidget {
   const TreeBadge(this.label, {super.key});
 
@@ -120,12 +123,12 @@ class TreeBadge extends StatelessWidget {
       margin: const EdgeInsets.only(left: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: scheme.secondary,
+        color: scheme.muted,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: theme.textTheme.small.copyWith(color: scheme.secondaryForeground),
+        style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
       ),
     );
   }

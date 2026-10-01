@@ -120,8 +120,16 @@ class _TreeBrowserState extends ConsumerState<TreeBrowser> {
     ref.read(treeSearchControllerProvider(_kind).notifier).clear();
   }
 
+  /// The screen is where it was opened, with nothing on top: back leaves it.
+  /// That is the root, or the folder it was opened ON (a Folder index led
+  /// here): from there back returns to where the reader came from, it does
+  /// not climb a tree they never walked down.
+  bool get _atEntry =>
+      _folderId == null ||
+      (_folderId == widget.initialFolderId && _back.isEmpty);
+
   /// One step back: out of a search, out of Recent, or up one folder. False
-  /// at the root with nothing open, where back leaves the screen.
+  /// where back leaves the screen ([_atEntry]).
   bool _stepBack() {
     final search = ref.read(treeSearchControllerProvider(_kind));
     if (search.active) {
@@ -132,7 +140,7 @@ class _TreeBrowserState extends ConsumerState<TreeBrowser> {
       setState(() => _recent = false);
       return true;
     }
-    if (_folderId == null) return false;
+    if (_atEntry) return false;
     final loaded =
         ref.read(treeFolderControllerProvider(_kind, _folderId)).value;
     setState(() {
@@ -169,10 +177,10 @@ class _TreeBrowserState extends ConsumerState<TreeBrowser> {
         ? (ref.watch(treeTagsProvider(_kind)).value ?? const <TreeTag>[])
         : const <TreeTag>[];
     final folder = async.value?.folder;
-    final atRoot = _folderId == null && !_recent && !search.active;
+    final flat = _recent || search.active;
 
     return PopScope(
-      canPop: atRoot,
+      canPop: _atEntry && !flat,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _stepBack();
       },
@@ -181,8 +189,12 @@ class _TreeBrowserState extends ConsumerState<TreeBrowser> {
         child: Column(
           children: [
             MantleHeader(
+              // A search and Recent look through the whole kind, so they are
+              // titled by the kind, not by the folder that was open.
               leading: MantleHeaderTitle(
-                _folderId == null ? widget.title : (folder?.name ?? widget.title),
+                flat || _folderId == null
+                    ? widget.title
+                    : (folder?.name ?? widget.title),
                 wordmark: false,
               ),
               trailing: [
