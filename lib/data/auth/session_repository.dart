@@ -51,17 +51,25 @@ class SessionRepository {
 
   /// Point the database's cache scope at the active session, and settle the
   /// single-login build's keychain item: it moves under the session the v3
-  /// migration made for it, and only that one, or it is deleted. Called once
-  /// at start-up, before anything reads the chat cache or sends a request.
+  /// migration made for it, and only that one. Called once at start-up,
+  /// before anything reads the chat cache or sends a request.
+  ///
+  /// With no owner recorded the keychain is not touched here: nothing reads
+  /// the old item any more, and the next sign-in deletes it
+  /// ([TokenStore.write]).
   Future<void> hydrate() async {
     _db.currentSessionId = await activeId() ?? '';
     final owner = await _db.getSetting(AppDatabase.legacyBearerOwnerKey);
-    final ownerRow =
-        (owner == null || owner.isEmpty) ? null : await byId(owner);
-    await _tokens.adoptLegacy(owner: ownerRow?.id);
-    if (owner != null) {
-      await _db.setSetting(AppDatabase.legacyBearerOwnerKey, '');
+    if (owner == null || owner.isEmpty) return;
+    final ownerRow = await byId(owner);
+    try {
+      await _tokens.adoptLegacy(owner: ownerRow?.id);
+    } catch (_) {
+      // The keychain could not be read. Nothing reads the old item but this
+      // step, so it is safe to leave it, and the owner, for the next launch.
+      return;
     }
+    await _db.setSetting(AppDatabase.legacyBearerOwnerKey, '');
   }
 
   /// A sign-in is about to be attempted: make sure there is a session for it

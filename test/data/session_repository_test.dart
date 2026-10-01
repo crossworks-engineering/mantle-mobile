@@ -90,22 +90,17 @@ void main() {
       });
 
       await sessions.hydrate(); // a fresh database: no owner recorded
-      expect(await storage.read(key: TokenStore.legacyKey), isNull);
 
       // Typing another brain's address and signing in: the session is active
       // before the token is minted, which is when the login POST goes out.
       await sessions.beginSignIn(baseUrl: _other, email: 'me@example.com');
       expect(await tokens.read(), isNull);
-    });
 
-    test('a sign-in before start-up settles the item still does not adopt it',
-        () async {
-      FlutterSecureStorage.setMockInitialValues({
-        TokenStore.legacyKey: 'old-brain-token',
-      });
-      await sessions.beginSignIn(baseUrl: _other, email: 'me@example.com');
-      expect(await tokens.read(), isNull);
-      expect(await storage.read(key: TokenStore.legacyKey), 'old-brain-token');
+      // The token the new brain mints replaces nothing of the old one, and
+      // the old item goes with that first write.
+      await tokens.write('new-brain-token');
+      expect(await tokens.read(), 'new-brain-token');
+      expect(await storage.read(key: TokenStore.legacyKey), isNull);
     });
 
     test('an owner that names a session no longer held adopts nothing',

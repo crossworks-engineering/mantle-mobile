@@ -46,10 +46,11 @@ class TokenStore {
   /// item is deleted, so there is no moment at which the bearer is in
   /// neither place.
   ///
-  /// With no [owner] the old item is deleted and nothing adopts it. That is
-  /// the iOS reinstall: the Keychain outlives the app, the database does not,
-  /// and the item belongs to whatever brain the old install used. Adopting
-  /// it for the next sign-in would send that brain's bearer to another.
+  /// With no [owner] (the session is gone) the old item is deleted and
+  /// nothing adopts it. An iOS reinstall records no owner at all: the
+  /// Keychain outlives the app, the database does not, and the item belongs
+  /// to whatever brain the old install used. Adopting it for the next sign-in
+  /// would send that brain's bearer to another.
   Future<void> adoptLegacy({String? owner}) async {
     final legacy = await _storage.read(key: legacyKey);
     if (legacy == null) return;
@@ -66,10 +67,14 @@ class TokenStore {
   /// active BEFORE a sign-in mints its token, so there is always one to write
   /// to; with none, the token is dropped rather than parked where a later
   /// login could adopt it as its own.
+  ///
+  /// A single-login build's item still here was never adopted (no migrated
+  /// owner: an iOS reinstall), so it is another brain's and goes now.
   Future<void> write(String token) async {
     final id = await _activeSessionId();
     if (id == null || id.isEmpty) return;
     await _storage.write(key: keyFor(id), value: token);
+    await _storage.delete(key: legacyKey);
   }
 
   /// Forget the active session's bearer, and the pre-session item if one is
