@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/lifecycle/app_lifecycle.dart';
 import '../../data/tree/tree_api.dart';
 import '../../data/tree/tree_models.dart';
 
@@ -14,15 +16,35 @@ part 'tree_controller.g.dart';
 /// Per brain and per login: it watches the tree client, which is rebuilt
 /// with the HTTP client whenever either changes, so a switch to a newer
 /// brain starts clean.
+///
+/// Not for ever: the brain may be updated while the app runs. When the app
+/// comes back to the front, a mark older than [reprobeAfter] is dropped, so
+/// the screen asks for the tree once more.
 @Riverpod(keepAlive: true)
 class TreeUnavailableKinds extends _$TreeUnavailableKinds {
+  /// How long a mark holds before a return to the app asks again.
+  static Duration reprobeAfter = const Duration(minutes: 10);
+
+  final _markedAt = <TreeKind, DateTime>{};
+  TreeApi? _api;
+
   @override
   Set<TreeKind> build() {
-    ref.watch(treeApiProvider);
-    return const {};
+    final api = ref.watch(treeApiProvider);
+    final lifecycle = ref.watch(appLifecycleProvider);
+    if (!identical(api, _api)) {
+      // Another login or another brain: nothing known about it yet.
+      _api = api;
+      _markedAt.clear();
+    } else if (lifecycle == AppLifecycleState.resumed) {
+      final now = DateTime.now();
+      _markedAt.removeWhere((_, at) => now.difference(at) >= reprobeAfter);
+    }
+    return {..._markedAt.keys};
   }
 
   void mark(TreeKind kind) {
+    _markedAt.putIfAbsent(kind, DateTime.now);
     if (!state.contains(kind)) state = {...state, kind};
   }
 }
@@ -44,6 +66,7 @@ class TreeFolderState {
     required this.items,
     required this.nextCursor,
     this.loadingMore = false,
+    this.moreFailed = false,
   });
 
   /// Null at the kind's root.
@@ -56,6 +79,11 @@ class TreeFolderState {
   final String? nextCursor;
   final bool loadingMore;
 
+  /// The last page load failed. The list stops asking on its own (a scroll
+  /// would otherwise ask again on every tick) until the person taps retry or
+  /// refreshes.
+  final bool moreFailed;
+
   bool get hasMore => nextCursor != null;
   bool get isEmpty => folders.isEmpty && items.isEmpty;
 
@@ -64,6 +92,7 @@ class TreeFolderState {
     String? nextCursor,
     bool clearCursor = false,
     bool? loadingMore,
+    bool? moreFailed,
   }) {
     return TreeFolderState(
       folder: folder,
@@ -72,6 +101,7 @@ class TreeFolderState {
       items: items ?? this.items,
       nextCursor: clearCursor ? null : (nextCursor ?? this.nextCursor),
       loadingMore: loadingMore ?? this.loadingMore,
+      moreFailed: moreFailed ?? this.moreFailed,
     );
   }
 
@@ -112,7 +142,8 @@ class TreeFolderController extends _$TreeFolderController {
 
   /// Reload from the first page. The rows on screen stay until the answer is
   /// in (a pull to refresh must not blank the list); a failure keeps them and
-  /// is rethrown for the caller to mention.
+  /// is rethrown for the caller to mention (the pull says it could not
+  /// refresh). With no rows yet the failure is the screen's error state.
   Future<void> refresh() async {
     final hadData = state.hasValue;
     if (!hadData) state = const AsyncLoading();
@@ -121,16 +152,25 @@ class TreeFolderController extends _$TreeFolderController {
       if (ref.mounted) state = AsyncData(next);
     } catch (e, st) {
       if (!ref.mounted) return;
-      if (!hadData) state = AsyncError(e, st);
+      if (!hadData) {
+        state = AsyncError(e, st);
+        return;
+      }
+      rethrow;
     }
   }
 
-  /// Append the next page of items (a no-op while one is loading, or at the
-  /// end). The cursor is keyset, so rows added meanwhile are neither skipped
-  /// nor repeated.
+  /// Append the next page of items (a no-op while one is loading, at the
+  /// end, or after a failed page until [retryMore]). The cursor is keyset, so
+  /// rows added meanwhile are neither skipped nor repeated.
   Future<void> loadMore() async {
     final current = state.value;
-    if (current == null || current.loadingMore || !current.hasMore) return;
+    if (current == null ||
+        current.loadingMore ||
+        current.moreFailed ||
+        !current.hasMore) {
+      return;
+    }
     state = AsyncData(current.copyWith(loadingMore: true));
     try {
       final page = await ref.read(treeApiProvider).folder(
@@ -156,8 +196,18 @@ class TreeFolderController extends _$TreeFolderController {
     } catch (_) {
       if (!ref.mounted) return;
       final now = state.value;
-      if (now != null) state = AsyncData(now.copyWith(loadingMore: false));
+      if (now != null) {
+        state = AsyncData(now.copyWith(loadingMore: false, moreFailed: true));
+      }
     }
+  }
+
+  /// Ask for the page that failed, once, because the person asked.
+  Future<void> retryMore() async {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(current.copyWith(moreFailed: false));
+    await loadMore();
   }
 
   /// Count one open of an item for this login (what Recent lists), and drop
@@ -194,6 +244,7 @@ class TreeSearchState {
     this.searching = false,
     this.loadingMore = false,
     this.failed = false,
+    this.moreFailed = false,
   });
 
   final String query;
@@ -204,6 +255,9 @@ class TreeSearchState {
   final bool searching;
   final bool loadingMore;
   final bool failed;
+
+  /// The last page of results failed; see [TreeFolderState.moreFailed].
+  final bool moreFailed;
 
   /// Whether the screen shows results instead of the folder.
   bool get active => query.isNotEmpty || tag != null;
@@ -290,7 +344,10 @@ class TreeSearchController extends _$TreeSearchController {
 
   Future<void> loadMore() async {
     final current = state;
-    if (current.nextCursor == null || current.loadingMore || current.searching) {
+    if (current.nextCursor == null ||
+        current.loadingMore ||
+        current.moreFailed ||
+        current.searching) {
       return;
     }
     final seq = _seq;
@@ -330,8 +387,22 @@ class TreeSearchController extends _$TreeSearchController {
         folders: current.folders,
         items: current.items,
         nextCursor: current.nextCursor,
+        moreFailed: true,
       );
     }
+  }
+
+  /// Ask for the page of results that failed, because the person asked.
+  Future<void> retryMore() async {
+    final current = state;
+    state = TreeSearchState(
+      query: current.query,
+      tag: current.tag,
+      folders: current.folders,
+      items: current.items,
+      nextCursor: current.nextCursor,
+    );
+    await loadMore();
   }
 }
 

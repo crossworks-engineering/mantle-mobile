@@ -7,7 +7,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jackdaw/core/lifecycle/app_lifecycle.dart';
 import 'package:jackdaw/data/notes/notes_api.dart';
 import 'package:jackdaw/data/notes/notes_models.dart';
 import 'package:jackdaw/data/tree/tree_api.dart';
@@ -116,6 +118,16 @@ void main() {
       expect(state.items, hasLength(50));
       expect(state.hasMore, isTrue);
       expect(state.loadingMore, isFalse);
+      expect(state.moreFailed, isTrue);
+
+      // L8: a scroll does not ask again on every tick; a tap on retry does.
+      await c.read(provider.notifier).loadMore();
+      await c.read(provider.notifier).loadMore();
+      verify(() => api.folder(TreeKind.pages,
+          folderId: archive, cursor: p1.nextCursor)).called(1);
+      await c.read(provider.notifier).retryMore();
+      verify(() => api.folder(TreeKind.pages,
+          folderId: archive, cursor: p1.nextCursor)).called(1);
     });
 
     test('refresh keeps the rows on screen while it asks, and after a failure',
@@ -136,7 +148,8 @@ void main() {
       final refreshing = c.read(provider.notifier).refresh();
       expect(c.read(provider).value!.items, hasLength(2));
       second.completeError(Exception('offline'));
-      await refreshing;
+      // L8: the failure reaches the caller, so the pull can say so.
+      await expectLater(refreshing, throwsA(isA<Exception>()));
 
       expect(c.read(provider).hasError, isFalse);
       expect(c.read(provider).value!.items, hasLength(2));
@@ -190,6 +203,32 @@ void main() {
       await expectLater(c.read(provider.future), throwsA(isA<TreeUnavailable>()));
 
       expect(c.read(treeUnavailableKindsProvider), {TreeKind.pages});
+    });
+
+    test('a mark is asked again when the app comes back after a while (L9)',
+        () async {
+      when(() => api.folder(TreeKind.pages)).thenThrow(const TreeUnavailable());
+      final c = make();
+      c.listen(treeUnavailableKindsProvider, (_, _) {});
+      final provider = treeFolderControllerProvider(TreeKind.pages, null);
+      c.listen(provider, (_, _) {});
+      await expectLater(c.read(provider.future), throwsA(isA<TreeUnavailable>()));
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(treeUnavailableKindsProvider), {TreeKind.pages});
+
+      // Back to the front soon after: still marked.
+      final life = c.read(appLifecycleProvider.notifier);
+      life.set(AppLifecycleState.paused);
+      life.set(AppLifecycleState.resumed);
+      expect(c.read(treeUnavailableKindsProvider), {TreeKind.pages});
+
+      // Back after the mark has aged: asked again.
+      final was = TreeUnavailableKinds.reprobeAfter;
+      TreeUnavailableKinds.reprobeAfter = Duration.zero;
+      addTearDown(() => TreeUnavailableKinds.reprobeAfter = was);
+      life.set(AppLifecycleState.paused);
+      life.set(AppLifecycleState.resumed);
+      expect(c.read(treeUnavailableKindsProvider), isEmpty);
     });
 
     test('a folder that is gone is not "no tree"', () async {

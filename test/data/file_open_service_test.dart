@@ -104,7 +104,7 @@ void main() {
         onProgress: (got, _) => progress.add(got),
       );
 
-      expect(f.path, endsWith('/opened_files/f-10/Report.pdf'));
+      expect(f.path, endsWith('/opened_files/f-10/0-10/Report.pdf'));
       expect(f.lengthSync(), 10);
       expect(adapter.requests.single.path, '/api/files/files/f-10');
       expect(adapter.requests.single.queryParameters, {'raw': '1'});
@@ -194,6 +194,56 @@ void main() {
     expect(f.existsSync(), isFalse);
     expect(Directory('${tmp.path}/opened_files').existsSync(), isFalse);
     await s.clearCache(); // idempotent
+  });
+
+  // L14: a file id comes from the brain and is used in a path.
+  test('a hostile file id stays inside the cache', () async {
+    final s = service();
+    final f = await s.download(row('../../x-10', 'a.pdf', 10));
+    final cache = Directory('${tmp.path}/opened_files').resolveSymbolicLinksSync();
+    expect(File(f.path).resolveSymbolicLinksSync(), startsWith('$cache/'));
+    expect(File(f.path).parent.parent.parent.resolveSymbolicLinksSync(), cache);
+    expect(
+      adapter.requests.single.uri.path,
+      '/api/files/files/..%2F..%2Fx-10',
+    );
+  });
+
+  group('safeSegment', () {
+    test('keeps plain ids, escapes everything else, and never collides', () {
+      expect(safeSegment('f-10_A'), 'f-10_A');
+      expect(safeSegment('..'), isNot(anyOf('.', '..')));
+      expect(safeSegment('a/b'), isNot(contains('/')));
+      expect(safeSegment('a/b'), isNot(safeSegment('a_b')));
+      expect(safeSegment('a.b'), isNot(safeSegment('a.2e.b')));
+      expect(safeSegment(''), isNot(anyOf('', '.', '..')));
+    });
+  });
+
+  // L15: the same size is not the same file.
+  test('a file changed on the brain is fetched again, even at the same size',
+      () async {
+    final s = service();
+    FileRow at(DateTime t) => FileRow(
+          id: 'f-10',
+          parentPath: 'files',
+          title: 'a.pdf',
+          filename: 'a.pdf',
+          extension: 'pdf',
+          mimeType: 'application/pdf',
+          sizeBytes: 10,
+          summary: null,
+          updatedAt: t,
+        );
+    final v1 = await s.download(at(DateTime.utc(2026, 9, 1)));
+    await s.download(at(DateTime.utc(2026, 9, 1)));
+    expect(adapter.requests, hasLength(1));
+
+    final v2 = await s.download(at(DateTime.utc(2026, 10, 1)));
+    expect(adapter.requests, hasLength(2));
+    expect(v2.path, isNot(v1.path));
+    // The old version's copy goes.
+    expect(v1.existsSync(), isFalse);
   });
 
   group('safeFilename', () {

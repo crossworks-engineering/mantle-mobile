@@ -90,11 +90,18 @@ class FileOpenService {
       Directory('${(await _cacheRoot()).path}/$_dirName');
 
   /// One folder per file id, so two files with the same name never collide and
-  /// the viewer still sees the real filename.
-  Future<File> _target(FileRow f) async =>
-      File('${(await _dir()).path}/${f.id}/${safeFilename(f)}');
+  /// the viewer still sees the real filename; inside it one folder per
+  /// version ([cacheVersion]), so a file changed on the brain is fetched
+  /// again even when its size did not change. The id is made safe as a path
+  /// segment first ([safeSegment]): it comes from the brain.
+  Future<Directory> _idDir(FileRow f) async =>
+      Directory('${(await _dir()).path}/${safeSegment(f.id)}');
 
-  /// The cached copy, when it is there and whole.
+  Future<File> _target(FileRow f) async => File(
+        '${(await _idDir(f)).path}/${cacheVersion(f)}/${safeFilename(f)}',
+      );
+
+  /// The cached copy, when it is there, whole and of this version.
   Future<File?> cached(FileRow f) async {
     final file = await _target(f);
     if (!file.existsSync()) return null;
@@ -116,11 +123,18 @@ class FileOpenService {
       return hit;
     }
     final target = await _target(f);
+    // Older versions of this file go: only the one being fetched is kept.
+    final idDir = await _idDir(f);
+    if (idDir.existsSync()) {
+      for (final old in idDir.listSync().whereType<Directory>()) {
+        if (old.path != target.parent.path) old.deleteSync(recursive: true);
+      }
+    }
     target.parent.createSync(recursive: true);
     final part = File('${target.path}.part');
     try {
       await _dio.download(
-        '/api/files/files/${f.id}',
+        '/api/files/files/${Uri.encodeComponent(f.id)}',
         part.path,
         queryParameters: const {'raw': '1'},
         cancelToken: cancelToken,
@@ -159,9 +173,10 @@ class FileOpenService {
     }
   }
 
-  /// Drop the oldest cached files until the cache fits the cap. [keep] is never
-  /// dropped: it is the file about to be opened.
+  /// Drop the oldest cached files until the cache fits the cap. [keep] (a file
+  /// id) is never dropped: it is the file about to be opened.
   Future<void> prune({String? keep, int capBytes = kFileCacheCapBytes}) async {
+    final kept = keep == null ? null : safeSegment(keep);
     final dir = await _dir();
     if (!dir.existsSync()) return;
     final entries = <({Directory dir, int bytes, DateTime used})>[];
@@ -179,7 +194,7 @@ class FileOpenService {
     entries.sort((a, b) => a.used.compareTo(b.used));
     for (final e in entries) {
       if (total <= capBytes) break;
-      if (keep != null && e.dir.path.endsWith('/$keep')) continue;
+      if (kept != null && e.dir.path.endsWith('/$kept')) continue;
       e.dir.deleteSync(recursive: true);
       total -= e.bytes;
     }
@@ -191,6 +206,32 @@ class FileOpenService {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   }
 }
+
+/// [value] as ONE safe path segment, and a different value is always a
+/// different segment. Letters, digits, `_` and `-` stay; every other
+/// character becomes `.` and its code in hex, so `/` cannot make a second
+/// segment and the result is never `.` or `..` (a raw `.` never appears).
+/// A file id is the brain's to choose; `../../x` must not leave the cache.
+String safeSegment(String value) {
+  // Not '' (no segment) and not '.': a name no escape can produce.
+  if (value.isEmpty) return '.empty.';
+  final out = StringBuffer();
+  for (final rune in value.runes) {
+    final c = String.fromCharCode(rune);
+    if (RegExp(r'[A-Za-z0-9_-]').hasMatch(c)) {
+      out.write(c);
+    } else {
+      out.write('.${rune.toRadixString(16)}.');
+    }
+  }
+  return out.toString();
+}
+
+/// Which version of a file a cached copy is: its last change on the brain,
+/// and its size. A file replaced on the brain with one of the same size is
+/// a new version, so the old copy is not opened in its place.
+String cacheVersion(FileRow f) =>
+    '${f.updatedAt?.toUtc().millisecondsSinceEpoch ?? 0}-${f.sizeBytes}';
 
 /// The name the viewer shows, made safe as a path segment. Falls back to the
 /// title, then the id, and keeps the extension so the OS can pick a viewer.

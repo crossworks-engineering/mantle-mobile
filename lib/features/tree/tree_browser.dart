@@ -384,6 +384,16 @@ class _TreeBrowserState extends ConsumerState<TreeBrowser> {
                         hold == null ? null : () => hold(item, _folderId),
                   );
                 }
+                if (!state.isEmpty && state.moreFailed) {
+                  return _MoreFailed(
+                    onRetry: () => ref
+                        .read(
+                          treeFolderControllerProvider(_kind, _folderId)
+                              .notifier,
+                        )
+                        .retryMore(),
+                  );
+                }
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Center(
@@ -504,6 +514,7 @@ class _SearchResults extends ConsumerWidget {
               onLongPress: hold == null ? null : () => hold(item, null),
             );
           }
+          if (state.moreFailed) return _MoreFailed(onRetry: notifier.retryMore);
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Center(
@@ -511,6 +522,28 @@ class _SearchResults extends ConsumerWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// The paging footer after a page failed to load: it says so and waits for
+/// a tap, instead of asking again on every scroll.
+class _MoreFailed extends StatelessWidget {
+  const _MoreFailed({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        children: [
+          Text("Couldn't load more.", style: theme.textTheme.muted),
+          ShadButton.link(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }
