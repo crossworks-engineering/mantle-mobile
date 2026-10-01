@@ -348,6 +348,29 @@ offload APNs/FCM plumbing; E2E means they'd see only ciphertext anyway.)
 - FCM **data messages** + a background isolate handler that decrypts and posts a
   local notification (via `flutter_local_notifications`).
 
+### 9.2a What the notification says: plain words
+
+A reply is markdown, and the teaser a brain seals may still carry it (a brain
+that cuts the reply to 140 characters without stripping it sends `**Done.**
+See [the plan](page:…)` to the lock screen). So the app reduces title and body
+to plain words before showing them, whatever the brain sent: emphasis and
+heading marks go, a link is its text, an image its alt text, a reference chip
+its label, a table its cells, a code fence its code. Then whitespace collapses,
+a blank field takes its fallback, and the body is cut to 140.
+
+It has to hold for two shapes of input: the whole reply with its lines (the
+direct connection reads it from the inbox) and a teaser the brain already
+flattened to one line and cut, where a block mark sits mid-line and a link may
+be left unclosed.
+
+- Android, both paths (FCM and the direct connection):
+  `pushNotificationText` / `plainFromMarkdown` in
+  [`lib/data/push/push_text.dart`](../lib/data/push/push_text.dart).
+- iOS: the Notification Service Extension draws the notification and no Dart
+  runs, so `PushText` in `ios/NotificationService/NotificationService.swift`
+  is the same rules in Swift. `tool/check_push_text_swift.sh` runs it against
+  the cases in `test/data/push_text_test.dart`; change both together.
+
 ### 9.3 Android, the no-Google path — **built-in direct connection** (decided)
 
 FCM needs **Google Play Services**, which de-Googled ROMs (GrapheneOS, /e/OS,

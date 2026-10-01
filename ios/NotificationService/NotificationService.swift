@@ -1,3 +1,4 @@
+import Foundation
 import UserNotifications
 
 /// Notification Service Extension — intercepts every `mutable-content` push,
@@ -25,8 +26,10 @@ class NotificationService: UNNotificationServiceExtension {
     if let ct = request.content.userInfo["ct"] as? String,
        let plaintext = PushCrypto.openSealed(ciphertextBase64: ct),
        let json = try? JSONSerialization.jsonObject(with: plaintext) as? [String: Any] {
-      if let title = json["t"] as? String { content.title = title }
-      if let body = json["b"] as? String { content.body = body }
+      // Plain words, with the same fallbacks as the Android paths: a reply is
+      // markdown, and a blank teaser must not show as an empty notification.
+      content.title = PushText.title(json["t"] as? String)
+      content.body = PushText.body(json["b"] as? String)
       // Carry the deep link through for tap handling in the app.
       if let deepLink = json["deepLink"] as? String {
         var info = content.userInfo
@@ -35,8 +38,8 @@ class NotificationService: UNNotificationServiceExtension {
       }
     } else {
       // Couldn't decrypt — show a generic, non-leaky fallback.
-      content.title = "Mantle"
-      content.body = "You have a new message."
+      content.title = PushText.defaultTitle
+      content.body = PushText.defaultBody
     }
 
     contentHandler(content)
@@ -49,3 +52,144 @@ class NotificationService: UNNotificationServiceExtension {
     }
   }
 }
+
+// BEGIN PushText
+/// What a push notification says, in plain words. The Swift twin of
+/// `lib/data/push/push_text.dart` (`pushNotificationText`,
+/// `plainFromMarkdown`): the same rules in the same order, because on iOS
+/// this extension draws the notification and the Dart code never runs.
+/// `tool/check_push_text_swift.sh` runs it against the Dart test's cases.
+enum PushText {
+  static let defaultTitle = "Mantle"
+  static let defaultBody = "You have a new message."
+
+  static func title(_ raw: String?) -> String {
+    let t = clean(raw)
+    return t.isEmpty ? defaultTitle : t
+  }
+
+  static func body(_ raw: String?, max: Int = 140) -> String {
+    let b = clean(raw)
+    if b.isEmpty { return defaultBody }
+    if b.count <= max { return b }
+    return String(b.prefix(max - 1)) + "\u{2026}"
+  }
+
+  /// Plain words on one line: markdown removed, whitespace collapsed.
+  static func clean(_ raw: String?) -> String {
+    guard let raw = raw else { return "" }
+    return sub(plain(raw), "\\s+", " ").trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  /// Where an escaped character waits while the marks are removed.
+  private static let parked: UInt32 = 0xE000
+
+  /// Markdown reduced to the words a person would read aloud. Works on a
+  /// whole reply (with lines) and on a teaser the brain already flattened to
+  /// one line and cut, where a block mark can sit mid-line and a link can be
+  /// left unclosed.
+  static func plain(_ input: String) -> String {
+    // A backslash escape is the character it protects: park it out of reach.
+    var s = map(input, "\\\\([\\\\`*_{}\\[\\]()#+\\-.!|>~$=])") { groups in
+      guard let c = groups[1].unicodeScalars.first,
+            let p = Unicode.Scalar(parked + c.value) else { return groups[0] }
+      return String(Character(p))
+    }
+
+    // Code fences, Mantle's container fences and the column separator.
+    s = sub(s, "```[\\w+-]*[ \\t]*\\n?", " ")
+    s = sub(s, ":::[a-z]*(?:[ \\t]+chart-\\d+)?", " ")
+    s = sub(s, "^\\s*\\+\\+\\+\\s*$", " ", lines: true)
+
+    // Images, links and reference chips: the alt text or the label. A
+    // target the cut left unclosed still counts.
+    s = sub(s, "!\\[([^\\]]*)\\]\\([^)]*(?:\\)|$)", "$1")
+    s = sub(s, "\\[([^\\]]*)\\]\\([^)]*(?:\\)|$)", "$1")
+    s = sub(s, "\\[([^\\]]*)\\]\\{[^}]*\\}", "$1")
+    s = sub(s, "==(?=\\S)(.+?)(?<=\\S)==", "$1")
+
+    // Line-leading block marks, where the text still has lines.
+    s = sub(s, "^[ \\t]*(?:[-*_][ \\t]*){3,}$", " ", lines: true)
+    s = sub(
+      s,
+      "^[ \\t]*\\|?[ \\t]*:?-{2,}:?[ \\t]*(?:\\|[ \\t]*:?-{2,}:?[ \\t]*)*\\|?[ \\t]*$",
+      " ",
+      lines: true
+    )
+    s = sub(s, "^[ \\t]{0,3}>[ \\t]?", "", lines: true)
+    s = sub(s, "^[ \\t]*(?:[-*+]|\\d+[.)])[ \\t]+(?:\\[[ xX]\\][ \\t]+)?", "", lines: true)
+    // Heading marks, at a line start or mid-line in a flattened teaser.
+    s = sub(s, "(^|\\s)#{1,6}[ \\t]+(?=\\S)", "$1", lines: true)
+    // What is left of a flattened table: separator cells and the pipes.
+    s = sub(s, "(?<=^|[\\s|]):?-{3,}:?(?=$|[\\s|])", " ")
+    s = s.replacingOccurrences(of: "|", with: " ")
+
+    // Math keeps its source; the inline form uses the renderer's guards so
+    // "costs $5 and $6" stays as written.
+    s = s.replacingOccurrences(of: "$$", with: " ")
+    s = map(s, "\\$(?!\\s)([^$\\n]*?[^\\s$])\\$(?!\\d)") { groups in
+      groups[1].range(of: "[A-Za-z\\\\^_]", options: .regularExpression) != nil
+        ? groups[1] : groups[0]
+    }
+
+    // Emphasis and inline code: the words without the marks.
+    s = sub(s, "\\*\\*(.+?)\\*\\*", "$1")
+    s = sub(s, "(?<!\\w)__(.+?)__(?!\\w)", "$1")
+    s = sub(s, "~~(.+?)~~", "$1")
+    s = sub(s, "(?<![\\w*])\\*(?=\\S)([^*\\n]+?)(?<=\\S)\\*(?![\\w*])", "$1")
+    s = sub(s, "(?<!\\w)_(?=\\S)([^_\\n]+?)(?<=\\S)_(?!\\w)", "$1")
+    // Marks the cut left without their pair.
+    s = s.replacingOccurrences(of: "**", with: "")
+      .replacingOccurrences(of: "~~", with: "")
+      .replacingOccurrences(of: "`", with: "")
+
+    // Put the escaped characters back.
+    var out = String.UnicodeScalarView()
+    for u in s.unicodeScalars {
+      if u.value >= parked, u.value < parked + 0x80,
+         let back = Unicode.Scalar(u.value - parked) {
+        out.append(back)
+      } else {
+        out.append(u)
+      }
+    }
+    return String(out)
+  }
+
+  private static func regex(_ pattern: String, lines: Bool) -> NSRegularExpression? {
+    try? NSRegularExpression(pattern: pattern, options: lines ? [.anchorsMatchLines] : [])
+  }
+
+  /// Replace every match of `pattern` with `template` (`$1` is group 1).
+  private static func sub(
+    _ s: String, _ pattern: String, _ template: String, lines: Bool = false
+  ) -> String {
+    guard let re = regex(pattern, lines: lines) else { return s }
+    return re.stringByReplacingMatches(
+      in: s, range: NSRange(s.startIndex..., in: s), withTemplate: template)
+  }
+
+  /// Replace every match of `pattern` with what `replace` makes of its
+  /// groups (`groups[0]` is the whole match).
+  private static func map(
+    _ s: String, _ pattern: String, _ replace: ([String]) -> String
+  ) -> String {
+    guard let re = regex(pattern, lines: false) else { return s }
+    let ns = s as NSString
+    var out = ""
+    var last = 0
+    for m in re.matches(in: s, range: NSRange(location: 0, length: ns.length)) {
+      out += ns.substring(with: NSRange(location: last, length: m.range.location - last))
+      var groups: [String] = []
+      for i in 0..<m.numberOfRanges {
+        let r = m.range(at: i)
+        groups.append(r.location == NSNotFound ? "" : ns.substring(with: r))
+      }
+      out += replace(groups)
+      last = m.range.location + m.range.length
+    }
+    out += ns.substring(from: last)
+    return out
+  }
+}
+// END PushText
