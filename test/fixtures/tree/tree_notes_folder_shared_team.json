@@ -1,0 +1,56 @@
+{
+  "kind": "notes",
+  "folder": {
+    "id": "4aa61ac5-44d1-4bfa-8da7-c3bc77918ff5",
+    "path": "notes.ideas",
+    "name": "Ideas",
+    "icon": null,
+    "color": null,
+    "depth": 1,
+    "parentId": null,
+    "share": "team",
+    "inherited": null,
+    "system": false,
+    "folderCount": 0,
+    "itemCount": 3
+  },
+  "crumbs": [],
+  "folders": [],
+  "items": [
+    {
+      "id": "f0e0bcf2-cad8-4b3a-833f-d1d0cf113445",
+      "title": "Folder colours on the home screen",
+      "icon": null,
+      "color": null,
+      "subtype": null,
+      "level": "team",
+      "inherited": "team",
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:49.120Z"
+    },
+    {
+      "id": "2a3c7aaa-aa31-4725-a561-05c0c9e30492",
+      "title": "Voice notes to tasks",
+      "icon": null,
+      "color": null,
+      "subtype": null,
+      "level": "team",
+      "inherited": "team",
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:49.120Z"
+    },
+    {
+      "id": "0e8508ff-429d-4e38-a5a4-2f33e2bc5d1e",
+      "title": "Offline mode for the phone app",
+      "icon": null,
+      "color": null,
+      "subtype": null,
+      "level": "team",
+      "inherited": "team",
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:49.120Z"
+    }
+  ],
+  "sort": "updated",
+  "nextCursor": null
+}

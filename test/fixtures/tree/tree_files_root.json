@@ -1,0 +1,50 @@
+{
+  "kind": "files",
+  "folder": null,
+  "crumbs": [],
+  "folders": [
+    {
+      "id": "3f570b50-f75b-4f5b-be31-abc9c7ccd4d4",
+      "path": "files.brand",
+      "name": "Brand",
+      "icon": null,
+      "color": "pink",
+      "depth": 1,
+      "parentId": null,
+      "share": "team",
+      "inherited": null,
+      "system": false,
+      "folderCount": 0,
+      "itemCount": 2
+    },
+    {
+      "id": "9ecdf20a-d9f4-4dd3-a1c1-f55eba56d92b",
+      "path": "files.reports",
+      "name": "Reports",
+      "icon": null,
+      "color": null,
+      "depth": 1,
+      "parentId": null,
+      "share": null,
+      "inherited": null,
+      "system": false,
+      "folderCount": 1,
+      "itemCount": 1
+    }
+  ],
+  "items": [
+    {
+      "id": "b2483ee9-65b4-4d7b-86a4-730dbaca940e",
+      "title": "welcome.txt",
+      "icon": null,
+      "color": null,
+      "subtype": "txt",
+      "level": "admin",
+      "inherited": null,
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:49.223Z"
+    }
+  ],
+  "sort": "name",
+  "nextCursor": null
+}

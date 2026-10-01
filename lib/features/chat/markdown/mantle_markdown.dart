@@ -6,6 +6,7 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../theme/mantle_theme.dart';
+import '../../pages/folder_index.dart';
 import 'code_highlight.dart';
 import 'mantle_refs.dart';
 import 'mantle_syntax.dart';
@@ -67,7 +68,11 @@ class MantleMarkdown extends ConsumerWidget {
       extensionSet: md.ExtensionSet.gitHubFlavored,
       // Mantle's custom dialect on top. Order matters: the reference syntax
       // must see `[label](page:…)` before the stock link syntax does.
-      blockSyntaxes: const [MantleFenceSyntax(), MathBlockSyntax()],
+      blockSyntaxes: const [
+        MantleFenceSyntax(),
+        MathBlockSyntax(),
+        FolderIndexSyntax(),
+      ],
       inlineSyntaxes: [
         RefInlineSyntax(),
         HighlightInlineSyntax(),
@@ -76,6 +81,7 @@ class MantleMarkdown extends ConsumerWidget {
       ],
       builders: {
         kRefTag: RefBuilder(),
+        kFolderIndexTag: FolderIndexBuilder(),
         kCalloutTag: _CalloutBuilder(),
         kAsideTag: _AsideBuilder(),
         kColumnsTag: _ColumnsBuilder(),

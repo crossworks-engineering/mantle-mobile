@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../data/pages/pages_models.dart';
 import '../../widgets/mantle_header.dart';
 import '../chat/markdown/mantle_markdown.dart';
+import 'folder_index.dart';
 import 'pages_controller.dart';
 
 /// One page, read-only: title + tags, the content (the server's markdown
@@ -123,11 +124,18 @@ class PageViewScreen extends ConsumerWidget {
                     else
                       // Images (`media:` / `draw:` / http) and the reference
                       // chips are MantleMarkdown's own defaults now.
-                      MantleMarkdown(
-                        page.markdown,
-                        textColor: scheme.foreground,
-                        // The export hard-wraps prose; join it as the web does.
-                        softLineBreak: false,
+                      // The page's own folder, for a Folder index block that
+                      // says `folder:here`.
+                      PageFolderScope(
+                        known: page.meta.folderKnown,
+                        folderId: page.meta.folderId,
+                        child: MantleMarkdown(
+                          page.markdown,
+                          textColor: scheme.foreground,
+                          // The export hard-wraps prose; join it as the web
+                          // does.
+                          softLineBreak: false,
+                        ),
                       ),
                     if (page.backlinks.isNotEmpty) ...[
                       const SizedBox(height: 24),

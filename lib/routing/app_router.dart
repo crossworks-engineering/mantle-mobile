@@ -79,7 +79,11 @@ GoRouter goRouter(Ref ref) {
             ChatScreen(agentSlug: state.pathParameters['slug']!),
       ),
       GoRoute(path: '/pending', builder: (_, _) => const PendingScreen()),
-      GoRoute(path: '/pages', builder: (_, _) => const PagesScreen()),
+      GoRoute(
+        path: '/pages',
+        builder: (context, state) =>
+            PagesScreen(folderId: state.uri.queryParameters['folder']),
+      ),
       GoRoute(
         path: '/pages/:id',
         builder: (context, state) =>
@@ -88,8 +92,11 @@ GoRouter goRouter(Ref ref) {
       GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
       GoRoute(
         path: '/files',
+        // `folder` opens the tree on a folder; `path` is how the pre-tree
+        // screen (a brain older than the folder tree) drills.
         builder: (context, state) => FilesScreen(
-          path: state.uri.queryParameters['path'] ?? 'files',
+          folderId: state.uri.queryParameters['folder'],
+          legacyPath: state.uri.queryParameters['path'],
         ),
       ),
       GoRoute(
@@ -108,7 +115,11 @@ GoRouter goRouter(Ref ref) {
           name: state.uri.queryParameters['name'],
         ),
       ),
-      GoRoute(path: '/notes', builder: (_, _) => const NotesScreen()),
+      GoRoute(
+        path: '/notes',
+        builder: (context, state) =>
+            NotesScreen(folderId: state.uri.queryParameters['folder']),
+      ),
       GoRoute(
         path: '/notes/:id',
         builder: (context, state) =>

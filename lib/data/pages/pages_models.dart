@@ -1,23 +1,27 @@
 /// Models for Mantle Pages (read-first client). Mirrors `PageRow` /
-/// `Backlink` in `packages/content/src/pages.ts` — the list/tree endpoint
-/// returns FLAT rows; the client builds the tree from [PageRow.parentId].
+/// `PageDetail` / `Backlink` in mantle `packages/content/src/pages/`.
+///
+/// Pages do not nest: since Mantle v0.232.365 a page is never the parent of
+/// another, `parentId` on the wire is always null, and a page's place is its
+/// folder in the pages tree (`lib/data/tree/`). The detail carries
+/// `folderId`; the list rows do not.
 library;
 
 /// One page row (no content — the doc ships separately, see [PagesApi]).
 class PageRow {
   const PageRow({
     required this.id,
-    required this.parentId,
     required this.title,
     required this.icon,
     required this.tags,
     required this.summary,
     required this.updatedAt,
     this.hasDraft = false,
+    this.folderId,
+    this.folderKnown = false,
   });
 
   final String id;
-  final String? parentId;
   final String title;
 
   /// Optional emoji icon shown beside the title.
@@ -32,63 +36,43 @@ class PageRow {
   /// instead of showing a bare "empty page".
   final bool hasDraft;
 
+  /// The folder the page sits in; null at the top level. Detail responses
+  /// only, and only from a brain that files pages in folders: see
+  /// [folderKnown].
+  final String? folderId;
+
+  /// Whether the response named the page's folder at all. A brain older than
+  /// pages-in-folders sends no `folderId`, which must not be read as "the top
+  /// level": a Folder index block for the page's own folder then shows its
+  /// label alone rather than listing the root.
+  final bool folderKnown;
+
   static PageRow fromJson(Map<String, dynamic> j) {
     return PageRow(
       id: j['id'] as String,
-      parentId: j['parentId'] as String?,
       title: (j['title'] as String?) ?? 'Untitled',
       icon: j['icon'] as String?,
       tags: ((j['tags'] as List?) ?? const []).whereType<String>().toList(),
       summary: j['summary'] as String?,
       updatedAt: DateTime.parse(j['updatedAt'] as String),
       hasDraft: j['draft'] != null,
+      folderId: j['folderId'] as String?,
+      folderKnown: j.containsKey('folderId'),
     );
   }
 }
 
-/// The pages index: either the whole hierarchy (`mode: 'tree'`) or a flat
-/// filtered list (`mode: 'list'`, when a search/tag filter is active).
+/// The pages index of `GET /api/pages`: every page as flat rows, or the
+/// filtered list when a search or tag filter is active. Only the screen for
+/// a brain older than the tree uses it.
 class PagesIndex {
   const PagesIndex({
-    required this.isTree,
     required this.pages,
     required this.total,
   });
 
-  final bool isTree;
   final List<PageRow> pages;
   final int total;
-}
-
-/// One node of the client-built page tree (children ordered by title, matching
-/// the web's tree ordering).
-class PageTreeNode {
-  const PageTreeNode({required this.row, required this.children});
-  final PageRow row;
-  final List<PageTreeNode> children;
-}
-
-/// Build the tree from flat rows. Rows whose parent isn't in the set (or is
-/// null) become roots. Children sort by title, case-insensitively.
-List<PageTreeNode> buildPageTree(List<PageRow> rows) {
-  final byParent = <String?, List<PageRow>>{};
-  final ids = rows.map((r) => r.id).toSet();
-  for (final r in rows) {
-    final parent = r.parentId != null && ids.contains(r.parentId)
-        ? r.parentId
-        : null;
-    byParent.putIfAbsent(parent, () => []).add(r);
-  }
-  List<PageTreeNode> level(String? parent) {
-    final rows = byParent[parent] ?? const <PageRow>[];
-    final sorted = [...rows]..sort(
-        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-    return [
-      for (final r in sorted) PageTreeNode(row: r, children: level(r.id)),
-    ];
-  }
-
-  return level(null);
 }
 
 /// One inbound reference to a page (a node whose content links to it).

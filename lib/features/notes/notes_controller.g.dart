@@ -8,19 +8,64 @@ part of 'notes_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Owns the notes list: first page on build, older pages via [loadMore],
+
+@ProviderFor(noteFiling)
+final noteFilingProvider = NoteFilingProvider._();
+
+final class NoteFilingProvider
+    extends $FunctionalProvider<NoteFiling, NoteFiling, NoteFiling>
+    with $Provider<NoteFiling> {
+  NoteFilingProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'noteFilingProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$noteFilingHash();
+
+  @$internal
+  @override
+  $ProviderElement<NoteFiling> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  NoteFiling create(Ref ref) {
+    return noteFiling(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(NoteFiling value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<NoteFiling>(value),
+    );
+  }
+}
+
+String _$noteFilingHash() => r'65946db2ba66918b4708edf0a42c9504ce551af2';
+
+/// Owns the flat notes list shown for a brain older than the folder tree:
+/// first page on build, older pages via [loadMore],
 /// a tag filter, and optimistic quick-add/delete (a failure reloads so the
 /// screen never lies for long).
 
 @ProviderFor(NotesController)
 final notesControllerProvider = NotesControllerProvider._();
 
-/// Owns the notes list: first page on build, older pages via [loadMore],
+/// Owns the flat notes list shown for a brain older than the folder tree:
+/// first page on build, older pages via [loadMore],
 /// a tag filter, and optimistic quick-add/delete (a failure reloads so the
 /// screen never lies for long).
 final class NotesControllerProvider
     extends $AsyncNotifierProvider<NotesController, NotesState> {
-  /// Owns the notes list: first page on build, older pages via [loadMore],
+  /// Owns the flat notes list shown for a brain older than the folder tree:
+  /// first page on build, older pages via [loadMore],
   /// a tag filter, and optimistic quick-add/delete (a failure reloads so the
   /// screen never lies for long).
   NotesControllerProvider._()
@@ -44,7 +89,8 @@ final class NotesControllerProvider
 
 String _$notesControllerHash() => r'7bff0703b8e4761bdf59eee4e3d249ed33d824a4';
 
-/// Owns the notes list: first page on build, older pages via [loadMore],
+/// Owns the flat notes list shown for a brain older than the folder tree:
+/// first page on build, older pages via [loadMore],
 /// a tag filter, and optimistic quick-add/delete (a failure reloads so the
 /// screen never lies for long).
 

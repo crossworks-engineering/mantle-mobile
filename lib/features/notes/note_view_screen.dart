@@ -7,6 +7,7 @@ import '../../data/notes/notes_models.dart';
 import '../../widgets/mantle_header.dart';
 import '../../widgets/voice_text_field.dart';
 import '../chat/markdown/mantle_markdown.dart';
+import '../tree/tree_controller.dart';
 import 'notes_controller.dart';
 
 /// One note: title + tags, the content rendered as markdown, and an Edit
@@ -27,9 +28,13 @@ class NoteViewScreen extends ConsumerWidget {
     // only if the list is actually alive (a Search deep link reaches here
     // without it — instantiating it just to patch a row would kick off a
     // throwaway fetch that races the write).
-    if (saved != null && ref.exists(notesControllerProvider)) {
+    if (saved == null) return;
+    if (ref.exists(notesControllerProvider)) {
       ref.read(notesControllerProvider.notifier).applyUpdated(saved);
     }
+    // The folder tree shows titles: ask the open folders again (their rows
+    // stay on screen while the answer is on its way).
+    ref.invalidate(treeFolderControllerProvider);
   }
 
   @override

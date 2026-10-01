@@ -1,0 +1,90 @@
+{
+  "page": {
+    "id": "709ca7ce-c3dc-4ad0-a444-313fbb59e643",
+    "parentId": null,
+    "title": "Acme folder index",
+    "icon": "🗂",
+    "tags": [
+      "index"
+    ],
+    "summary": null,
+    "visibility": "private",
+    "width": "narrow",
+    "audience": "admin",
+    "createdAt": "2026-10-01T08:38:08.136Z",
+    "updatedAt": "2026-10-01T08:38:11.674Z",
+    "doc": {
+      "type": "doc",
+      "content": [
+        {
+          "type": "heading",
+          "attrs": {
+            "level": 2,
+            "id": "cfa476d6-1c77-444e-8292-7f89ea7eac85"
+          },
+          "content": [
+            {
+              "text": "Everything in this folder",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "text": "The block below lists the pages of this page's own folder.",
+              "type": "text"
+            }
+          ],
+          "attrs": {
+            "id": "c7133339-d8dc-4561-b109-4ae41fc2b4a1"
+          }
+        },
+        {
+          "type": "folderIndex",
+          "attrs": {
+            "folderId": null,
+            "id": "de4e87c8-0b6a-4c66-bf81-aa6b76941698"
+          }
+        },
+        {
+          "type": "heading",
+          "attrs": {
+            "level": 2,
+            "id": "6cc3448f-e17b-4572-a7ae-109aba266b4b"
+          },
+          "content": [
+            {
+              "text": "Engineering",
+              "type": "text"
+            }
+          ]
+        },
+        {
+          "type": "paragraph",
+          "content": [
+            {
+              "text": "And this one lists the Engineering folder by its id.",
+              "type": "text"
+            }
+          ],
+          "attrs": {
+            "id": "17a06d8b-a277-4a77-a0de-92dd1dc80c82"
+          }
+        },
+        {
+          "type": "folderIndex",
+          "attrs": {
+            "folderId": "cebf879e-8209-465f-9051-4cf252188877",
+            "id": "3a3bec5f-c156-4be5-9531-4d79c38f756b"
+          }
+        }
+      ]
+    },
+    "draft": null,
+    "draftRev": 0,
+    "draftUpdatedAt": null,
+    "folderId": "26190ec8-d7cf-4959-911d-133cc1b2abab"
+  }
+}

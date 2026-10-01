@@ -1,0 +1,12 @@
+{
+  "error": "visibility",
+  "changes": [
+    {
+      "id": "",
+      "title": "logo.png",
+      "from": "admin",
+      "to": "team"
+    }
+  ],
+  "total": 1
+}

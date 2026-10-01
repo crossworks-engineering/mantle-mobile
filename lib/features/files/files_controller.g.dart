@@ -8,19 +8,64 @@ part of 'files_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Owns one folder's listing (a family by ltree path — each drilled folder
+
+@ProviderFor(fileFiling)
+final fileFilingProvider = FileFilingProvider._();
+
+final class FileFilingProvider
+    extends $FunctionalProvider<FileFiling, FileFiling, FileFiling>
+    with $Provider<FileFiling> {
+  FileFilingProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'fileFilingProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$fileFilingHash();
+
+  @$internal
+  @override
+  $ProviderElement<FileFiling> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  FileFiling create(Ref ref) {
+    return fileFiling(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(FileFiling value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<FileFiling>(value),
+    );
+  }
+}
+
+String _$fileFilingHash() => r'd389cad5cc3c81c21ab8d38464ff76dd08b1a375';
+
+/// Owns one folder's listing for a brain older than the folder tree (a
+/// family by ltree path: each drilled folder
 /// screen gets its own instance). Upload refreshes; delete is optimistic
 /// with a silent reload on failure.
 
 @ProviderFor(FilesController)
 final filesControllerProvider = FilesControllerFamily._();
 
-/// Owns one folder's listing (a family by ltree path — each drilled folder
+/// Owns one folder's listing for a brain older than the folder tree (a
+/// family by ltree path: each drilled folder
 /// screen gets its own instance). Upload refreshes; delete is optimistic
 /// with a silent reload on failure.
 final class FilesControllerProvider
     extends $AsyncNotifierProvider<FilesController, FolderContents> {
-  /// Owns one folder's listing (a family by ltree path — each drilled folder
+  /// Owns one folder's listing for a brain older than the folder tree (a
+  /// family by ltree path: each drilled folder
   /// screen gets its own instance). Upload refreshes; delete is optimistic
   /// with a silent reload on failure.
   FilesControllerProvider._({
@@ -61,7 +106,8 @@ final class FilesControllerProvider
 
 String _$filesControllerHash() => r'0e385bf03780b859e918557b1b29d0ea93043fc5';
 
-/// Owns one folder's listing (a family by ltree path — each drilled folder
+/// Owns one folder's listing for a brain older than the folder tree (a
+/// family by ltree path: each drilled folder
 /// screen gets its own instance). Upload refreshes; delete is optimistic
 /// with a silent reload on failure.
 
@@ -83,7 +129,8 @@ final class FilesControllerFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Owns one folder's listing (a family by ltree path — each drilled folder
+  /// Owns one folder's listing for a brain older than the folder tree (a
+  /// family by ltree path: each drilled folder
   /// screen gets its own instance). Upload refreshes; delete is optimistic
   /// with a silent reload on failure.
 
@@ -94,7 +141,8 @@ final class FilesControllerFamily extends $Family
   String toString() => r'filesControllerProvider';
 }
 
-/// Owns one folder's listing (a family by ltree path — each drilled folder
+/// Owns one folder's listing for a brain older than the folder tree (a
+/// family by ltree path: each drilled folder
 /// screen gets its own instance). Upload refreshes; delete is optimistic
 /// with a silent reload on failure.
 

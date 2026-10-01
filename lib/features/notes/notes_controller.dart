@@ -2,6 +2,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/notes/notes_api.dart';
 import '../../data/notes/notes_models.dart';
+import '../../data/tree/tree_api.dart';
+import '../../data/tree/tree_models.dart';
 
 part 'notes_controller.g.dart';
 
@@ -53,7 +55,69 @@ class NotesState {
   }
 }
 
-/// Owns the notes list: first page on build, older pages via [loadMore],
+/// Thrown by [NoteFiling.capture] when the note was saved but filing it in
+/// the open folder would change who can read it (the folder is shared). The
+/// note sits at the top level until the person agrees; [refusal] says what
+/// would change.
+class NoteNeedsConfirm implements Exception {
+  const NoteNeedsConfirm({required this.note, required this.refusal});
+
+  final NoteRow note;
+  final TreeVisibilityRefusal refusal;
+}
+
+/// Capturing and deleting notes from the folder tree. The brain creates a
+/// note at the top level (`POST /api/notes` takes no folder), so capturing
+/// into a folder is a create followed by the tree's item move.
+///
+/// It holds the two clients themselves, not a `Ref`: the provider is
+/// auto-disposed as soon as nothing reads it, and a capture is still running
+/// then.
+class NoteFiling {
+  NoteFiling(this._notes, this._tree);
+
+  final NotesApi _notes;
+  final TreeApi _tree;
+
+  /// Save a title-only note and file it in [folderId] (null is the top
+  /// level). Throws [NoteNeedsConfirm] when the folder is shared: the note
+  /// exists, at the top level, and [fileConfirmed] finishes the job.
+  Future<NoteRow> capture(String title, {String? folderId}) async {
+    final note = await _notes.create(title.trim());
+    if (folderId == null) return note;
+    try {
+      await _tree.move(TreeKind.notes, [note.id], folderId);
+    } on TreeVisibilityRefusal catch (refusal) {
+      throw NoteNeedsConfirm(note: note, refusal: refusal);
+    }
+    return note;
+  }
+
+  /// File a captured note in a shared folder, now that the person has seen
+  /// who will be able to read it.
+  Future<void> fileConfirmed(
+    String noteId,
+    String folderId,
+    TreeVisibilityRefusal refusal,
+  ) async {
+    await _tree.move(
+      TreeKind.notes,
+      [noteId],
+      folderId,
+      confirm: true,
+      seen: refusal.seen,
+    );
+  }
+
+  Future<void> delete(String id) => _notes.delete(id);
+}
+
+@riverpod
+NoteFiling noteFiling(Ref ref) =>
+    NoteFiling(ref.watch(notesApiProvider), ref.watch(treeApiProvider));
+
+/// Owns the flat notes list shown for a brain older than the folder tree:
+/// first page on build, older pages via [loadMore],
 /// a tag filter, and optimistic quick-add/delete (a failure reloads so the
 /// screen never lies for long).
 @riverpod

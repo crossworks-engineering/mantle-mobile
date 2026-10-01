@@ -22,7 +22,49 @@ class FolderContents {
   }
 }
 
-/// Owns one folder's listing (a family by ltree path — each drilled folder
+/// Uploading into and deleting from the folder tree. A folder is named to
+/// the upload route by its ltree path (`TreeFolder.path`; the root is
+/// `files`), which is also its directory on the brain's disk.
+///
+/// It holds the client itself, not a `Ref`: the provider is auto-disposed as
+/// soon as nothing reads it, and an upload is still running then.
+class FileFiling {
+  FileFiling(this._files);
+
+  final FilesApi _files;
+
+  /// The ltree path of the Files root.
+  static const rootPath = 'files';
+
+  /// Upload a picked local file into [parentPath]. Throws
+  /// `TreeVisibilityRefusal` when the folder is shared (nothing was stored);
+  /// repeat with [confirm] once the person agreed.
+  Future<FileRow> upload({
+    required String parentPath,
+    required String localPath,
+    required String filename,
+    bool confirm = false,
+  }) {
+    return _files.upload(
+          parentPath: parentPath,
+          localPath: localPath,
+          filename: filename,
+          confirm: confirm,
+        );
+  }
+
+  /// One file's row (type and size), for a tree row that only knows its id
+  /// and name.
+  Future<FileRow> meta(String id) => _files.meta(id);
+
+  Future<void> delete(String id) => _files.delete(id);
+}
+
+@riverpod
+FileFiling fileFiling(Ref ref) => FileFiling(ref.watch(filesApiProvider));
+
+/// Owns one folder's listing for a brain older than the folder tree (a
+/// family by ltree path: each drilled folder
 /// screen gets its own instance). Upload refreshes; delete is optimistic
 /// with a silent reload on failure.
 @riverpod

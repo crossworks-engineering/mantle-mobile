@@ -40,7 +40,6 @@ const _svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10">'
 
 PageRow _meta({bool hasDraft = false}) => PageRow(
       id: _pageId,
-      parentId: null,
       title: 'Golden page — phone render parity',
       icon: '🧪',
       tags: const ['golden'],

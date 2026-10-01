@@ -1,0 +1,12 @@
+{
+  "error": "visibility",
+  "changes": [
+    {
+      "id": "37a6558d-1847-49aa-9264-bc91760bd667",
+      "title": "Loose thought",
+      "from": "admin",
+      "to": "team"
+    }
+  ],
+  "total": 1
+}

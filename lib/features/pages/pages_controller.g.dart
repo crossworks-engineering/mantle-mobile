@@ -8,24 +8,21 @@ part of 'pages_controller.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
-/// flat rows — the screen builds the tree); [search] swaps in the server's
-/// filtered flat list (`q` matches title, content text, and summary) and an
-/// empty query restores the tree.
+/// Owns the flat pages index shown for a brain older than the tree. Loads
+/// every page on build; [search] swaps in the server's filtered list (`q`
+/// matches title, content text and summary) and an empty query restores it.
 
 @ProviderFor(PagesController)
 final pagesControllerProvider = PagesControllerProvider._();
 
-/// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
-/// flat rows — the screen builds the tree); [search] swaps in the server's
-/// filtered flat list (`q` matches title, content text, and summary) and an
-/// empty query restores the tree.
+/// Owns the flat pages index shown for a brain older than the tree. Loads
+/// every page on build; [search] swaps in the server's filtered list (`q`
+/// matches title, content text and summary) and an empty query restores it.
 final class PagesControllerProvider
     extends $AsyncNotifierProvider<PagesController, PagesIndex> {
-  /// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
-  /// flat rows — the screen builds the tree); [search] swaps in the server's
-  /// filtered flat list (`q` matches title, content text, and summary) and an
-  /// empty query restores the tree.
+  /// Owns the flat pages index shown for a brain older than the tree. Loads
+  /// every page on build; [search] swaps in the server's filtered list (`q`
+  /// matches title, content text and summary) and an empty query restores it.
   PagesControllerProvider._()
     : super(
         from: null,
@@ -47,10 +44,9 @@ final class PagesControllerProvider
 
 String _$pagesControllerHash() => r'28cd522ec84129815d247e98f2b0908414f3f2f5';
 
-/// Owns the pages index. Loads the whole hierarchy on build (`mode:'tree'`,
-/// flat rows — the screen builds the tree); [search] swaps in the server's
-/// filtered flat list (`q` matches title, content text, and summary) and an
-/// empty query restores the tree.
+/// Owns the flat pages index shown for a brain older than the tree. Loads
+/// every page on build; [search] swaps in the server's filtered list (`q`
+/// matches title, content text and summary) and an empty query restores it.
 
 abstract class _$PagesController extends $AsyncNotifier<PagesIndex> {
   FutureOr<PagesIndex> build();
@@ -162,4 +158,98 @@ final class PageContentFamily extends $Family
 
   @override
   String toString() => r'pageContentProvider';
+}
+
+/// The pages of [folderId] (null is the top level) for a Folder index block:
+/// title only, by name, read from the reader's own tree so it is always what
+/// THIS reader may see. Never stored; asked again each time a page opens.
+
+@ProviderFor(folderIndex)
+final folderIndexProvider = FolderIndexFamily._();
+
+/// The pages of [folderId] (null is the top level) for a Folder index block:
+/// title only, by name, read from the reader's own tree so it is always what
+/// THIS reader may see. Never stored; asked again each time a page opens.
+
+final class FolderIndexProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<FolderIndex>,
+          FolderIndex,
+          FutureOr<FolderIndex>
+        >
+    with $FutureModifier<FolderIndex>, $FutureProvider<FolderIndex> {
+  /// The pages of [folderId] (null is the top level) for a Folder index block:
+  /// title only, by name, read from the reader's own tree so it is always what
+  /// THIS reader may see. Never stored; asked again each time a page opens.
+  FolderIndexProvider._({
+    required FolderIndexFamily super.from,
+    required String? super.argument,
+  }) : super(
+         retry: noTreeRetry,
+         name: r'folderIndexProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$folderIndexHash();
+
+  @override
+  String toString() {
+    return r'folderIndexProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<FolderIndex> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<FolderIndex> create(Ref ref) {
+    final argument = this.argument as String?;
+    return folderIndex(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is FolderIndexProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$folderIndexHash() => r'38e9d2457cf5fb19e0d3e1d36f88d056c6f25d3f';
+
+/// The pages of [folderId] (null is the top level) for a Folder index block:
+/// title only, by name, read from the reader's own tree so it is always what
+/// THIS reader may see. Never stored; asked again each time a page opens.
+
+final class FolderIndexFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<FolderIndex>, String?> {
+  FolderIndexFamily._()
+    : super(
+        retry: noTreeRetry,
+        name: r'folderIndexProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  /// The pages of [folderId] (null is the top level) for a Folder index block:
+  /// title only, by name, read from the reader's own tree so it is always what
+  /// THIS reader may see. Never stored; asked again each time a page opens.
+
+  FolderIndexProvider call(String? folderId) =>
+      FolderIndexProvider._(argument: folderId, from: this);
+
+  @override
+  String toString() => r'folderIndexProvider';
 }

@@ -43,6 +43,34 @@ class SearchResult {
   final String url;
   final SupersededRef? supersededBy;
 
+  /// The kinds whose items live in the folder tree, by their root label.
+  static const _treeRoots = {
+    'pages',
+    'notes',
+    'files',
+    'draw',
+    'tables',
+    'formulas',
+    'apps',
+    'tasks',
+    'events',
+    'contacts',
+    'secrets',
+  };
+
+  /// Where the hit is filed, as words: `clients › acme corp`, or null at a
+  /// kind's top level and for anything outside the folder tree.
+  ///
+  /// [path] is the ltree path of the hit's FOLDER (`pages.clients.acme_corp`):
+  /// slugs, not the folders' names, which a search hit does not carry. The
+  /// slug is the name lower-cased with `_` for what was not a letter or
+  /// digit, so it reads close enough to say where to look.
+  String? get folderPath {
+    final labels = path.split('.');
+    if (labels.length < 2 || !_treeRoots.contains(labels.first)) return null;
+    return labels.skip(1).map((l) => l.replaceAll('_', ' ')).join(' › ');
+  }
+
   static SearchResult fromJson(Map<String, dynamic> j) {
     final updated = j['updatedAt'] as String?;
     final succ = j['supersededBy'];

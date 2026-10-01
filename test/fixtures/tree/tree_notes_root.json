@@ -1,0 +1,83 @@
+{
+  "kind": "notes",
+  "folder": null,
+  "crumbs": [],
+  "folders": [
+    {
+      "id": "4aa61ac5-44d1-4bfa-8da7-c3bc77918ff5",
+      "path": "notes.ideas",
+      "name": "Ideas",
+      "icon": null,
+      "color": null,
+      "depth": 1,
+      "parentId": null,
+      "share": "team",
+      "inherited": null,
+      "system": false,
+      "folderCount": 0,
+      "itemCount": 3
+    },
+    {
+      "id": "47f7b42b-5430-45cc-8325-ef325f049923",
+      "path": "notes.meetings",
+      "name": "Meetings",
+      "icon": "lucide:users",
+      "color": "green",
+      "depth": 1,
+      "parentId": null,
+      "share": null,
+      "inherited": null,
+      "system": false,
+      "folderCount": 1,
+      "itemCount": 2
+    }
+  ],
+  "items": [
+    {
+      "id": "37a6558d-1847-49aa-9264-bc91760bd667",
+      "title": "Loose thought",
+      "icon": null,
+      "color": null,
+      "subtype": null,
+      "level": "admin",
+      "inherited": null,
+      "state": null,
+      "updatedAt": "2026-10-01T08:39:18.901Z"
+    },
+    {
+      "id": "46646acf-4189-4fbc-8137-ee9a265b2bc4",
+      "title": "Scratchpad",
+      "icon": null,
+      "color": null,
+      "subtype": null,
+      "level": "admin",
+      "inherited": null,
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:49.007Z"
+    },
+    {
+      "id": "ff778c80-9035-4256-9145-0f5011422d31",
+      "title": "Reading list",
+      "icon": null,
+      "color": null,
+      "subtype": null,
+      "level": "admin",
+      "inherited": null,
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:48.990Z"
+    },
+    {
+      "id": "141ad56d-46ba-427b-bfb5-a28c7a54b2f9",
+      "title": "Groceries",
+      "icon": null,
+      "color": null,
+      "subtype": null,
+      "level": "admin",
+      "inherited": null,
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:48.973Z"
+    }
+  ],
+  "sort": "updated",
+  "nextCursor": null
+}

@@ -1,0 +1,45 @@
+{
+  "kind": "files",
+  "folder": {
+    "id": "3f570b50-f75b-4f5b-be31-abc9c7ccd4d4",
+    "path": "files.brand",
+    "name": "Brand",
+    "icon": null,
+    "color": "pink",
+    "depth": 1,
+    "parentId": null,
+    "share": "team",
+    "inherited": null,
+    "system": false,
+    "folderCount": 0,
+    "itemCount": 2
+  },
+  "crumbs": [],
+  "folders": [],
+  "items": [
+    {
+      "id": "e804a793-a045-4a1b-89a0-be45b2a86bf8",
+      "title": "logo.png",
+      "icon": null,
+      "color": null,
+      "subtype": "png",
+      "level": "team",
+      "inherited": "team",
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:49.367Z"
+    },
+    {
+      "id": "9f5a26b6-6967-46eb-9224-6c00ec70667f",
+      "title": "logo.svg",
+      "icon": null,
+      "color": null,
+      "subtype": "svg",
+      "level": "team",
+      "inherited": "team",
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:49.327Z"
+    }
+  ],
+  "sort": "name",
+  "nextCursor": null
+}

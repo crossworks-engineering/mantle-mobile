@@ -8,6 +8,8 @@
 //   [filename](media:<fileId>)              file embed
 //   ![alt](media:<fileId>)                  uploaded image
 //   ![alt](draw:<drawId>)                   embedded drawing (SVG snapshot)
+//   [Folder index](folder:<folderId>)       a live list of a folder's pages
+//   [Folder index](folder:here)             ... of the page's own folder
 //
 // Left to the stock link syntax they render as dead links (`page:` is not a
 // scheme the phone can launch). This syntax runs BEFORE the stock one and
@@ -23,21 +25,59 @@ import 'package:markdown/markdown.dart' as md;
 /// Element tag for a reference chip/image; the renderer registers a builder.
 const String kRefTag = 'mantleRef';
 
+/// Element tag for the Folder index block.
+const String kFolderIndexTag = 'mantleFolderIndex';
+
+/// What `folder:here` names: the folder the page itself sits in.
+const String kFolderHere = 'here';
+
+/// The Folder index BLOCK: `[Folder index](folder:<id>)` or `folder:here`,
+/// alone on its line (mantle `markdown-refs.ts`; the web's `folderIndex`
+/// node). It lists a folder's pages live, so it carries no content of its
+/// own: the element holds the folder (`here` for the page's own) and the
+/// label, and the renderer reads the list from the reader's tree.
+///
+/// Only a line that holds nothing else is the block. The same link inside a
+/// sentence is not one on the web either; [RefInlineSyntax] renders it as
+/// its plain label.
+class FolderIndexSyntax extends md.BlockSyntax {
+  const FolderIndexSyntax();
+
+  static final RegExp _line = RegExp(
+    r'^\s*\[((?:\\.|[^\]\\])*)\]\(folder:([^)\s]+)\)\s*$',
+  );
+
+  @override
+  RegExp get pattern => _line;
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final m = _line.firstMatch(parser.current.content)!;
+    parser.advance();
+    return md.Element.empty(kFolderIndexTag)
+      ..attributes['label'] = RefInlineSyntax._unescape(m[1] ?? '')
+      ..attributes['folder'] = m[2]!;
+  }
+}
+
 /// `[label](scheme:…)` with an optional leading `!`. The label may contain
 /// escaped brackets (`\[`) — the export escapes them — but no raw `]`.
 /// Anchors (`[text](#…)`) are matched too, and emitted as PLAIN TEXT: a page
-/// has no in-app anchors, so the words must not look tappable.
+/// has no in-app anchors, so the words must not look tappable. So is a
+/// `folder:` link inside a sentence: only a whole line is a Folder index
+/// ([FolderIndexSyntax]); anywhere else it is an inert label, as on the web.
 class RefInlineSyntax extends md.InlineSyntax {
   RefInlineSyntax()
       : super(
-          r'(!?)\[((?:\\.|[^\]\\])*)\]\((?:(page|media|draw):([^)\s]+)|mention:(node|entity):([^)\s]+)|(#[^)\s]*))\)',
+          r'(!?)\[((?:\\.|[^\]\\])*)\]\((?:(page|media|draw):([^)\s]+)|mention:(node|entity):([^)\s]+)|(#[^)\s]*|folder:[^)\s]+))\)',
         );
 
   @override
   bool onMatch(md.InlineParser parser, Match match) {
     final label = _unescape(match[2] ?? '');
     if (match[7] != null) {
-      // Anchor: the words, nothing else. Consumed, so the parser moves on.
+      // Anchor or inline folder link: the words, nothing else. Consumed, so
+      // the parser moves on.
       parser.addNode(md.Text(label));
       return true;
     }

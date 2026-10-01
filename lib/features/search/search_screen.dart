@@ -275,6 +275,15 @@ class _ResultTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.p.copyWith(color: scheme.foreground),
                   ),
+                  if (result.folderPath != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'in ${result.folderPath}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.small.copyWith(color: muted),
+                    ),
+                  ],
                   if (result.summary != null &&
                       result.summary!.isNotEmpty) ...[
                     const SizedBox(height: 2),

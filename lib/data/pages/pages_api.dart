@@ -15,9 +15,10 @@ class PagesApi {
 
   final Dio _dio;
 
-  /// `GET /api/pages` — the whole hierarchy as FLAT rows (`mode:'tree'`, up to
-  /// 2000) when no filter is set, or a flat filtered list (`mode:'list'`)
-  /// when [q] or [tag] is present. The client builds the tree from parentId.
+  /// `GET /api/pages`: every page as flat rows (up to 2000) when no filter is
+  /// set, or the filtered list when [q] or [tag] is present. The screen for a
+  /// brain older than the tree lists them; on a current brain the pages tree
+  /// (`TreeApi`) is the index.
   Future<PagesIndex> list({String? q, String? tag}) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/api/pages',
@@ -31,7 +32,6 @@ class PagesApi {
         .map((e) => PageRow.fromJson(e as Map<String, dynamic>))
         .toList();
     return PagesIndex(
-      isTree: data['mode'] == 'tree',
       pages: rows,
       total: (data['total'] as num?)?.toInt() ?? rows.length,
     );

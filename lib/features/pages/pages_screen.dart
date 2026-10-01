@@ -6,26 +6,48 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/pages/pages_models.dart';
+import '../../data/tree/tree_models.dart';
 import '../../widgets/mantle_header.dart';
+import '../tree/tree_browser.dart';
 import 'pages_controller.dart';
 
-/// The pages index: the brain's page hierarchy as a collapsible tree, with a
-/// server-side search (title + content + summary). Read-first — tapping a row
-/// opens the viewer. Backed by `GET /api/pages` via [PagesController].
-class PagesScreen extends ConsumerStatefulWidget {
-  const PagesScreen({super.key});
+/// The brain's pages, in their folders. Pages do not nest (a page is never
+/// the parent of another); where a page sits is its folder in the pages
+/// tree, so this screen is the shared [TreeBrowser]. Read-first: tapping a
+/// page opens the viewer.
+class PagesScreen extends StatelessWidget {
+  const PagesScreen({super.key, this.folderId});
+
+  /// Open on this folder (a Folder index row or a link led here).
+  final String? folderId;
 
   @override
-  ConsumerState<PagesScreen> createState() => _PagesScreenState();
+  Widget build(BuildContext context) {
+    return TreeBrowser(
+      kind: TreeKind.pages,
+      title: 'Pages',
+      searchPlaceholder: 'Search pages…',
+      initialFolderId: folderId,
+      emptyHere: 'No pages here.',
+      onOpenItem: (item) => context.push('/pages/${item.id}'),
+      legacy: (_) => const PagesListScreen(),
+    );
+  }
 }
 
-class _PagesScreenState extends ConsumerState<PagesScreen> {
+/// The pages index for a brain older than the tree: every page in one list,
+/// with the server-side search (title, content and summary). Backed by
+/// `GET /api/pages` via [PagesController].
+class PagesListScreen extends ConsumerStatefulWidget {
+  const PagesListScreen({super.key});
+
+  @override
+  ConsumerState<PagesListScreen> createState() => _PagesListScreenState();
+}
+
+class _PagesListScreenState extends ConsumerState<PagesListScreen> {
   final _search = TextEditingController();
   Timer? _debounce;
-
-  /// Collapsed node ids (default-expanded, so a fresh open shows the shape of
-  /// the whole hierarchy; deep trees collapse per-branch).
-  final _collapsed = <String>{};
 
   @override
   void dispose() {
@@ -108,26 +130,12 @@ class _PagesScreenState extends ConsumerState<PagesScreen> {
                           style: theme.textTheme.muted,
                         ),
                       )
-                    : index.isTree
-                        ? _Tree(
-                            theme: theme,
-                            roots: buildPageTree(index.pages),
-                            collapsed: _collapsed,
-                            onToggle: (id) => setState(() {
-                              _collapsed.contains(id)
-                                  ? _collapsed.remove(id)
-                                  : _collapsed.add(id);
-                            }),
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            itemCount: index.pages.length,
-                            itemBuilder: (context, i) => _PageRowTile(
-                              theme: theme,
-                              row: index.pages[i],
-                              depth: 0,
-                            ),
-                          ),
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        itemCount: index.pages.length,
+                        itemBuilder: (context, i) =>
+                            _PageRowTile(theme: theme, row: index.pages[i]),
+                      ),
               ),
             ),
           ),
@@ -137,68 +145,11 @@ class _PagesScreenState extends ConsumerState<PagesScreen> {
   }
 }
 
-/// The collapsible hierarchy, flattened for a ListView (depth drives indent).
-class _Tree extends StatelessWidget {
-  const _Tree({
-    required this.theme,
-    required this.roots,
-    required this.collapsed,
-    required this.onToggle,
-  });
-
-  final ShadThemeData theme;
-  final List<PageTreeNode> roots;
-  final Set<String> collapsed;
-  final ValueChanged<String> onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = <(PageTreeNode, int)>[];
-    void walk(List<PageTreeNode> nodes, int depth) {
-      for (final n in nodes) {
-        rows.add((n, depth));
-        if (!collapsed.contains(n.row.id)) walk(n.children, depth + 1);
-      }
-    }
-
-    walk(roots, 0);
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      itemCount: rows.length,
-      itemBuilder: (context, i) {
-        final (node, depth) = rows[i];
-        return _PageRowTile(
-          theme: theme,
-          row: node.row,
-          depth: depth,
-          hasChildren: node.children.isNotEmpty,
-          isCollapsed: collapsed.contains(node.row.id),
-          onToggle: node.children.isNotEmpty
-              ? () => onToggle(node.row.id)
-              : null,
-        );
-      },
-    );
-  }
-}
-
 class _PageRowTile extends StatelessWidget {
-  const _PageRowTile({
-    required this.theme,
-    required this.row,
-    required this.depth,
-    this.hasChildren = false,
-    this.isCollapsed = false,
-    this.onToggle,
-  });
+  const _PageRowTile({required this.theme, required this.row});
 
   final ShadThemeData theme;
   final PageRow row;
-  final int depth;
-  final bool hasChildren;
-  final bool isCollapsed;
-  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -206,44 +157,19 @@ class _PageRowTile extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => context.push('/pages/${row.id}'),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(4.0 + depth * 18, 0, 12, 0),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 44),
+        padding: const EdgeInsets.fromLTRB(16, 0, 12, 0),
         child: Row(
           children: [
-            // Chevron toggles the branch in a 44pt box; a leaf gets the same
-            // width so titles line up.
-            if (hasChildren)
-              Semantics(
-                button: true,
-                label: isCollapsed ? 'Expand' : 'Collapse',
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: onToggle,
-                  child: SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Center(
-                      child: Icon(
-                        isCollapsed
-                            ? LucideIcons.chevronRight
-                            : LucideIcons.chevronDown,
-                        size: 15,
-                        color: scheme.mutedForeground,
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            else
-              const SizedBox(width: 44, height: 44),
             if (row.icon != null && row.icon!.isNotEmpty)
               Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.only(right: 8),
                 child: Text(row.icon!, style: theme.textTheme.small),
               )
             else
               Padding(
-                padding: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.only(right: 8),
                 child: Icon(LucideIcons.fileText,
                     size: 15, color: scheme.mutedForeground),
               ),

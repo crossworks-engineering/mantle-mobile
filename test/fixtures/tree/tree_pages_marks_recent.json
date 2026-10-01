@@ -1,0 +1,44 @@
+{
+  "kind": "pages",
+  "view": "recent",
+  "items": [
+    {
+      "id": "709ca7ce-c3dc-4ad0-a444-313fbb59e643",
+      "title": "Acme folder index",
+      "icon": "🗂",
+      "color": null,
+      "subtype": null,
+      "level": "client",
+      "inherited": "client",
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:11.674Z",
+      "crumbs": [
+        {
+          "id": "8da11d85-78e6-46e9-a27b-334812cd19fd",
+          "name": "Clients"
+        },
+        {
+          "id": "26190ec8-d7cf-4959-911d-133cc1b2abab",
+          "name": "Acme Corp"
+        }
+      ]
+    },
+    {
+      "id": "e66209d7-c3fc-49ed-8f97-ba450f8098f2",
+      "title": "Engineering handbook",
+      "icon": "📘",
+      "color": null,
+      "subtype": null,
+      "level": "team",
+      "inherited": "team",
+      "state": null,
+      "updatedAt": "2026-10-01T08:38:11.720Z",
+      "crumbs": [
+        {
+          "id": "cebf879e-8209-465f-9051-4cf252188877",
+          "name": "Engineering"
+        }
+      ]
+    }
+  ]
+}

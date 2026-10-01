@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/network/dio_provider.dart';
+import '../tree/tree_models.dart';
 import 'files_models.dart';
 
 part 'files_api.g.dart';
@@ -49,14 +50,22 @@ class FilesApi {
   }
 
   /// Upload a local file into `parentPath`. Returns the saved row. Throws
-  /// [FileUploadException] for 409/413; anything else rethrows raw.
+  /// [FileUploadException] for a duplicate name (409) or a file too large
+  /// (413), and [TreeVisibilityRefusal] (also a 409) when the folder is
+  /// shared and the upload would be readable by more people: nothing was
+  /// stored, and the same upload with [confirm] goes ahead. Anything else
+  /// rethrows raw.
   Future<FileRow> upload({
     required String parentPath,
     required String localPath,
     required String filename,
+    bool confirm = false,
   }) async {
     final form = FormData.fromMap({
       'parentPath': parentPath,
+      // Before the file: the brain reads the fields it needs ahead of the
+      // bytes, so the answer to "may I" is known before it stores anything.
+      if (confirm) 'confirm': 'true',
       'file': await MultipartFile.fromFile(localPath, filename: filename),
     });
     try {
@@ -68,6 +77,10 @@ class FilesApi {
         (res.data?['file'] as Map).cast<String, dynamic>(),
       );
     } on DioException catch (e) {
+      final refusal = e.response?.statusCode == 409
+          ? TreeVisibilityRefusal.tryParse(e.response?.data)
+          : null;
+      if (refusal != null) throw refusal;
       switch (e.response?.statusCode) {
         case 409:
           throw const FileUploadException(

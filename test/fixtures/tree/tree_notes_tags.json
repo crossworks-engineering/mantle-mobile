@@ -1,0 +1,37 @@
+{
+  "kind": "notes",
+  "tags": [
+    {
+      "tag": "meeting",
+      "count": 5
+    },
+    {
+      "tag": "idea",
+      "count": 4
+    },
+    {
+      "tag": "mobile",
+      "count": 2
+    },
+    {
+      "tag": "personal",
+      "count": 2
+    },
+    {
+      "tag": "acme",
+      "count": 1
+    },
+    {
+      "tag": "books",
+      "count": 1
+    },
+    {
+      "tag": "planning",
+      "count": 1
+    },
+    {
+      "tag": "template",
+      "count": 1
+    }
+  ]
+}
