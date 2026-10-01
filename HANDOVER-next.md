@@ -1,119 +1,78 @@
-# Handover → next session: mantle-companion + mantle (post top-5 cycle)
+# Handover: folders done, three roles next
 
-> **Renamed 2026-08-21 — Mantle Companion → Jackdaw.** Entries below this line
-> were written under the old name and are kept verbatim as history. Current
-> identifiers: Dart package `jackdaw`; iOS bundle id / Android applicationId
-> `crossworks.engineering.jackdaw`; Keychain group
-> `crossworks.engineering.jackdaw.pushkeys`. Old values (`mantle_companion`,
-> `me.schoeman.mantle_companion`, `crossworks.engineering.mantle`) are dead.
+_Written 2026-10-01 at the end of Phase 1 (the folder tree) of the "folders
+and three roles" work. Older handovers are history: `docs/handover.md` (to
+2026-06), `docs/handover-audit-worklist.md` (the 2026-09 audit)._
 
+## Start here
 
-_Updated 2026-07-20 on the Mac M4, at the end of the top-5 feature session
-(v1.7–v1.11 + audit). Supersedes the post-v1.6 handover text._
+1. Run the `mantle-recall` skill (fleet, ssh aliases, how to start a brain
+   safely). Then `CLAUDE.md`, `docs/styling-guide.md` and
+   `docs/architecture.md`; its sections "Several logins" and "The folder
+   tree" are what this work added.
+2. `fvm flutter analyze && fvm flutter test`: expect clean and **474**
+   passing. A failure before you touch anything is not yours.
+3. The plan has three phases. This file says where each stands.
 
-## Where everything stands
+## Where things stand
 
-**mantle-companion** — `main` = **v1.11.1+19**, pushed to origin 2026-07-20
-(before the device pass — see open thread 3). This session shipped, each analyze+test
-gated and commit-per-phase:
+| What | State |
+| --- | --- |
+| Branch | `feat/folder-tree`, based on `main` at `a31ac85` (1.12.1+24). Not pushed. Nothing is tagged or uploaded. |
+| Landed on it first | `feat/multi-login` (three commits, replayed; one conflict in the server setup screen, both sides kept) and `feat/file-open` (two commits; conflicts in the session wipe and the files screen). `feat/pages-list-rollup` was NOT landed: it builds on `parentId` and `childCount`, which the brain no longer sends. |
+| Phase 1 | Done: Pages, Notes and Files on the folder tree, the Folder index block, capture and upload into the open folder, the older-brain fallback. |
+| Phase 2 | Not started. The brain contract is on mantle branch `feat/mobile-roles`, `docs/mobile-companion-backend.md`, section "Three roles on the phone". It is in security review and not merged; ask the brain session before relying on a route. |
+| Phase 3 | Not started. No version bump, no store upload, until the audit session says GO and the owner agrees. |
 
-- v1.7.0 **Notes** (quick-add, tag facets, paging, markdown view/edit)
-- v1.8.0 **Search** (debounced hybrid search over the NEW `/api/search`,
-  type chips, per-type deep links) — **requires Mantle ≥ v0.148.0**
-- v1.9.0 **Files** (folder drill, authed image preview, camera/library/
-  document upload)
-- v1.10.0 **Offline chat** (Drift v2: raw-row read cache pruned to 200/agent
-  + idempotency-keyed send-queue, queued bubbles, offline banner)
-- v1.11.0 **Math + syntax highlighting** (TeX w/ currency guards; re_highlight
-  with a CURATED language set — `languages/all.dart` blows kernel compiles to
-  30+ min; colours from theme tokens)
-- v1.11.1 **audit fix pass** — an adversarial review found and fixed: send()
-  flushing without refetch, queued bubbles sorting mid-thread, no flush
-  latch, missing ref.mounted guards in the three new controllers, a search
-  debounce stale-response window, `'409'`-in-URL upload misclassification,
-  notes page-cursor desync + loadMore snapshot clobber, lost code-block
-  padding, and `$$`-prefixed prose swallowing messages.
+## What Phase 1 decided, and why
 
-**Verified**: analyze clean, **144/144 tests**, release builds compile on BOTH
-platforms (iOS `build ios --no-codesign` 56s; Android `build apk` 118s —
-apk now 77 MB, flutter_math fonts included). **NOT yet device-run** — the
-v1.7–v1.11 surfaces need a phone pass (checklist below).
+- **One browser for three screens** (`lib/features/tree/`). Drilling is state
+  inside the screen, not a route per folder, so the trail can jump to any
+  level. `?folder=<id>` opens it on a folder (the Folder index uses that).
+- **Folders are read, not managed.** The phone does not create, rename, move
+  or share folders. It files into them: a note is a create followed by the
+  tree's move (the notes route takes no folder), an upload names the
+  folder's path.
+- **A shared folder asks first.** The brain answers 409 `visibility` and
+  writes nothing; the app says who will read the item and repeats with
+  `confirm` on a yes. A note the person declines to share stays at the top
+  level and the screen says so.
+- **The older-brain fallback is per kind and remembered**: a 404 on a kind's
+  root marks it until the brain or the login changes. The pages fallback is
+  a flat list, not the old `parentId` hierarchy.
+- **Tree reads do not auto-retry.** Riverpod 3 retries a failed provider
+  with backoff; the tree's refusals are answers, so `noTreeRetry` turns it
+  off there. Without it a 404 kept the screen on "Loading" for a minute.
 
-**mantle** — `main` = `142583c4`, **v0.148.1**, tags v0.148.0 + v0.148.1
-created — ALL LOCAL, nothing pushed. Contains: `GET /api/search`
-(nodes|chunks, owner-gated, embed-with-FTS-fallback) + audit hardening
-(pgArrayLiteral tags binding — also fixes the latent `search_nodes` MCP tags
-bug — ltree length caps, strict-integer limit, chunks supersededBy parity),
-a pre-existing `apps/api` typecheck fix, and the companion-contract doc
-section. `pnpm verify` green (2384 tests). The M4's `workstation` remote and
-the TitanKing origin both still hold e4601abd — **push + deploy is an open
-thread** (the companion Search screen errors against v0.147.0 servers).
+## Traps this phase met
 
-**Machines** — unchanged (auto-memory `dev-topology`): stack on the
-workstation `.75` (check for a RUNNING one first), ONE frontend dev server on
-the M4 `.47`, Android tests on the physical phone, workstation SSH =
-`jasons` + ControlMaster only. Worktrees are mandatory for parallel mantle
-work (`scripts/new-worktree.sh`); the original clone is the integrator.
+- **A provider that returns a helper holding `Ref`** breaks when the
+  provider is auto-disposed mid-await (`ref.read(x).doSomethingAsync()` from
+  a widget: nothing keeps `x` alive). `NoteFiling` and `FileFiling` hold the
+  API clients instead. A widget test caught it; a unit test did not.
+- **A provider may not change another provider while it is being built**,
+  even from a `catch`. `TreeFolderController` marks the older-brain kind in
+  a microtask.
+- **A cursor page of the tree carries no folders.** Keep the first page's.
+- **A horizontal `ListView` is lazy in widget tests** (the test font is
+  wide), so a pill or a crumb past the edge is simply not built.
+- The simulator named in the audit handover is signed in to a real brain.
+  This phase cloned it (`xcrun simctl clone`) and tested on the clone, so
+  the original keeps its sign-in. The multi-login migration kept the
+  clone's sign-in: Drift v2 to v3 on a real install is proven.
 
-## Open threads (in order)
+## Testing against a brain
 
-1. **TestFlight upload (v1.6.0+13)** — the signed IPA is still intact at
-   `build/ios/ipa/mantle_companion.ipa` (25 MB, built 2026-07-19 22:25).
-   Jason drags it into Transporter → export-compliance "standard/exempt" →
-   internal tester. OR: skip to v1.11.1 — but device-verify first, then
-   `LANG=en_US.UTF-8 fvm flutter build ipa` (~2 min; overwrites the v1.6
-   IPA).
-2. **Push mantle v0.148.x + deploy to dev** — until the dev brain runs
-   ≥ v0.148.0, the companion Search screen has no endpoint. Push main + tags
-   to origin (TitanKing) and the workstation remote, then deploy per the
-   changelog ("tag-only bump — no migration").
-3. **Device-verify v1.7–v1.11 on both platforms** (main is already pushed):
-   notes add/edit/tag-filter; search as-you-type + each deep-link type +
-   "Open in Mantle"; files drill/upload (camera + document, duplicate-name
-   409 message) + image pinch-zoom; offline: airplane-mode → thread shows
-   cached history + banner, send queues, reconnect → queued turn delivers
-   exactly once IN ORDER and the reply lands; math `$x^2$`/`$$…$$` + a
-   ```dart fence in chat and in a page; "costs $5 and $6" stays prose.
-4. **Events: first-class status field (mantle)** — unchanged from last
-   handover; "done" is still the reserved `done` tag the app depends on
-   (`docs/mobile-companion-backend.md` §Companion v1.4–1.6).
-5. **Android release keystore** — release APK still debug-key signed.
-6. **Built-in Kotlin migration** — lifts the file_picker 8.x pin
-   (breadcrumbs in `android/gradle.properties`).
-7. **Roadmap remainder** — Pages write surfaces (needs a markdown-append
-   backend route first; the draft/commit API is ProseMirror-shaped).
+Reads only on the dev brain. For writes, and for member and client logins,
+use a throwaway brain on the workstation: the recipe is in the mantle
+memory notes "throwaway-brain-ui-test-recipe" and "Workstation live-test
+recipe" (a fresh worktree and pg, the server under `systemd-run --user`, an
+`ssh -L` tunnel, a first-run sign-up for the owner, never a minted
+session). The fixtures under `test/fixtures/tree/` were taken from one.
 
-## Known small gaps (deliberate, documented)
-
-- Offline cache serves up to 200 rows regardless of requested limit; the
-  chunks search mode is implemented server-side but unconsumed by the app.
-- Delete-sheet destructive labels use the tasks-screen's bare
-  `TextStyle(color: destructive)` precedent; offline-banner Retry uses the
-  failed-bubble's primary-on-secondary precedent.
-- A queued turn's text can flash twice for one merge cycle if an SSE refetch
-  races `flushOutbox`'s row delete (transient, self-heals).
-
-## Working rules that bit us (don't relearn)
-
-- All prior rules stand: fvm always; no Material; theme tokens only;
-  build_runner after provider changes; analyze + test before commit; NO
-  Claude attribution trailer; don't push unless asked.
-- **markdown package**: an InlineSyntax must NEVER return false from
-  `onMatch` after its regex matched — match-without-consume = synchronous
-  infinite loop = flutter_tester pinned at 100% CPU, immune to test
-  timeouts. Emit the text and return true.
-- **re_highlight**: never import `languages/all.dart` (~190 grammars) —
-  kernel compile of the test bundle goes 30+ min. Import grammars singly.
-- Harness gotchas (M4): background Bash + `| tail` buffers output until
-  process exit — stream to a file instead when watching; `zsh`'s `=word`
-  expansion eats `===LABEL===` echo separators; foreground `sleep` is
-  blocked — use Monitor/until-loops.
-
-## Verify quickly (any fresh session)
+## Verify quickly
 
 ```bash
-cd ~/Projects/mantle-companion && fvm flutter analyze && fvm flutter test
-git log --oneline -3   # 74c8617 docs / 5346c65 fix(audit) / 70bd366 math
-cd ~/Projects/mantle && git log --oneline -2  # 142583c4 v0.148.1 merge
-pnpm verify            # 2384 tests
+fvm flutter analyze && fvm flutter test
+git log --oneline main..feat/folder-tree
 ```

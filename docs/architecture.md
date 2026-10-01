@@ -9,7 +9,7 @@ A cross-platform (iOS + Android) Flutter app — a mobile companion for the
 **self-hosted Mantle** personal assistant. It connects to a user's own Mantle
 server over an authenticated REST API.
 
-Scope, in order of build (all shipped as of **v1.11.0+18**):
+Scope, in order of build:
 
 1. **Chat** with the assistant — rich rendering, attachments, voice, and (v1.3–
    1.4) live token streaming with a thought trail
@@ -30,6 +30,10 @@ Scope, in order of build (all shipped as of **v1.11.0+18**):
    (see [Chat](#offline-cache--send-queue-v110))
 10. **Markdown math + code highlighting** (v1.11) — `$…$`/`$$…$$` TeX and
     theme-token syntax highlighting (closes rendering Phase 4)
+11. **Several logins** on one phone, on one brain or many (see
+    [Several logins](#several-logins)), and QR sign-in
+12. **The folder tree**: Pages, Notes and Files browse the brain's one
+    folder tree (see [The folder tree](#the-folder-tree))
 
 The client is intentionally thin; Mantle is smart. The app sends raw input and
 renders responses — no reverse-geocoding or POI logic on device. The one
@@ -81,6 +85,8 @@ lib/
                      conversations_api.dart   — GET /api/assistant/conversations, POST /read
     dashboard/       dashboard_models.dart    — summary + health models
                      dashboard_api.dart       — GET /api/dashboard/summary, /api/health
+    tree/            tree_models.dart         - the folder tree's wire shapes (ONE file)
+                     tree_api.dart            - GET /api/tree/:kind (+search, marks, move)
     pages/           pages_api.dart, pages_models.dart      — index/meta/markdown/backlinks
     nodes/           nodes_api.dart           — GET /api/nodes/{id} (type resolver), draw SVG
     notes/           notes_api.dart, notes_models.dart      — CRUD + tag facets
@@ -109,8 +115,13 @@ lib/
                      turn_stage_controller.dart, chat_composer.dart, …
     dashboard/       dashboard_controller.dart — summary + best-effort health
     home/            home_screen.dart          — landing dashboard (stats + actions)
-    pages/           pages_controller.dart, pages_screen.dart (tree),
+    tree/            tree_controller.dart      - one folder (family by kind + folder),
+                                                 search, Recent, the older-brain marker
+                     tree_browser.dart         - the shared folder browser
+                     tree_rows.dart            - folder/item tiles, glyph, badge, trail
+    pages/           pages_controller.dart, pages_screen.dart (folder browser),
                      page_view_screen.dart     — markdown, chips, images, backlinks
+                     folder_index.dart         - the Folder index block
     notes/           notes_controller.dart, notes_screen.dart,
                      note_view_screen.dart     — markdown view + edit sheet
     search/          search_controller.dart (debounce + stale guard),
@@ -131,10 +142,13 @@ lib/
                      appearance_screen.dart    — mode + color picker + shuffle
   widgets/           mantle_header.dart         — shared primary header bar
                      secret_input.dart          — masked field + show/hide eye
+                     pull_to_refresh.dart       - the Material-free pull to reload
   routing/           app_router.dart           — go_router + redirect
   theme/             mantle_theme.dart          — theme builder + MantleColors
                      mantle_theme_def.dart      — the shape of one theme
                      mantle_themes.g.dart       — generated: every web theme
+                     app_tints.dart             - the 13 folder tints, mixed per theme
+                     lucide_names.dart          - the web's curated folder icons by name
   main.dart          ShadApp.router root
 ```
 
@@ -166,7 +180,8 @@ never touches Dio/Drift directly.
 
 ## Persistence
 
-- **Drift** (schema v2) — `app_settings(key, value)` holds the server URL
+- **Drift** (schema v3): `sessions` holds the logins (see Several logins);
+  `app_settings(key, value)` holds the server URL
   (`server_base_url`) and theme mode (`theme_mode`); `cached_messages` is the
   chat read cache (raw history-row JSON per agent, pruned to the newest 200);
   `outbox_turns` is the offline send-queue (row id = the turn's idempotency
@@ -669,9 +684,10 @@ Three read/capture surfaces over Mantle's existing owner-gated JSON routes — n
 new backend was needed. All follow the same layering (Api → controller →
 screen) and live under `/pages`, `/tasks`, `/journal`.
 
-- **Pages** (read-only). `PagesApi.list` (`GET /api/pages`) returns the whole
-  hierarchy as flat rows (`mode:'tree'`) — the client builds the tree from
-  `parentId`; a search/tag filter switches the server to `mode:'list'`.
+- **Pages** (read-only). The index is the pages tree (see
+  [The folder tree](#the-folder-tree)): pages do not nest, a page's place is
+  its folder. `PagesApi.list` (`GET /api/pages`, flat rows) is only read for
+  a brain older than the tree.
   Content: **`GET /api/export/{id}?format=md`** — the HTTP twin of the MCP
   `export_node` tool — so the client renders markdown with the same
   `MantleMarkdown` the chat uses and needs **no ProseMirror renderer**.
@@ -686,7 +702,8 @@ screen) and live under `/pages`, `/tasks`, `/journal`.
   [`test/features/page_view_test.dart`](../test/features/page_view_test.dart).
   The export covers the COMMITTED doc only; a page with a body and a draft
   shows the body, a draft-only page says so instead of "empty".
-  Backlinks come from `GET /api/pages/{id}/backlinks`.
+  Backlinks come from `GET /api/pages/{id}/backlinks`. The page detail
+  carries `folderId`, which the **Folder index** block reads (below).
 - **Tasks** (capture-first). `GET/POST /api/tasks`, `PATCH /api/tasks/{id}`
   (`status: open|done`), `DELETE`. Server orders open → done, due-date asc,
   then recency; the list renders in server order. Quick-add field on top,
@@ -700,13 +717,14 @@ screen) and live under `/pages`, `/tasks`, `/journal`.
 
 Three more surfaces over owner-gated JSON routes, same layering as v1.5:
 
-- **Notes** (`/notes`, `/notes/:id`). `GET/POST /api/notes` (paged 50, `q`/
-  `tag` filters, tag facets ride the response; agent digests stay hidden),
-  `GET/PATCH/DELETE /api/notes/{id}`. Capture-first: quick-add field on top
-  (with a tag filter active, adding resets to "all" so the new note is
-  visible), infinite scroll pages by `notes.length ~/ 50 + 1`, note view
-  renders content with `MantleMarkdown`, edit sheet PATCHes title/content/
-  comma-separated tags and patches the list row in place.
+- **Notes** (`/notes?folder=`, `/notes/:id`). The list is the notes tree
+  with a capture field on top that saves into the OPEN folder and the kind's
+  tags as filter pills. `POST /api/notes` takes no folder, so a capture into
+  a folder is a create followed by the tree's item move (`NoteFiling`). The
+  note view renders content with `MantleMarkdown`; the edit sheet PATCHes
+  title, content and comma-separated tags (`GET/PATCH/DELETE
+  /api/notes/{id}`). `GET /api/notes` (paged 50, tag facets) is only read
+  for a brain older than the tree.
 - **Search** (`/search`, also the magnifier in the home header).
   `GET /api/search?q&type&limit` — **added to Mantle in v0.148.0**; the
   server embeds the query for vector-led hybrid ranking and degrades to FTS
@@ -715,16 +733,20 @@ Three more surfaces over owner-gated JSON routes, same layering as v1.5:
   Hits route by type: page/note → their view screens, task/event/journal →
   their lists; everything else opens a sheet with the summary and an "Open
   in Mantle" link (the server's absolute `/n/<id>` permalink resolves any
-  node type web-side).
-- **Files** (`/files?path=…`). Folders `GET /api/files/folders?parent=`,
-  files `GET /api/files/files?parent=`, upload `POST /api/files/files`
-  (multipart `{parentPath, file}` — camera / photo library / any document;
-  409 duplicate-name and 413 too-large surfaced inline), delete by id.
-  Each drilled folder is its own route push (controller is a family by
-  ltree path), so back just works. Image files open a full-screen authed
-  preview (`fileBytesProvider` + `InteractiveViewer`); everything else gets
-  the open sheet (`file_open_sheet.dart`): **Open**, **Share**, and "Open in
-  Mantle". A `media:` chip on a page for a non-image opens the same sheet.
+  node type web-side). A hit says the folder it is filed in, read off its
+  ltree `path` (slugs, so `clients › acme corp`, not the folders' names).
+- **Files** (`/files?folder=`). The list is the files tree with the upload
+  row on top: camera, photo library or any document, uploaded into the OPEN
+  folder by its ltree path (`POST /api/files/files`, multipart `{parentPath,
+  file}`; 409 duplicate-name and 413 too-large surfaced inline). Image files
+  open a full-screen authed preview (`fileBytesProvider` +
+  `InteractiveViewer`); everything else gets the open sheet
+  (`file_open_sheet.dart`): **Open**, **Share**, and "Open in Mantle". A tree
+  row knows a file's id and name, so the row is fetched first (`GET
+  /api/files/files/{id}`) for its type and size. A `media:` chip on a page
+  for a non-image opens the same sheet. `GET /api/files/folders?parent=` and
+  `/api/files/files?parent=` (`/files?path=`) are only read for a brain
+  older than the tree.
 - **Opening a file** (`FileOpenService`). A system viewer cannot send the
   bearer, so the file is downloaded INSIDE the app with the bearer and the OS
   is handed a local copy; no credential leaves the app. The download streams
@@ -741,6 +763,74 @@ Three more surfaces over owner-gated JSON routes, same layering as v1.5:
   (`tools:node="remove"`), which also keeps Play's photo and video policy out
   of the picture. Not built yet: in-app PDF and video viewers, HTTP Range on
   the server, and folding the two pick-then-upload copies into this service.
+
+## The folder tree
+
+The brain files every kind in ONE folder tree (mantle `docs/folder-tree.md`,
+Mantle v0.232.366 and later): folders nest three deep, carry an icon and a
+tint, can be shared with the team or with clients, and an item's place is
+its folder. Pages, Notes and Files on the phone are that tree.
+
+- **Wire shapes** are one file,
+  [`data/tree/tree_models.dart`](../lib/data/tree/tree_models.dart),
+  mirrored by hand from mantle `packages/client-types/src/tree.ts` (the
+  brain has no OpenAPI). `test/fixtures/tree/` holds REAL responses and
+  `test/data/tree_models_test.dart` parses each. The same shapes serve an
+  admin, a member and a client: a client's tree leaves out the staff fields
+  (level, share, state), so those are nullable here.
+- **Reads are lazy** (`TreeApi`): `GET /api/tree/:kind?folder=&cursor=&sort=`
+  answers one folder's subfolders (all of them) and one page of its items
+  (50); the cursor is keyset, so paging never skips or repeats. A cursor
+  page carries NO folders: the controller keeps the first page's.
+  `…/search?q=&tag=` finds folders then items, each with the crumbs of where
+  it lives; `…/marks?view=recent` is this login's recently opened items;
+  `…/tags` the kind's tags. `POST /api/tree/items/:id/opened` counts an open
+  (what Recent lists).
+- **One browser** ([`features/tree/tree_browser.dart`](../lib/features/tree/tree_browser.dart))
+  serves all three screens: folders first, then items; tap a folder to drill
+  in (state inside the screen, not a route per level, so the trail can jump
+  anywhere), tap the trail to climb out; items page in as the list scrolls;
+  pull down to reload. It ALWAYS opens on Folders; Recent is one tap away
+  and is never remembered (the web's rule). `?folder=<id>` opens it on a
+  folder; Back from there returns to where the reader came from.
+- **Controllers** ([`tree_controller.dart`](../lib/features/tree/tree_controller.dart)):
+  `TreeFolderController` is a family by kind and folder id, so each level
+  keeps its rows and going back up shows them at once. A refresh keeps the
+  rows on screen. Tree reads have Riverpod's automatic retry turned OFF
+  (`noTreeRetry`): the tree's two refusals are answers, not glitches.
+- **An older brain.** `GET /api/tree/:kind` with no folder answering **404**
+  is a brain from before the tree (`TreeUnavailable`): the kind is marked in
+  `treeUnavailableKindsProvider` and its screen shows the list it had before
+  (`PagesListScreen`, `NotesListScreen`, `FilesListScreen`), without asking
+  again until the brain or the login changes. A 404 WITH a folder named is
+  that folder, gone or not shared (`TreeFolderMissing`).
+- **Writes that change who can read.** Filing into a shared folder shares
+  the item. The brain refuses such a write with **409** `{error:
+  'visibility', changes, total}` and writes nothing
+  (`TreeVisibilityRefusal`); the app shows who would read it and repeats the
+  call with `confirm` (and `seen`, the total it showed) only on a yes. This
+  covers a note captured into a shared folder (`POST /api/tree/notes/move`)
+  and an upload into one (`confirm=true` as a form field ahead of the file).
+  A note the person declines to share stays at the top level, and the
+  screen says so. The phone does not create, rename, move or share folders:
+  that is the web's job (the scope rule).
+- **Tints and icons.** A folder's `color` is one of 13 keys, never a
+  colour. [`theme/app_tints.dart`](../lib/theme/app_tints.dart) mixes the
+  web's hue for the key into the theme in OKLab (18% over `background` for
+  the fill, 72% into `foreground` for the ink), the web's own formula, so a
+  tile is legible on every theme in both modes. `icon` is an emoji or
+  `lucide:<name>`; [`theme/lucide_names.dart`](../lib/theme/lucide_names.dart)
+  is the web's curated set by lucide's own names. An unknown tint or name
+  draws the default tile.
+- **The Folder index block** ([`features/pages/folder_index.dart`](../lib/features/pages/folder_index.dart)).
+  A page can list a folder's pages live: `[Folder index](folder:<id>)` or
+  `folder:here` (the page's own folder), alone on a line
+  (`FolderIndexSyntax`). The viewer reads the folder through the pages tree,
+  by name, up to ten pages of 50, then says the list was cut. `here` comes
+  from the page detail's `folderId` via `PageFolderScope`; a brain that does
+  not send it (and any markdown outside a page) shows the block's label
+  alone, never the root. A folder the reader cannot open says so. The same
+  link inside a sentence is an inert label, as on the web.
 
 ## Events & device alarms (v1.6)
 
@@ -798,7 +888,11 @@ event rings at its exact start time — offline, app killed, phone locked.
   (Tasks), `/api/journal` (Journal), `/api/events` + `/api/events/{id}`
   (Events), `/api/notes` + `/api/notes/{id}` (Notes), **`/api/search`**
   (global search — **requires Mantle ≥ v0.148.0**; older servers 404→401 it),
-  `/api/files/folders` + `/api/files/files` (+ multipart upload) (Files),
+  `/api/files/files` (multipart upload) + `/api/files/files/{id}` (Files),
+  **`/api/tree/{kind}`** + `/search` + `/marks` + `/tags` + `/move` and
+  `/api/tree/items/{id}/opened` (the folder tree for Pages, Notes and Files;
+  **Mantle ≥ v0.232.366**; an older brain answers 404 and the app falls
+  back to `/api/pages`, `/api/notes`, `/api/files/folders`),
   `/api/push/*` (enrollment/preferences — see
   [push-notifications.md](push-notifications.md)).
 - **Auth-failure contract**: treat **401 OR 3xx→/login** as "session invalid →
@@ -809,7 +903,10 @@ event rings at its exact start time — offline, app killed, phone locked.
 - Pure logic / models → plain unit tests.
 - Repositories → real **in-memory Drift** + mocked remote.
 - Controllers/providers → `ProviderContainer` with overridden deps (mocktail).
-- One widget smoke test (boots to server-setup when unconfigured).
+- Screens → widget tests through `test/helpers/pump_screen.dart`.
+- An API client's requests and refusals → a real Dio over
+  `test/helpers/stub_dio.dart`, answered with real response bodies.
+- Wire shapes → fixtures taken from a real brain (`test/fixtures/tree/`).
 - Run: `fvm flutter analyze` (must be clean) + `fvm flutter test`.
 
 ## Build & codegen
@@ -861,17 +958,17 @@ cleartext to local hosts. Production Mantle is HTTPS.
 
 ## Roadmap
 
-Shipped through v1.11.0: chat (rich rendering, attachments, voice, streaming +
-thought trail, offline cache + send-queue, math + code highlighting),
-location, push, pages/tasks/journal, events + device alarms, notes, global
-search, files. Still open:
+Shipped: chat (rich rendering, attachments, voice, streaming and thought
+trail, offline cache and send-queue, math and code highlighting), location,
+push, pages, tasks, journal, events and device alarms, notes, global search,
+files and file opening, several logins, QR sign-in, the folder tree. Open:
 
-- **Deploy Mantle ≥ v0.148.0** (the `/api/search` endpoint) to dev/prod —
-  until then the Search screen errors on older servers
+- **Three roles**: members and clients sign in, chat with the team
+  responder, browse what is shared with them and get pushes (the brain
+  contract is mantle `docs/mobile-companion-backend.md`, "Three roles on the
+  phone").
 - **Events: first-class server status field** (today "done" is the reserved
-  `done` tag — flagged as a backend follow-up)
-- **Write surfaces for Pages** (currently read-only; the draft/commit API is
-  ProseMirror-doc-shaped — needs a markdown-append backend route first)
-- Migrate Android to **AGP built-in Kotlin** so the `file_picker` 8.x pin can
-  lift (see `android/gradle.properties`)
-- Android **release keystore** (release APK still signs with the debug key)
+  `done` tag)
+- Drawings and tables in the folder tree (the tree serves them; the phone
+  has no viewer for either yet)
+- Pins and Most used beside Recent

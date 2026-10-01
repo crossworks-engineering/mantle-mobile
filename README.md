@@ -7,7 +7,7 @@ design language. You point it at your own self-hosted Mantle server and sign in
 with your Mantle login; nothing goes through a third party except push
 delivery (see below).
 
-Current version: **1.11.1+19**. The full system map is in
+Current version: **1.12.1+24**. The full system map is in
 [docs/architecture.md](docs/architecture.md); UI rules are in
 [docs/styling-guide.md](docs/styling-guide.md).
 
@@ -22,8 +22,14 @@ Current version: **1.11.1+19**. The full system map is in
 - **Push notifications** from the brain, end-to-end encrypted through a blind
   relay.
 - **The brain's knowledge on the phone**: read-only Pages, capture-first Tasks
-  and Journal, Notes with tag filter and markdown edit, a Files browser with
-  camera, library and document upload.
+  and Journal, Notes with markdown edit, Files with camera, library and
+  document upload, and any file opened in the phone's own viewer.
+- **Folders**: Pages, Notes and Files browse the brain's one folder tree, with
+  each folder's icon and colour, a trail to climb back out, search that says
+  where a hit lives, and a Recent view. A note is captured, and a file
+  uploaded, into the folder that is open.
+- **Several logins on one phone**, on one brain or many, switched with a tap.
+  Sign in by typing, or by scanning the QR code the web app shows.
 - **Events with real device alarms** that ring at the start time, offline,
   phone locked.
 - **Global search** over the brain's hybrid full-text and vector engine, with
@@ -40,13 +46,16 @@ onto the device's own alarm scheduler so they fire with no network at all.
 The mirror is reconciled against the server after every fetch or change and
 is best-effort; the durable reminder is still the brain's push.
 
-## Installing today
+## Installing
 
-There is no public TestFlight, no store listing and no APK download yet, and
-no release pipeline. CI (`.github/workflows/verify.yml`) runs the analyzer,
-the tests, a generated-code check and both release builds on every push, but
-publishes nothing. The only way to get Jackdaw onto a phone today is to build
-it from source with your own developer tooling.
+Release builds go to TestFlight and to the Play internal track through the
+two helpers in `tool/` (`asc.py` for App Store Connect, `play.py` for Google
+Play); the store listing text and graphics live under `store/`. CI
+(`.github/workflows/verify.yml`) runs the analyzer, the tests, a
+generated-code check and both release builds on every push, and publishes
+nothing.
+
+To build it yourself from source:
 
 ```bash
 brew install fvm                 # once, on macOS
@@ -71,26 +80,32 @@ against the pinned SDK.
 
 ## Connecting to your brain
 
-1. On first launch, enter your Mantle server's URL. The app probes it with a
-   public `GET /api/version` and only continues once a Mantle answers.
+1. On first launch, enter your Mantle server's URL, or scan the sign-in QR
+   code the web app shows (it names the server and signs you in at once).
+   The app probes a typed address with a public `GET /api/version` and only
+   continues once a Mantle answers.
 2. Sign in with your Mantle email and password. The app calls
    `POST /api/auth/mobile-login` and stores the returned per-device bearer
-   token in the platform keychain (`flutter_secure_storage`); the server URL
-   and theme live in a local settings table.
+   token in the platform keychain (`flutter_secure_storage`), one item per
+   login; the logins and the theme live in a local database.
 3. Every request carries that token. A 401, or a redirect to the login page,
    means the session is invalid: the app clears the token and sends you back
    to sign in.
 4. Signing out calls `POST /api/auth/mobile-logout`, which revokes the token
-   server-side, then wipes it from the device.
+   server-side, then wipes that login from the device. Other logins the
+   phone holds stay signed in (Settings, Logins).
 
 Push is a separate one-tap step under Settings once the brain is set up for it.
 
 ## What your brain needs
 
-- **Mantle v0.148.0 or newer.** That release added `GET /api/search`, which
-  global search depends on; older servers reject it and the app treats that as
-  a signed-out session. Everything else the app uses (mobile login, push
-  enrollment, push preferences, events, notes, files) landed earlier.
+- **Mantle v0.232.366 or newer for folders.** That is the release where
+  every kind, pages included, lives in the folder tree. Against an older
+  brain Pages, Notes and Files show the plain lists they had before.
+- **Mantle v0.148.0 or newer at all.** That release added `GET /api/search`,
+  which global search depends on. Everything else the app uses (mobile
+  login, push enrollment, push preferences, events, notes, files) landed
+  earlier.
 - **A push relay**, if you want notifications. The brain must be configured
   with a Mantle Push relay; the app asks the brain for an enrollment ticket,
   enrols with the relay directly, and hands the routing token back to the
