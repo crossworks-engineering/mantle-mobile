@@ -54,7 +54,7 @@ final class EventsControllerProvider
   EventsController create() => EventsController();
 }
 
-String _$eventsControllerHash() => r'906c32e03873cb34818d6bed42bce844322a6d3e';
+String _$eventsControllerHash() => r'a8f974a5ff6b76f75f72128538dea733a6245739';
 
 /// Owns the upcoming-events list. Every successful load or mutation also
 /// re-syncs the device's LOCAL alarms ([EventAlarms.sync]) so what's on the
@@ -130,7 +130,7 @@ final class EventAlarmSyncProvider
   }
 }
 
-String _$eventAlarmSyncHash() => r'e628d504335a0140e66989f15cdf7cb1d2e33601';
+String _$eventAlarmSyncHash() => r'4f67fa1ec4350fd57600fc1d7e7d8fb314153aae';
 
 /// Keeps device alarms fresh WITHOUT the events screen ever being opened:
 /// on login and on every foreground resume it pulls the upcoming window and

@@ -31,7 +31,11 @@ class PushState {
 @riverpod
 class PushController extends _$PushController {
   @override
-  Future<PushState> build() => _load();
+  Future<PushState> build() {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(pushApiProvider);
+    return _load();
+  }
 
   Future<PushState> _load() async {
     final keyStore = await ref.read(pushKeyStoreProvider.future);

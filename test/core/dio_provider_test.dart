@@ -5,6 +5,7 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -143,5 +144,17 @@ void main() {
     }
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
     verify(() => wipe.wipeLocal(sessionId: any(named: 'sessionId'))).called(1);
+  });
+
+  test('a 401 on a request that went out bare (mid-switch to another brain) '
+      'signs nobody out', () async {
+    final (c, dio) = await boot(_StubAdapter(401));
+    // The login in use is now on another brain; this client is the old one.
+    await (db.update(db.sessions)..where((s) => s.id.equals('session-1')))
+        .write(const SessionsCompanion(
+            baseUrl: Value('https://other.example.com')));
+    await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
+    expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+    verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
   });
 }

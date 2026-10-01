@@ -42,7 +42,7 @@ final class PagesControllerProvider
   PagesController create() => PagesController();
 }
 
-String _$pagesControllerHash() => r'28cd522ec84129815d247e98f2b0908414f3f2f5';
+String _$pagesControllerHash() => r'24e10e3ed6cfc2b22c0e7eccb5fe05359df2905b';
 
 /// Owns the flat pages index shown for a brain older than the tree. Loads
 /// every page on build; [search] swaps in the server's filtered list (`q`

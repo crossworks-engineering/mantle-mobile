@@ -15,7 +15,8 @@ part 'pages_controller.g.dart';
 class PagesController extends _$PagesController {
   @override
   Future<PagesIndex> build() {
-    return ref.read(pagesApiProvider).list();
+    // Rebuilt with the client: another login, or another brain.
+    return ref.watch(pagesApiProvider).list();
   }
 
   /// Server-side search (or restore the tree when [q] is blank). Keeps the

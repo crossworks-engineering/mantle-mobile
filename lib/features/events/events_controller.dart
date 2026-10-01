@@ -21,7 +21,11 @@ part 'events_controller.g.dart';
 @riverpod
 class EventsController extends _$EventsController {
   @override
-  Future<List<EventRow>> build() => _load();
+  Future<List<EventRow>> build() {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(eventsApiProvider);
+    return _load();
+  }
 
   /// The screen's window: the last 7 days (so a just-finished event is still
   /// there to mark done — `window=upcoming` alone drops an event the moment
@@ -171,6 +175,10 @@ class EventAlarmSync extends _$EventAlarmSync {
   void build() {
     final session = ref.watch(sessionControllerProvider).value;
     final lifecycle = ref.watch(appLifecycleProvider);
+    // A switch cancels every alarm (the session wipe) and the new login's
+    // are armed here. A switch between two logins on one brain changes
+    // neither value above, only the client, so the client is watched too.
+    ref.watch(eventsApiProvider);
     if (session != AuthStatus.loggedIn) return;
     if (lifecycle != AppLifecycleState.resumed) return;
     unawaited(_syncOnce());

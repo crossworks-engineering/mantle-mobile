@@ -15,6 +15,8 @@ part 'pending_controller.g.dart';
 class PendingController extends _$PendingController {
   @override
   Future<List<PendingCall>> build() {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(pendingApiProvider);
     ref.listen(conversationEventsProvider, (_, next) {
       if (next is AsyncData<ConversationEvent>) _reloadSilently();
     });

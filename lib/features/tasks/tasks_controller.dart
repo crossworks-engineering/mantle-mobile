@@ -13,6 +13,8 @@ part 'tasks_controller.g.dart';
 class TasksController extends _$TasksController {
   @override
   Future<List<TaskRow>> build() async {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(tasksApiProvider);
     return (await ref.read(tasksApiProvider).list()).tasks;
   }
 

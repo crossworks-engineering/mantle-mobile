@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../db/database_provider.dart';
@@ -84,15 +82,18 @@ class SessionWipe {
 
   /// The device-wide things that follow the ACTIVE login: alarms for its
   /// events, the background stream to its brain. Stopped when it leaves and
-  /// when another login takes its place; the new one starts its own.
+  /// when another login takes its place; the new one starts its own (the
+  /// alarm sync and [DirectPushFollow] rebuild with the client).
+  ///
+  /// The person's choice to use the direct connection is the DEVICE's
+  /// ([AppDatabase.directPushWantedKey]) and is not touched here.
   Future<void> stopActiveServices() async {
     // Files opened on the phone were downloaded to the cache as the login in
     // use; they go when it leaves, and when another login takes its place.
     await _best(() => _ref.read(fileOpenServiceProvider).clearCache());
     await _best(EventAlarms.cancelAll);
-    if (Platform.isAndroid) {
-      await _best(const DirectPush().stop);
-    }
+    final direct = _ref.read(directPushProvider);
+    if (direct.supported) await _best(direct.stop);
   }
 
   Future<void> _best(Future<void> Function() step) async {

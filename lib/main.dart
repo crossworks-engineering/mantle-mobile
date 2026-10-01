@@ -13,6 +13,7 @@ import 'data/push/push_notifier.dart';
 import 'features/events/events_controller.dart';
 import 'features/settings/brain_appearance_sync.dart';
 import 'features/settings/color_theme_controller.dart';
+import 'features/settings/push/direct_push_controller.dart';
 import 'features/settings/random_theme_controller.dart';
 import 'features/settings/theme_mode_controller.dart';
 import 'routing/app_router.dart';
@@ -91,6 +92,8 @@ class _JackdawAppState extends ConsumerState<JackdawApp>
     // Keep device event-alarms synced on login + every foreground resume —
     // an event added from the web or by the assistant still rings here.
     ref.watch(eventAlarmSyncProvider);
+    // Keep the Android direct connection on the login in use, when wanted.
+    ref.watch(directPushFollowProvider);
     // Follow the brain's colour theme (unless this phone picked its own).
     ref.watch(brainAppearanceSyncProvider);
     final router = ref.watch(goRouterProvider);

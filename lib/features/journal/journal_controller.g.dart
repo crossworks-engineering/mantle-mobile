@@ -60,7 +60,7 @@ final class JournalControllerProvider
   JournalController create() => JournalController();
 }
 
-String _$journalControllerHash() => r'fd65ee2bd0af3fa268199b1ca7c20523d5963aef';
+String _$journalControllerHash() => r'b877ff53b849734eab6c5714df971229a92b90da';
 
 /// Owns the journal: newest-first entries (first page) and quick capture.
 /// [capture] posts the body and slots the saved row in date order. (A spoken

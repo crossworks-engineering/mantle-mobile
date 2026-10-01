@@ -70,7 +70,11 @@ FileFiling fileFiling(Ref ref) => FileFiling(ref.watch(filesApiProvider));
 @riverpod
 class FilesController extends _$FilesController {
   @override
-  Future<FolderContents> build(String path) => _fetch();
+  Future<FolderContents> build(String path) {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(filesApiProvider);
+    return _fetch();
+  }
 
   Future<FolderContents> _fetch() async {
     final api = ref.read(filesApiProvider);

@@ -49,11 +49,20 @@ Dio dio(Ref ref) {
         // second time: a switch between the two reads would pair this
         // session's address check with another session's bearer.
         final active = await ref.read(sessionRepositoryProvider).active();
+        var bearer = false;
         if (active != null && active.baseUrl == baseUrl) {
           final token = await ref.read(tokenStoreProvider).readFor(active.id);
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
+            bearer = true;
           }
+        }
+        // A request that went out bare says nothing about the login in use:
+        // its 401 must not sign that login out. This is the moment of a
+        // switch to another brain, when screens refetch before the address
+        // has caught up with the new login.
+        if (!bearer) {
+          options.extra = {...options.extra, 'skipAuthHandler': true};
         }
         handler.next(options);
       },

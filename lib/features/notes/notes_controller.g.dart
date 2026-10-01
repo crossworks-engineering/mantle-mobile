@@ -87,7 +87,7 @@ final class NotesControllerProvider
   NotesController create() => NotesController();
 }
 
-String _$notesControllerHash() => r'7bff0703b8e4761bdf59eee4e3d249ed33d824a4';
+String _$notesControllerHash() => r'fc352ae605b9fae6bde2b543f2a9b6ac043a3c39';
 
 /// Owns the flat notes list shown for a brain older than the folder tree:
 /// first page on build, older pages via [loadMore],

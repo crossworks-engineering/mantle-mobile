@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/network/auth_failure.dart';
 import '../auth/token_store.dart';
 import 'push_notifier.dart';
 import 'push_text.dart';
+
+part 'direct_push_service.g.dart';
 
 // Keys shared with the foreground isolate via FlutterForegroundTask's data
 // store. That store is plain SharedPreferences, so ONLY the server address
@@ -32,8 +36,33 @@ const _serviceId = 4242;
 class DirectPush {
   const DirectPush();
 
+  /// The direct connection exists on Android only.
+  bool get supported => Platform.isAndroid;
+
   /// Whether the foreground service is currently running.
   Future<bool> isRunning() => FlutterForegroundTask.isRunningService;
+
+  /// Whether the service is running for exactly this login on this brain, so
+  /// a start that would only restart it can be skipped.
+  Future<bool> isRunningFor({
+    required String baseUrl,
+    required String sessionId,
+  }) async {
+    if (!await FlutterForegroundTask.isRunningService) return false;
+    final url = await FlutterForegroundTask.getData<String>(key: _kBaseUrl);
+    final id = await FlutterForegroundTask.getData<String>(key: _kSessionId);
+    return url == baseUrl && id == sessionId;
+  }
+
+  /// True when a build from before several logins started the service: it
+  /// left the address in the service's store but no login id, and the
+  /// service stops itself at its next start for want of one. [stop] clears
+  /// the store, so an address without an id means the person had it on.
+  Future<bool> startedByOlderBuild() async {
+    final url = await FlutterForegroundTask.getData<String>(key: _kBaseUrl);
+    final id = await FlutterForegroundTask.getData<String>(key: _kSessionId);
+    return (url != null && url.isNotEmpty) && (id == null || id.isEmpty);
+  }
 
   /// Request the runtime bits the foreground service needs (notifications +
   /// battery-optimization exemption). Best-effort.
@@ -92,6 +121,11 @@ class DirectPush {
     await FlutterForegroundTask.clearAllData();
   }
 }
+
+/// The direct-connection transport. A provider so tests can replace the
+/// platform plugin with a fake.
+@Riverpod(keepAlive: true)
+DirectPush directPush(Ref ref) => const DirectPush();
 
 /// Foreground-isolate entry point. Top-level + AOT-entry annotated.
 @pragma('vm:entry-point')

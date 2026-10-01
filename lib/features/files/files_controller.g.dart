@@ -104,7 +104,7 @@ final class FilesControllerProvider
   }
 }
 
-String _$filesControllerHash() => r'0e385bf03780b859e918557b1b29d0ea93043fc5';
+String _$filesControllerHash() => r'ba66e1c42d1c8d6cb46f9fc6458db2c12273c733';
 
 /// Owns one folder's listing for a brain older than the folder tree (a
 /// family by ltree path: each drilled folder

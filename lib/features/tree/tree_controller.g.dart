@@ -143,7 +143,7 @@ final class TreeFolderControllerProvider
 }
 
 String _$treeFolderControllerHash() =>
-    r'e5079ac4d01ea3f9f9dc3405c682c7b2ac650273';
+    r'5bcbc4f733d71954c9e027f8ce70efa90492389c';
 
 /// One folder of one kind's tree: a family by kind and folder id (null is the
 /// root), so each level a person drills into keeps its own rows and going

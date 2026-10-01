@@ -42,7 +42,7 @@ final class PushControllerProvider
   PushController create() => PushController();
 }
 
-String _$pushControllerHash() => r'4148f5d621cd6b68c5dead25791053f9bafd0e7e';
+String _$pushControllerHash() => r'6275d2f25ded1ce2bf3000f339983933d2898c1e';
 
 /// Drives push notifications setup. `build()` reflects current state (is THIS
 /// device connected + the owner's device list); [connect]/[disconnect] run the

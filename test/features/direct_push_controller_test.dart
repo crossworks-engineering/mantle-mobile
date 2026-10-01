@@ -1,5 +1,8 @@
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jackdaw/data/db/app_database.dart';
+import 'package:jackdaw/data/db/database_provider.dart';
 import 'package:jackdaw/features/settings/push/direct_push_controller.dart';
 
 void main() {
@@ -13,7 +16,12 @@ void main() {
     'disable() does not throw when the provider auto-disposes mid-async '
     '(regression: iOS "Connect" hung forever — "Cannot use Ref after disposed")',
     () async {
-      final container = ProviderContainer();
+      // disable() records the choice in the database.
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
       addTearDown(container.dispose);
 
       // Hold the provider alive only long enough to grab the notifier — this

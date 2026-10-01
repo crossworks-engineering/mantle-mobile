@@ -123,7 +123,11 @@ NoteFiling noteFiling(Ref ref) =>
 @riverpod
 class NotesController extends _$NotesController {
   @override
-  Future<NotesState> build() => _fetch(tag: null);
+  Future<NotesState> build() {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(notesApiProvider);
+    return _fetch(tag: null);
+  }
 
   Future<NotesState> _fetch({String? tag}) async {
     final page = await ref.read(notesApiProvider).list(tag: tag);

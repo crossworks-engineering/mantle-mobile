@@ -43,7 +43,7 @@ final class PushPrefsControllerProvider
 }
 
 String _$pushPrefsControllerHash() =>
-    r'cec90d12cf1c8ac14f297d1e40bb03e116e828f1';
+    r'db89f7fb03f729f35a0e3b6fecb2d69491e21506';
 
 /// Loads + updates push preferences (per-trigger toggles). Updates are optimistic
 /// (state reflects the change immediately, then reconciles with the server's

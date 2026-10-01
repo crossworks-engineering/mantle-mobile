@@ -11,7 +11,11 @@ part 'dashboard_controller.g.dart';
 @riverpod
 class DashboardController extends _$DashboardController {
   @override
-  Future<DashboardData> build() => _load();
+  Future<DashboardData> build() {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(dashboardApiProvider);
+    return _load();
+  }
 
   Future<DashboardData> _load() async {
     final api = ref.read(dashboardApiProvider);

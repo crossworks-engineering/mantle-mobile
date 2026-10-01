@@ -14,7 +14,8 @@ part 'reminder_channel_controller.g.dart';
 class ReminderChannelController extends _$ReminderChannelController {
   @override
   Future<String> build() async {
-    return ref.read(profileApiProvider).getReminderChannel();
+    // Rebuilt with the client: another login, or another brain.
+    return ref.watch(profileApiProvider).getReminderChannel();
   }
 
   /// Pin reminders to [channel] ('telegram' | 'mobile').

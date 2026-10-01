@@ -11,7 +11,8 @@ part 'push_prefs_controller.g.dart';
 class PushPrefsController extends _$PushPrefsController {
   @override
   Future<PushPreferences> build() async {
-    return ref.read(pushApiProvider).getPreferences();
+    // Rebuilt with the client: another login, or another brain.
+    return ref.watch(pushApiProvider).getPreferences();
   }
 
   /// Apply a partial preference patch (optimistic, then reconcile).

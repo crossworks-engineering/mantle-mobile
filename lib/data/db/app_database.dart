@@ -98,6 +98,11 @@ class AppDatabase extends _$AppDatabase {
   /// [AppSettings] key holding the active session's id.
   static const activeSessionKey = 'active_session_id';
 
+  /// [AppSettings] key: '1' while the person wants the Android direct
+  /// connection on. A device setting, not a login's: it survives a switch,
+  /// so the service follows whichever login is in use.
+  static const directPushWantedKey = 'direct_push_wanted';
+
   /// [AppSettings] key holding the login to go back to while another is
   /// being added (nobody is active then). Empty when there is none.
   static const resumeSessionKey = 'resume_session_id';

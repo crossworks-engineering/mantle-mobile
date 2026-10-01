@@ -17,6 +17,8 @@ part 'conversations_controller.g.dart';
 class ConversationsController extends _$ConversationsController {
   @override
   Future<List<AgentConversation>> build() {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(conversationsApiProvider);
     ref.listen(conversationEventsProvider, (_, next) {
       if (next is AsyncData<ConversationEvent>) _reloadSilently();
     });

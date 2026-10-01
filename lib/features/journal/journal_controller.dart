@@ -18,6 +18,8 @@ part 'journal_controller.g.dart';
 class JournalController extends _$JournalController {
   @override
   Future<List<JournalRow>> build() async {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(journalApiProvider);
     return newestFirst((await ref.read(journalApiProvider).list()).journals);
   }
 

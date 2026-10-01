@@ -90,7 +90,11 @@ class TreeFolderState {
 @Riverpod(retry: noTreeRetry)
 class TreeFolderController extends _$TreeFolderController {
   @override
-  Future<TreeFolderState> build(TreeKind kind, String? folderId) => _fetch();
+  Future<TreeFolderState> build(TreeKind kind, String? folderId) {
+    // Rebuilt with the client: another login, or another brain.
+    ref.watch(treeApiProvider);
+    return _fetch();
+  }
 
   Future<TreeFolderState> _fetch() async {
     try {
