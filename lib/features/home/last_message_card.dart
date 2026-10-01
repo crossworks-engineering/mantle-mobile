@@ -5,7 +5,8 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../core/format/dates.dart';
 import '../../data/conversations/conversation_models.dart';
-import '../../data/push/push_text.dart' show plainFromMarkdown;
+import '../../data/push/push_text.dart'
+    show cutWithEllipsis, headForPlain, plainFromMarkdown;
 import '../agents/agent_avatar.dart';
 import '../chat/markdown/mantle_markdown.dart';
 import '../conversations/conversations_controller.dart';
@@ -109,7 +110,12 @@ class LastMessageCard extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                _Preview(text: latest.lastText!, fade: scheme.card),
+                // Only the head of a long reply is laid out: the box shows a
+                // few lines, and a whole reply can be very long.
+                _Preview(
+                  text: headForPlain(latest.lastText!),
+                  fade: scheme.card,
+                ),
               ],
             ),
           ),
@@ -123,7 +129,7 @@ class LastMessageCard extends ConsumerWidget {
 String _spoken(String markdown) {
   final words =
       plainFromMarkdown(markdown).replaceAll(RegExp(r'\s+'), ' ').trim();
-  return words.length > 240 ? '${words.substring(0, 239)}…' : words;
+  return cutWithEllipsis(words, 240);
 }
 
 /// The message itself, cut to a few lines. Markdown has no `maxLines`, so the

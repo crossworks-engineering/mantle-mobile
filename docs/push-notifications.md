@@ -356,7 +356,15 @@ See [the plan](page:…)` to the lock screen). So the app reduces title and body
 to plain words before showing them, whatever the brain sent: emphasis and
 heading marks go, a link is its text, an image its alt text, a reference chip
 its label, a table its cells, a code fence its code. Then whitespace collapses,
-a blank field takes its fallback, and the body is cut to 140.
+a blank field takes its fallback, and the body is cut to 140 graphemes (what a
+person sees as one character, so an emoji is never cut in half).
+
+Only the first 2000 Unicode scalars of a message are read. Some strip rules
+are quadratic on input they cannot match (a run of unmatched `[`), and a brain
+sends whatever its reply holds. The home screen's last-message card cuts the
+same way before it renders. A "word character" in the rules is a letter, mark
+or digit in any script, spelled out in both twins, because Dart's `\w` is
+ASCII and Swift's (ICU) is not.
 
 It has to hold for two shapes of input: the whole reply with its lines (the
 direct connection reads it from the inbox) and a teaser the brain already
@@ -369,7 +377,8 @@ be left unclosed.
 - iOS: the Notification Service Extension draws the notification and no Dart
   runs, so `PushText` in `ios/NotificationService/NotificationService.swift`
   is the same rules in Swift. `tool/check_push_text_swift.sh` runs it against
-  the cases in `test/data/push_text_test.dart`; change both together.
+  the cases in `test/data/push_text_test.dart`; change both together. CI runs
+  it in the iOS job.
 
 ### 9.3 Android, the no-Google path — **built-in direct connection** (decided)
 

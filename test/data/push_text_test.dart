@@ -1,3 +1,4 @@
+import 'package:characters/characters.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/push/push_text.dart';
 
@@ -41,6 +42,44 @@ void main() {
     test('keeps a body exactly at the limit', () {
       final exact = List.filled(140, 'y').join();
       expect(pushNotificationText({'b': exact}).body, exact);
+    });
+
+    test('the cut counts graphemes, so an emoji is never cut in half', () {
+      // An emoji with a skin tone is one grapheme, two scalars, four UTF-16
+      // units. A cut on UTF-16 units left half of one before the ellipsis.
+      const thumb = '\u{1F44D}\u{1F3FD}';
+      final mixed = '${List.filled(138, 'x').join()}$thumb$thumb$thumb';
+      expect(
+        pushNotificationText({'b': mixed}).body,
+        '${List.filled(138, 'x').join()}$thumb…',
+      );
+      final emoji = pushNotificationText({'b': List.filled(200, thumb).join()});
+      expect(emoji.body.characters.length, 140);
+      expect(emoji.body, '${List.filled(139, thumb).join()}…');
+    });
+  });
+
+  group('headForPlain', () {
+    test('a text within the limit is untouched', () {
+      final s = List.filled(plainInputLimit, 'a').join();
+      expect(headForPlain(s), same(s));
+    });
+
+    test('a long text keeps its first scalars, a surrogate pair whole', () {
+      final s = '${List.filled(plainInputLimit - 1, 'a').join()}\u{1F389}tail';
+      expect(headForPlain(s), '${List.filled(plainInputLimit - 1, 'a').join()}\u{1F389}');
+    });
+
+    test('unmatched brackets are cut before the rules run, so it is quick', () {
+      // The link rules are quadratic on unmatched `[`: 50,000 of them took
+      // over a minute before the input was cut.
+      final hostile = List.filled(50000, '[').join();
+      final watch = Stopwatch()..start();
+      final out = plainFromMarkdown(hostile);
+      watch.stop();
+      expect(out.length, plainInputLimit);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+      expect(pushNotificationText({'b': hostile}).body.characters.length, 140);
     });
   });
 
@@ -133,6 +172,20 @@ void main() {
 
     test('an escaped mark is the mark', () {
       expect(plain(r'2 \* 3 is not \*emphasis\*'), '2 * 3 is not *emphasis*');
+    });
+
+    test('text in other scripts, accents and emoji keep their words', () {
+      expect(
+        plain('**Größe** und _naïve_ café, 日本語 \u{1F389}'),
+        'Größe und naïve café, 日本語 \u{1F389}',
+      );
+    });
+
+    test('a letter in any script is a word character next to a mark', () {
+      // As in ASCII (`max_retry_count`), an underscore or star inside a word
+      // is not emphasis, whatever the script; Swift's \w is Unicode, Dart's
+      // is not, so both sides spell the class out.
+      expect(plain('_über_ and Zoë_x_ and ü*a* stay'), 'über and Zoë_x_ and ü*a* stay');
     });
 
     test('plain words pass through untouched', () {

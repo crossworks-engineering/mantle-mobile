@@ -67,6 +67,9 @@ dependencies:
   record: ^7.1.0
   mobile_scanner: ^7.4.2
   mime: ^2.0.0
+  # Grapheme-safe cuts (an emoji is never cut in half). Flutter already
+  # depends on it; listed because lib/ imports it directly.
+  characters: ^1.4.1
   just_audio: ^0.10.5
   sodium: ^4.0.2+1
   firebase_core: ^4.11.0

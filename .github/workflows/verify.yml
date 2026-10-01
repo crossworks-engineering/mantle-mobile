@@ -78,6 +78,12 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Swift notification text agrees with the Dart rules
+        # On iOS the Notification Service Extension draws the notification
+        # and no Dart runs, so its PushText must match lib/data/push/
+        # push_text.dart. This runs the Swift twin against the Dart cases.
+        run: tool/check_push_text_swift.sh
+
       - name: iOS release compiles
         run: flutter build ios --release --no-codesign
 

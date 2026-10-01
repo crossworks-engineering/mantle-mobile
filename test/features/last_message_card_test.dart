@@ -160,5 +160,24 @@ void main() {
 
       expect(find.text('Open to read the rest'), findsOneWidget);
     });
+
+    testWidgets('a huge message: only its head is stripped and rendered',
+        (tester) async {
+      // The strip rules are quadratic on unmatched brackets. The card cuts
+      // the reply to its head before it strips (for the screen reader) and
+      // before it renders, so a hostile reply cannot hang the home screen.
+      when(() => api.list()).thenAnswer(
+        (_) async => [
+          conv('saskia', text: 'Start ${List.filled(50000, '[').join()}'),
+        ],
+      );
+      final watch = Stopwatch()..start();
+      await pump(tester);
+      watch.stop();
+
+      expect(find.text('Saskia'), findsOneWidget);
+      expect(find.textContaining('Start', findRichText: true), findsWidgets);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 10)));
+    });
   });
 }

@@ -60,6 +60,9 @@ plain("Use `flutter build ap", "Use flutter build ap")
 plain("2 \\* 3 is not \\*emphasis\\*", "2 * 3 is not *emphasis*")
 plain("Lunch is at 12:30, table for 4 - see you there!",
       "Lunch is at 12:30, table for 4 - see you there!")
+plain("**Größe** und _naïve_ café, 日本語 \u{1F389}",
+      "Größe und naïve café, 日本語 \u{1F389}")
+plain("_über_ and Zoë_x_ and ü*a* stay", "über and Zoë_x_ and ü*a* stay")
 
 check("title", "Saskia", PushText.title("**Saskia**"))
 check("blank title", PushText.defaultTitle, PushText.title("  "))
@@ -72,6 +75,23 @@ let long = PushText.body("**" + String(repeating: "x", count: 200) + "**")
 check("cut length", "140", String(long.count))
 check("cut ends with an ellipsis", "true", String(long.hasSuffix("\u{2026}")))
 check("cut starts with the words", "true", String(long.hasPrefix("x")))
+
+// The cut counts graphemes: an emoji with a skin tone is never cut in half.
+let thumb = "\u{1F44D}\u{1F3FD}"
+let xs = String(repeating: "x", count: 138)
+check("cut before an emoji", xs + thumb + "\u{2026}", PushText.body(xs + thumb + thumb + thumb))
+check("cut in emoji",
+      String(repeating: thumb, count: 139) + "\u{2026}",
+      PushText.body(String(repeating: thumb, count: 200)))
+
+// The input is cut to its first 2000 scalars before the rules run, at the
+// same place as the Dart side, and a hostile run of brackets stays quick.
+let aaa = String(repeating: "a", count: 1999)
+check("head keeps a pair whole", aaa + "\u{1F389}", PushText.head(aaa + "\u{1F389}tail"))
+let started = Date()
+let hostile = PushText.clean(String(repeating: "[", count: 50000))
+check("hostile input is cut", "2000", String(hostile.unicodeScalars.count))
+check("hostile input is quick", "true", String(Date().timeIntervalSince(started) < 5))
 
 if failed > 0 {
   print("\(failed) case(s) failed")

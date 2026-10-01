@@ -68,12 +68,31 @@ enum PushText {
     return t.isEmpty ? defaultTitle : t
   }
 
+  /// The cut counts graphemes (`String.count`), as the Dart side does with
+  /// `characters`, so an emoji is never cut in half.
   static func body(_ raw: String?, max: Int = 140) -> String {
     let b = clean(raw)
     if b.isEmpty { return defaultBody }
     if b.count <= max { return b }
     return String(b.prefix(max - 1)) + "\u{2026}"
   }
+
+  /// How much of a message the rules below ever read, in Unicode scalars.
+  /// Some rules are quadratic on input they cannot match, so a long reply is
+  /// cut first. Scalars, as the Dart side (`runes`), so both cut alike.
+  static let inputLimit = 2000
+
+  static func head(_ s: String) -> String {
+    if s.unicodeScalars.count <= inputLimit { return s }
+    var out = String.UnicodeScalarView()
+    out.append(contentsOf: s.unicodeScalars.prefix(inputLimit))
+    return String(out)
+  }
+
+  /// A word character in any script: a letter, a combining mark, a decimal
+  /// digit or `_`. Spelled out, not `\w`, because ICU's `\w` and Dart's
+  /// differ (Dart's is ASCII); this class means the same in both.
+  private static let word = "\\p{L}\\p{M}\\p{Nd}_"
 
   /// Plain words on one line: markdown removed, whitespace collapsed.
   static func clean(_ raw: String?) -> String {
@@ -90,14 +109,14 @@ enum PushText {
   /// left unclosed.
   static func plain(_ input: String) -> String {
     // A backslash escape is the character it protects: park it out of reach.
-    var s = map(input, "\\\\([\\\\`*_{}\\[\\]()#+\\-.!|>~$=])") { groups in
+    var s = map(head(input), "\\\\([\\\\`*_{}\\[\\]()#+\\-.!|>~$=])") { groups in
       guard let c = groups[1].unicodeScalars.first,
             let p = Unicode.Scalar(parked + c.value) else { return groups[0] }
       return String(Character(p))
     }
 
     // Code fences, Mantle's container fences and the column separator.
-    s = sub(s, "```[\\w+-]*[ \\t]*\\n?", " ")
+    s = sub(s, "```[\(word)+-]*[ \\t]*\\n?", " ")
     s = sub(s, ":::[a-z]*(?:[ \\t]+chart-\\d+)?", " ")
     s = sub(s, "^\\s*\\+\\+\\+\\s*$", " ", lines: true)
 
@@ -134,10 +153,10 @@ enum PushText {
 
     // Emphasis and inline code: the words without the marks.
     s = sub(s, "\\*\\*(.+?)\\*\\*", "$1")
-    s = sub(s, "(?<!\\w)__(.+?)__(?!\\w)", "$1")
+    s = sub(s, "(?<![\(word)])__(.+?)__(?![\(word)])", "$1")
     s = sub(s, "~~(.+?)~~", "$1")
-    s = sub(s, "(?<![\\w*])\\*(?=\\S)([^*\\n]+?)(?<=\\S)\\*(?![\\w*])", "$1")
-    s = sub(s, "(?<!\\w)_(?=\\S)([^_\\n]+?)(?<=\\S)_(?!\\w)", "$1")
+    s = sub(s, "(?<![\(word)*])\\*(?=\\S)([^*\\n]+?)(?<=\\S)\\*(?![\(word)*])", "$1")
+    s = sub(s, "(?<![\(word)])_(?=\\S)([^_\\n]+?)(?<=\\S)_(?![\(word)])", "$1")
     // Marks the cut left without their pair.
     s = s.replacingOccurrences(of: "**", with: "")
       .replacingOccurrences(of: "~~", with: "")
