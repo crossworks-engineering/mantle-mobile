@@ -115,6 +115,7 @@ lib/
                      turn_stage_controller.dart, chat_composer.dart, …
     dashboard/       dashboard_controller.dart — summary + best-effort health
     home/            home_screen.dart          — landing dashboard (stats + actions)
+                     last_message_card.dart    - the newest message received, on top
     tree/            tree_controller.dart      - one folder (family by kind + folder),
                                                  search, Recent, the older-brain marker
                      tree_browser.dart         - the shared folder browser
@@ -423,6 +424,20 @@ messaging-style inbox:
 - `AgentController` (keepAlive) still serves the agent **list** (names/avatars for
   the thread header). Its `active`/`select`/`activeAgentSlug` are no longer used
   by the chat (the inbox selects); kept for now.
+
+### The last message, on Home
+
+`LastMessageCard` ([`features/home/last_message_card.dart`](../lib/features/home/last_message_card.dart))
+sits above the home tiles: the newest message the person RECEIVED across
+every agent (`latestReceived`: a thread whose last message is the agent's),
+with the agent's avatar and name, the text rendered by `MantleMarkdown` and
+cut to a few lines, when it arrived, and a "New" pill while it is unread.
+Tapping it opens the thread, which marks it read. It reads the inbox
+(`ConversationsController`), which refetches on foreground resume and on
+every conversation-stream ping, so a message that arrived while the app was
+away is there when Home opens, with no refresh. A chat push still deep-links
+to `/chat/<slug>`; the card is for every other way of arriving. With nothing
+received it takes no room.
 
 ### Rendering assistant replies
 

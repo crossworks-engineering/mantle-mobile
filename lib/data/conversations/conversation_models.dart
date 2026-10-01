@@ -49,3 +49,20 @@ class AgentConversation {
     unreadCount: unreadCount ?? this.unreadCount,
   );
 }
+
+/// The newest message the person RECEIVED, across every agent's thread: the
+/// conversation whose last message came from the agent (`outbound`), latest
+/// first. Null when there is none, including when every thread ends on the
+/// person's own words (a reply is still on its way; there is nothing new to
+/// read yet).
+AgentConversation? latestReceived(List<AgentConversation> conversations) {
+  AgentConversation? newest;
+  for (final c in conversations) {
+    final at = c.lastAt;
+    final text = c.lastText;
+    if (at == null || text == null || text.trim().isEmpty) continue;
+    if (c.lastFromUser) continue;
+    if (newest == null || at.isAfter(newest.lastAt!)) newest = c;
+  }
+  return newest;
+}
