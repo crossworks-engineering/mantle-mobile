@@ -15,6 +15,10 @@ part of 'tree_controller.dart';
 /// Per brain and per login: it watches the tree client, which is rebuilt
 /// with the HTTP client whenever either changes, so a switch to a newer
 /// brain starts clean.
+///
+/// Not for ever: the brain may be updated while the app runs. When the app
+/// comes back to the front, a mark older than [reprobeAfter] is dropped, so
+/// the screen asks for the tree once more.
 
 @ProviderFor(TreeUnavailableKinds)
 final treeUnavailableKindsProvider = TreeUnavailableKindsProvider._();
@@ -26,6 +30,10 @@ final treeUnavailableKindsProvider = TreeUnavailableKindsProvider._();
 /// Per brain and per login: it watches the tree client, which is rebuilt
 /// with the HTTP client whenever either changes, so a switch to a newer
 /// brain starts clean.
+///
+/// Not for ever: the brain may be updated while the app runs. When the app
+/// comes back to the front, a mark older than [reprobeAfter] is dropped, so
+/// the screen asks for the tree once more.
 final class TreeUnavailableKindsProvider
     extends $NotifierProvider<TreeUnavailableKinds, Set<TreeKind>> {
   /// Kinds whose tree this brain does not serve (a 404 on the root: a brain
@@ -35,6 +43,10 @@ final class TreeUnavailableKindsProvider
   /// Per brain and per login: it watches the tree client, which is rebuilt
   /// with the HTTP client whenever either changes, so a switch to a newer
   /// brain starts clean.
+  ///
+  /// Not for ever: the brain may be updated while the app runs. When the app
+  /// comes back to the front, a mark older than [reprobeAfter] is dropped, so
+  /// the screen asks for the tree once more.
   TreeUnavailableKindsProvider._()
     : super(
         from: null,
@@ -63,7 +75,7 @@ final class TreeUnavailableKindsProvider
 }
 
 String _$treeUnavailableKindsHash() =>
-    r'757cd4f9cc049ac4281d977724713eabc61ed198';
+    r'1d6341dbc2365aae860046df7782cf83c731160a';
 
 /// Kinds whose tree this brain does not serve (a 404 on the root: a brain
 /// older than the tree). A screen that finds its kind here shows the list it
@@ -72,6 +84,10 @@ String _$treeUnavailableKindsHash() =>
 /// Per brain and per login: it watches the tree client, which is rebuilt
 /// with the HTTP client whenever either changes, so a switch to a newer
 /// brain starts clean.
+///
+/// Not for ever: the brain may be updated while the app runs. When the app
+/// comes back to the front, a mark older than [reprobeAfter] is dropped, so
+/// the screen asks for the tree once more.
 
 abstract class _$TreeUnavailableKinds extends $Notifier<Set<TreeKind>> {
   Set<TreeKind> build();
@@ -143,7 +159,7 @@ final class TreeFolderControllerProvider
 }
 
 String _$treeFolderControllerHash() =>
-    r'5bcbc4f733d71954c9e027f8ce70efa90492389c';
+    r'a5c6be62b627c85ec79db33f63988ae2cd26736a';
 
 /// One folder of one kind's tree: a family by kind and folder id (null is the
 /// root), so each level a person drills into keeps its own rows and going
@@ -261,7 +277,7 @@ final class TreeSearchControllerProvider
 }
 
 String _$treeSearchControllerHash() =>
-    r'2e0d2816e1c906352d5378127edfdb45e6d21118';
+    r'74768353794e8868b543c405a83d7cff70cfe17d';
 
 /// Search as you type within one kind, with the same stale-answer guard as
 /// the global search: only the latest request may write results.
