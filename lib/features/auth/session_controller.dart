@@ -36,6 +36,9 @@ enum AuthStatus { needsServer, loggedOut, loggedIn }
 @Riverpod(keepAlive: true)
 class SessionController extends _$SessionController {
   /// The login to go back to if adding another is cancelled or fails.
+  /// Kept in `app_settings` too ([AppDatabase.resumeSessionKey]), so a
+  /// person who adds a login and has the app killed on the sign-in screen
+  /// still has the way back after the restart.
   String? _resumeSessionId;
 
   @override
@@ -43,6 +46,7 @@ class SessionController extends _$SessionController {
     final sessions = ref.read(sessionRepositoryProvider);
     await sessions.hydrate();
     final activeId = await sessions.activeId();
+    await _loadResume(activeId);
     if (activeId != null) {
       // First launch after the update from the single-login build: its push
       // subscription belongs to the login it was signed in as, which the
@@ -68,6 +72,29 @@ class SessionController extends _$SessionController {
   /// True while a login is being added on top of ones already held: the
   /// sign-in screens then offer a way back.
   bool get isAddingLogin => _resumeSessionId != null;
+
+  /// Restore the way back after a restart: only while nobody is active, and
+  /// only to a login still held and still signed in.
+  Future<void> _loadResume(String? activeId) async {
+    final db = ref.read(appDatabaseProvider);
+    final stored = await db.getSetting(AppDatabase.resumeSessionKey);
+    String? resume;
+    if (activeId == null && stored != null && stored.isNotEmpty) {
+      final held = await ref.read(sessionRepositoryProvider).byId(stored);
+      if (held != null && !held.needsSignIn) resume = held.id;
+    }
+    _resumeSessionId = resume;
+    if (resume == null && stored != null && stored.isNotEmpty) {
+      await db.setSetting(AppDatabase.resumeSessionKey, '');
+    }
+  }
+
+  Future<void> _setResume(String? id) async {
+    _resumeSessionId = id;
+    await ref
+        .read(appDatabaseProvider)
+        .setSetting(AppDatabase.resumeSessionKey, id ?? '');
+  }
 
   /// Save the Mantle server URL; `build()` re-runs via its watch and moves us
   /// from `needsServer` to `loggedOut`.
@@ -97,7 +124,7 @@ class SessionController extends _$SessionController {
       rethrow;
     }
     await sessions.completeSignIn(begun.session.id, email: email);
-    _signedIn();
+    await _signedIn();
   }
 
   /// Sign in from a scanned [PairingPayload]: the QR names the brain, so the
@@ -127,11 +154,11 @@ class SessionController extends _$SessionController {
       rethrow;
     }
     await sessions.completeSignIn(begun.session.id, email: email);
-    _signedIn();
+    await _signedIn();
   }
 
-  void _signedIn() {
-    _resumeSessionId = null;
+  Future<void> _signedIn() async {
+    await _setResume(null);
     _refreshAccountState();
     state = const AsyncData(AuthStatus.loggedIn);
   }
@@ -146,7 +173,7 @@ class SessionController extends _$SessionController {
     final sessions = ref.read(sessionRepositoryProvider);
     final current = await sessions.activeId();
     if (current == null) return;
-    _resumeSessionId = current;
+    await _setResume(current);
     await ref.read(sessionWipeProvider).stopActiveServices();
     await sessions.stepOut();
     _refreshAccountState();
@@ -156,7 +183,7 @@ class SessionController extends _$SessionController {
   /// Back to the login that was in use before [startAddLogin].
   Future<void> cancelAddLogin() async {
     final resume = _resumeSessionId;
-    _resumeSessionId = null;
+    await _setResume(null);
     if (resume != null) await switchTo(resume);
   }
 
@@ -179,7 +206,7 @@ class SessionController extends _$SessionController {
       await signInAgain(sessionId);
       return false;
     }
-    _resumeSessionId = null;
+    await _setResume(null);
     _refreshAccountState();
     state = const AsyncData(AuthStatus.loggedIn);
     return true;
@@ -194,7 +221,7 @@ class SessionController extends _$SessionController {
     if (session == null) return;
     final current = await sessions.activeId();
     if (current != null && current != sessionId) {
-      _resumeSessionId = current;
+      await _setResume(current);
       await ref.read(sessionWipeProvider).stopActiveServices();
       await sessions.stepOut();
     }

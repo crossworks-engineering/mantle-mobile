@@ -230,6 +230,59 @@ void main() {
     expect(await sessions().activeId(), isNull);
     expect(c.read(pendingLoginEmailProvider), 'b@example.com');
   });
+
+  // M2: the way back to a held login survives the app being killed.
+  test('adding a login, then the app is killed: after the restart the way '
+      'back is still offered and works', () async {
+    await c.read(sessionControllerProvider.future);
+    final a = await signInFresh(_brain, 'a@example.com');
+    await controller().startAddLogin();
+
+    // A new process: a fresh container over the same storage.
+    final restarted = ProviderContainer(
+      overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        authRepositoryProvider.overrideWithValue(authRepo),
+        sessionWipeProvider.overrideWithValue(wipe),
+      ],
+    );
+    addTearDown(restarted.dispose);
+    expect(
+      await restarted.read(sessionControllerProvider.future),
+      AuthStatus.loggedOut,
+    );
+    final again = restarted.read(sessionControllerProvider.notifier);
+    expect(again.isAddingLogin, isTrue);
+
+    await again.cancelAddLogin();
+    expect(restarted.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+    expect(await restarted.read(sessionRepositoryProvider).activeId(), a);
+    expect(await db.getSetting(AppDatabase.resumeSessionKey), '');
+  });
+
+  test('after a refused bearer, another held login is a tap away, no '
+      'password', () async {
+    await c.read(sessionControllerProvider.future);
+    final a = await signInFresh(_brain, 'a@example.com');
+    await controller().startAddLogin();
+    await controller().signIn(email: 'b@example.com', password: 'pw');
+
+    await controller().sessionInvalidated();
+    final held = await c.read(heldSessionsProvider.future);
+    expect(held.map((h) => h.session.id), contains(a));
+
+    expect(await controller().switchTo(a), isTrue);
+    expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+    expect(await sessions().activeId(), a);
+  });
+
+  test('a stored way back to a login that is no longer held is dropped',
+      () async {
+    await db.setSetting(AppDatabase.resumeSessionKey, 'gone');
+    await c.read(sessionControllerProvider.future);
+    expect(controller().isAddingLogin, isFalse);
+    expect(await db.getSetting(AppDatabase.resumeSessionKey), '');
+  });
 }
 
 /// Records the Authorization header of each request and answers 200.

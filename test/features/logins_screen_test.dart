@@ -11,6 +11,7 @@ import 'package:jackdaw/data/auth/session_repository.dart';
 import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
+import 'package:jackdaw/features/auth/login_screen.dart';
 import 'package:jackdaw/features/auth/logins_screen.dart';
 
 import '../helpers/pump_screen.dart';
@@ -134,5 +135,40 @@ void main() {
 
     expect(find.text('Add login'), findsOneWidget);
     expect(find.textContaining('stays signed in'), findsOneWidget);
+  });
+
+  // M2: signed out of the login in use (a refused bearer, or the app closed
+  // while adding one), the logins still held are on the sign-in screen.
+  testWidgets('the sign-in screen lists the held logins; a tap switches, no '
+      'password', (tester) async {
+    await seed('a', 'https://m.example.com', 'a@example.com',
+        needsSignIn: true);
+    await seed('b', 'https://work.example.com', 'b@example.com',
+        usedMinutesAgo: 5);
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    final container = ProviderContainer(
+      overrides: [appDatabaseProvider.overrideWithValue(db)],
+    );
+    await pumpScreen(tester, const LoginScreen(), container: container);
+
+    expect(find.text('Logins on this phone'), findsOneWidget);
+    expect(find.text('Signed out. Tap to sign in again.'), findsOneWidget);
+    await tester.tap(find.text('b@example.com'));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 300)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(await container.read(sessionRepositoryProvider).activeId(), 'b');
+  });
+
+  testWidgets('with no logins held, the sign-in screen shows no list',
+      (tester) async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    final container = ProviderContainer(
+      overrides: [appDatabaseProvider.overrideWithValue(db)],
+    );
+    await pumpScreen(tester, const LoginScreen(), container: container);
+    expect(find.text('Logins on this phone'), findsNothing);
   });
 }

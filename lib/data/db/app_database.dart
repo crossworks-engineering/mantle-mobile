@@ -98,6 +98,10 @@ class AppDatabase extends _$AppDatabase {
   /// [AppSettings] key holding the active session's id.
   static const activeSessionKey = 'active_session_id';
 
+  /// [AppSettings] key holding the login to go back to while another is
+  /// being added (nobody is active then). Empty when there is none.
+  static const resumeSessionKey = 'resume_session_id';
+
   /// The single-login build's settings, read once by the v3 migration.
   static const legacyServerKey = 'server_base_url';
   static const legacyEmailKey = 'account_email';

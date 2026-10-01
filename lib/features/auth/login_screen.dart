@@ -9,6 +9,7 @@ import '../../widgets/secret_input.dart';
 
 import '../../data/auth/auth_api.dart';
 import '../../data/server/server_config.dart';
+import 'logins_screen.dart' show HeldLoginsList;
 import 'scan_sign_in_screen.dart';
 import 'session_controller.dart';
 
@@ -80,6 +81,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.watch(sessionControllerProvider);
     final adding =
         ref.read(sessionControllerProvider.notifier).isAddingLogin;
+    // Logins this phone still holds. Nobody is in use here, so each is a
+    // tap away: after a brain refused the login in use, or after the app was
+    // closed while a login was being added, the others must not need a
+    // password to get back to.
+    final held = ref.watch(heldSessionsProvider).value ?? const [];
 
     return Container(
       color: theme.colorScheme.background,
@@ -184,6 +190,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         child: const Text('Back to the login I was using'),
                       ),
                     ),
+                  if (held.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    Text('Logins on this phone', style: theme.textTheme.h4),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Tap one to use it without signing in again.',
+                      style: theme.textTheme.muted,
+                    ),
+                    const SizedBox(height: 12),
+                    HeldLoginsList(held: held),
+                  ],
                 ],
               ),
             ),
