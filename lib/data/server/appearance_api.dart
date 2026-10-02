@@ -9,16 +9,24 @@ part 'appearance_api.g.dart';
 /// `GET /api/appearance`: the route is unauthenticated on purpose (the web
 /// client reads it before it has a session, to paint the right theme on first
 /// load) and carries branding only, never a preference that is anyone's
-/// secret. The phone reads the one field it can act on today.
+/// secret. The phone reads the colour theme, and the site name the Logins
+/// screen calls the brain by.
 class BrainAppearance {
-  const BrainAppearance({required this.colorTheme});
+  const BrainAppearance({required this.colorTheme, this.siteName});
 
   /// The brain's system-wide colour theme id, or null when the owner has not
   /// chosen one (the web then shows its default).
   final String? colorTheme;
 
+  /// What the brain calls itself, or null when it has not been named (or is
+  /// older than the route's identity fields).
+  final String? siteName;
+
   factory BrainAppearance.fromJson(Map<String, dynamic> json) =>
-      BrainAppearance(colorTheme: json['colorTheme'] as String?);
+      BrainAppearance(
+        colorTheme: json['colorTheme'] as String?,
+        siteName: json['siteName'] as String?,
+      );
 }
 
 class AppearanceApi {

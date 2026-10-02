@@ -2,13 +2,19 @@
 // and a real in-memory settings repository, so "what the phone paints" is
 // asserted end to end — sync stores, controller resolves, override wins.
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/core/lifecycle/app_lifecycle.dart';
+import 'package:jackdaw/data/auth/session_repository.dart';
+import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
+import 'package:jackdaw/data/db/database_provider.dart';
 import 'package:jackdaw/data/server/appearance_api.dart';
+import 'package:jackdaw/data/server/server_config.dart';
 import 'package:jackdaw/features/auth/session_controller.dart';
 import 'package:jackdaw/features/settings/brain_appearance_sync.dart';
 import 'package:jackdaw/features/settings/color_theme_controller.dart';
@@ -24,20 +30,32 @@ class _LoggedIn extends SessionController {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   late AppDatabase db;
   late SettingsRepository repo;
   late MockAppearanceApi api;
+  late TokenStore tokens;
+  late SessionRepository sessions;
 
   setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
     db = AppDatabase.forTesting(NativeDatabase.memory());
     repo = SettingsRepository(db);
     api = MockAppearanceApi();
+    tokens = TokenStore(
+      const FlutterSecureStorage(),
+      () => db.getSetting(AppDatabase.activeSessionKey),
+    );
+    sessions = SessionRepository(db, tokens);
   });
   tearDown(() => db.close());
 
   ProviderContainer make() {
     final container = ProviderContainer(
       overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        sessionRepositoryProvider.overrideWithValue(sessions),
         settingsRepositoryProvider.overrideWithValue(repo),
         appearanceApiProvider.overrideWithValue(api),
         sessionControllerProvider.overrideWith(_LoggedIn.new),
@@ -121,6 +139,81 @@ void main() {
     expect(changed, isFalse);
     expect(await repo.brainColorTheme(), 'claude');
     expect(container.read(colorThemeControllerProvider).value, 'claude');
+  });
+
+  /// A login held and in use on [baseUrl], the way the controller leaves it.
+  Future<String> signedIn(String baseUrl, String email) async {
+    final begun = await sessions.beginSignIn(baseUrl: baseUrl, email: email);
+    await tokens.write('tok-$email');
+    await sessions.completeSignIn(begun.session.id, email: email);
+    return begun.session.id;
+  }
+
+  group('the brain names itself', () {
+    const brain = 'https://m.example.com';
+    const other = 'https://other.example.com';
+
+    test('the site name is stored on the login in use, and only there',
+        () async {
+      final idle = await signedIn(brain, 'idle@example.com');
+      final active = await signedIn(brain, 'active@example.com');
+      when(() => api.get()).thenAnswer(
+        (_) async =>
+            const BrainAppearance(colorTheme: null, siteName: ' Home brain '),
+      );
+      final container = make();
+      await container.read(brainAppearanceSyncProvider.notifier).syncOnce();
+
+      expect((await sessions.byId(active))?.siteName, 'Home brain');
+      expect((await sessions.byId(idle))?.siteName, isNull);
+      final held = await container.read(heldSessionsProvider.future);
+      expect(held.first.session.siteName, 'Home brain');
+    });
+
+    test('a brain that drops its name drops it from the list', () async {
+      final id = await signedIn(brain, 'a@example.com');
+      await sessions.recordIdentity(id, siteName: const Value('Old name'));
+      when(() => api.get()).thenAnswer(
+        (_) async => const BrainAppearance(colorTheme: null, siteName: ''),
+      );
+      final container = make();
+      await container.read(brainAppearanceSyncProvider.notifier).syncOnce();
+
+      expect((await sessions.byId(id))?.siteName, isNull);
+    });
+
+    test('an answer that lands after a switch is not credited to the new login',
+        () async {
+      final first = await signedIn(brain, 'a@example.com');
+      final second = await signedIn(other, 'b@example.com');
+      await sessions.activate(first);
+      final container = make();
+      when(() => api.get()).thenAnswer((_) async {
+        // The person switches while the request is out.
+        await sessions.activate(second);
+        return const BrainAppearance(colorTheme: null, siteName: 'First brain');
+      });
+      await container.read(brainAppearanceSyncProvider.notifier).syncOnce();
+
+      expect((await sessions.byId(first))?.siteName, isNull);
+      expect((await sessions.byId(second))?.siteName, isNull);
+    });
+
+    test('nothing is recorded while the client points at another brain',
+        () async {
+      final id = await signedIn(brain, 'a@example.com');
+      final container = make();
+      await container.read(serverConfigProvider.future);
+      // The address the client is built from lags the login in use.
+      await container.read(serverConfigProvider.notifier).setUrl(other);
+      when(() => api.get()).thenAnswer(
+        (_) async =>
+            const BrainAppearance(colorTheme: null, siteName: 'Other brain'),
+      );
+      await container.read(brainAppearanceSyncProvider.notifier).syncOnce();
+
+      expect((await sessions.byId(id))?.siteName, isNull);
+    });
   });
 
   test('nothing is fetched while backgrounded', () async {

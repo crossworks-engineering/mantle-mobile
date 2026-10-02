@@ -14,6 +14,9 @@ part of 'brain_appearance_sync.dart';
 /// the phone the next time it comes to the front — unless the phone has a
 /// pick of its own, which wins (see [SettingsRepository.colorTheme]).
 ///
+/// The same answer names the brain (`siteName`), which is stored on the login
+/// in use so the Logins screen can call each brain by its name, not its host.
+///
 /// keepAlive + watched once from the app root, like the alarm sync — nothing
 /// reads its (void) value. Failures are silent: offline or a pre-appearance
 /// server leaves whatever was last stored.
@@ -27,6 +30,9 @@ final brainAppearanceSyncProvider = BrainAppearanceSyncProvider._();
 /// the phone the next time it comes to the front — unless the phone has a
 /// pick of its own, which wins (see [SettingsRepository.colorTheme]).
 ///
+/// The same answer names the brain (`siteName`), which is stored on the login
+/// in use so the Logins screen can call each brain by its name, not its host.
+///
 /// keepAlive + watched once from the app root, like the alarm sync — nothing
 /// reads its (void) value. Failures are silent: offline or a pre-appearance
 /// server leaves whatever was last stored.
@@ -37,6 +43,9 @@ final class BrainAppearanceSyncProvider
   /// stores `colorTheme`. A theme the owner sets on the web therefore shows on
   /// the phone the next time it comes to the front — unless the phone has a
   /// pick of its own, which wins (see [SettingsRepository.colorTheme]).
+  ///
+  /// The same answer names the brain (`siteName`), which is stored on the login
+  /// in use so the Logins screen can call each brain by its name, not its host.
   ///
   /// keepAlive + watched once from the app root, like the alarm sync — nothing
   /// reads its (void) value. Failures are silent: offline or a pre-appearance
@@ -69,13 +78,16 @@ final class BrainAppearanceSyncProvider
 }
 
 String _$brainAppearanceSyncHash() =>
-    r'eee5bcca82bb2acdaf0d13581b558510e0ac6c46';
+    r'f9739cbdd3fc795d1cd25adb21488ac77c8de7f3';
 
 /// Keeps the phone's idea of the brain's colour theme fresh: on sign-in and
 /// on every foreground resume it reads the public `GET /api/appearance` and
 /// stores `colorTheme`. A theme the owner sets on the web therefore shows on
 /// the phone the next time it comes to the front — unless the phone has a
 /// pick of its own, which wins (see [SettingsRepository.colorTheme]).
+///
+/// The same answer names the brain (`siteName`), which is stored on the login
+/// in use so the Logins screen can call each brain by its name, not its host.
 ///
 /// keepAlive + watched once from the app root, like the alarm sync — nothing
 /// reads its (void) value. Failures are silent: offline or a pre-appearance

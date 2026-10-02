@@ -158,19 +158,18 @@ class SessionRepository {
     return true;
   }
 
-  /// What `/api/shell`-style identity the app has learned about the active
-  /// login, for the list to show.
+  /// What the app has learned about who and where a login is, for the list
+  /// to show. Only the fields passed are written: learning the site name says
+  /// nothing about the display name, and must not wipe it. Pass `Value(null)`
+  /// to clear one.
   Future<void> recordIdentity(
     String sessionId, {
-    String? displayName,
-    String? siteName,
+    Value<String?> displayName = const Value.absent(),
+    Value<String?> siteName = const Value.absent(),
   }) {
     return (_db.update(_db.sessions)..where((s) => s.id.equals(sessionId)))
         .write(
-      SessionsCompanion(
-        displayName: Value(displayName),
-        siteName: Value(siteName),
-      ),
+      SessionsCompanion(displayName: displayName, siteName: siteName),
     );
   }
 

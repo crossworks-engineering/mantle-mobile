@@ -237,6 +237,21 @@ void main() {
       expect(await sessions.activeId(), b);
     });
 
+    test('recording one identity field leaves the other as it was', () async {
+      final id = await signIn(_brain, 'a@example.com', 'tok-a');
+      await sessions.recordIdentity(id, displayName: const Value('Bee'));
+      await sessions.recordIdentity(id, siteName: const Value('Home brain'));
+
+      var row = await sessions.byId(id);
+      expect(row?.displayName, 'Bee');
+      expect(row?.siteName, 'Home brain');
+
+      await sessions.recordIdentity(id, siteName: const Value(null));
+      row = await sessions.byId(id);
+      expect(row?.displayName, 'Bee');
+      expect(row?.siteName, isNull);
+    });
+
     test('hydrate points the cache at the active login after a restart',
         () async {
       final id = await signIn(_brain, 'a@example.com', 'tok-a');
