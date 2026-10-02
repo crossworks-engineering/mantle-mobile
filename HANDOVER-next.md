@@ -88,6 +88,24 @@ The member and client route shapes are in `docs/phase2-brain-routes.md`
 ProseMirror documents and cannot export markdown, so the Library needs either
 a brain route or a renderer on the phone. Ask the brain session first.
 
+Two requests from the session "Mantle multi-login system status" (2026-10-02,
+it says with the owner's approval; NOT done, this session had stopped):
+
+- **Take commit `b03763b`** from branch `feat/multi-login-rebased` (do not
+  land that branch; the copy on `feat/folder-tree` supersedes it). It makes
+  `recordIdentity` get called: the appearance sync stores `siteName` on the
+  login in use, guarded against a late answer after a switch. Cherry-pick
+  it, run build_runner (a generated hash is stale), analyze and test, then
+  tell that session the result. It was not built or tested on this branch.
+  The display name stays empty until Phase 2 calls `whoami`.
+- **A push tap must open the right brain AND the right login** on a phone
+  holding several. The brain is adding a brain identifier and the `loginId`
+  to push payloads, and the same identifier to `whoami`; the field names
+  will land in mantle `docs/mobile-companion-backend.md` and that session
+  will send them. Build tap routing (payload, session, switch if needed,
+  deep link) into the Phase 2 push work, not as a separate path, and do not
+  invent field names ahead of the contract.
+
 The session table needs a `role` (Drift v4), set from the sign-in answer and
 re-read from `whoami`; navigation and the home screen follow it, and a
 member or client build path must never construct an admin screen.
