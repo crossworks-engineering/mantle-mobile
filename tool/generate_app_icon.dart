@@ -24,7 +24,7 @@ import 'dart:math';
 import 'package:image/image.dart' as img;
 
 /// Jackdaw brand brown (#2D1500) — sampled from the ring of the light-background
-/// badge, and the darkest swatch in brand/redesign/jackdaw-redesign.afpalette.
+/// badge, and the darkest swatch in brand/jackdaw-redesign.afpalette (jackdaw repo).
 const _bgR = 0x2D, _bgG = 0x15, _bgB = 0x00;
 
 /// Badge coverage (fraction of the canvas the badge's longest side fills).

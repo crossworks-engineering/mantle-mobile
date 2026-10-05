@@ -3,7 +3,7 @@
 ## Jackdaw marks (`jackdaw-*`) — this app's brand
 
 The app's own marks, as of the 2026-08-21 rename. These are copies — the source
-of truth is [`brand/redesign/` in the jackdaw repo](https://github.com/crossworks-engineering/jackdaw/tree/main/brand/redesign).
+of truth is [`brand/` in the jackdaw repo](https://github.com/crossworks-engineering/jackdaw/tree/main/brand).
 If the mark changes, it changes there first and gets copied here.
 
 `dark` / `light` name the **background the mark is drawn for**, not the mark's
