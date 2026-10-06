@@ -25,6 +25,11 @@ pale one.
 | Brand brown | `#2D1500` | the ring of the light-background badge; the darkest swatch in the Affinity palette |
 | Brand cream | `#FDE7BC` | the ring and wordmark of the dark-background variants (the wordmark is 100% this one colour) |
 
+Cream, brown and amber `#EB9F13` are the colour base Jackdaw shares with
+Mantle; Jackdaw's own lead is sunset orange `#E46E08`. The full table is in
+the jackdaw repo's `brand/README.md`. The in-app themes come from mantle via
+`tool/sync_themes.sh`; never edit `lib/theme/mantle_themes.g.dart` by hand.
+
 ### ⚠️ The badge's cream field is semi-transparent
 
 Only about **32% opaque**. The artwork was drawn against a light page, so
