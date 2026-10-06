@@ -1,5 +1,5 @@
 {
-  "versionString": "1.12.1",
+  "versionString": "1.13.0",
   "primaryCategory": "PRODUCTIVITY",
   "name": "Jackdaw Mantle",
   "subtitle": "Mantle brain in your pocket",
@@ -10,5 +10,5 @@
   "supportUrl": "https://jackdaw.run",
   "marketingUrl": "https://mantle-ai.tech",
   "copyright": "2026 Cross Works Engineering",
-  "whatsNew": "The Connect screen now explains what Mantle is and offers the public demo server. Chat: stop and resend a reply."
+  "whatsNew": "Keep several logins on one phone, on one server or many, and switch between them fast. Pages, Notes and Files now show your server's folders. Open any file in its own viewer or share it to another app. The newest message now sits at the top of the home screen. Notifications show plain text. Fixes for SVG images and for refused camera or microphone access."
 }
