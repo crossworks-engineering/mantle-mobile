@@ -22,6 +22,59 @@ A cross-platform (iOS + Android) Flutter companion for the self-hosted **Mantle*
 assistant. Connects to a user's own Mantle server over an authenticated REST API
 (per-device bearer token). Open source, MIT.
 
+## Store release steps (current)
+
+The two store helpers are `tool/asc.py` (App Store Connect) and
+`tool/play.py` (Google Play). Both read their keys from outside the repo
+(`~/.appstoreconnect/private_keys/`, `~/.googleplay/service-account.json`)
+and never print them. Every command takes `--dry-run`: the reads run, each
+write is printed, and nothing is sent. Run a step with `--dry-run` first,
+read the output, then run it again without the flag. `--help` on any
+command tells what it does.
+
+1. **Check main.** `fvm flutter analyze`, `fvm flutter test`, and check that
+   the brain routes the app calls exist on the fleet's mantle version.
+2. **Bump the version** in `pubspec.yaml` (`1.14.0+26`: the build number
+   must be higher than the newest build on both stores). Set
+   `versionString` and `whatsNew` in `store/appstore/listing.json`. Make
+   the release commit on main (`release: 1.14.0+26`).
+3. **Build and upload.** iOS: archive and upload to App Store Connect, then
+   wait until `tool/asc.py builds` shows the build as `VALID`. Android:
+   `fvm flutter build appbundle`, then
+   `tool/play.py upload build/app/outputs/bundle/release/app-release.aab --notes "..."`
+   (internal track).
+4. **Make the App Store version** (a live app needs a new one per release):
+   `tool/asc.py version new --build 26`. It takes the version from
+   `pubspec.yaml`. It refuses while an older version is not yet live.
+   Apple copies the listing text from the live version.
+5. **Set the listing:** `tool/asc.py listing set store/appstore/listing.json`.
+   It writes the version fields (whatsNew, description, keywords, URLs).
+   App-info fields (name, subtitle, privacy URL, category) go only when
+   they change and Apple has them open; when they are locked, the tool
+   skips them with a note. `--version-only` skips them always. If
+   needed: `tool/asc.py screenshots store/appstore/iphone-69`,
+   `tool/asc.py review set store/appstore/review.json`.
+6. **STOP. Get the owner's go** before any public review or production track.
+7. **Submit.** Apple: `tool/asc.py submit`. TestFlight external testers:
+   update `whatsNew` in `store/appstore/beta.json`, then
+   `tool/asc.py testflight public store/appstore/beta.json 26` (it adds
+   the build to the group and sends it to Beta App Review). Google:
+   `tool/play.py promote --from internal --to alpha` (closed test), and,
+   when Google gives production access,
+   `tool/play.py promote --from alpha --to production --rollout 0.1`.
+8. **Grow the Play rollout** after some days with no new crashes:
+   `tool/play.py rollout --fraction 0.5`, then `tool/play.py rollout --complete`.
+   `--halt` stops a bad rollout; `--resume` starts it again.
+
+Known store rules:
+- Apple allows one open App Store version. The next one can be made only
+  after the current one is live (or rejected and removed).
+- Google Play production on a personal developer account needs 12
+  opted-in testers on the closed test for 14 days first. Before that,
+  production PUTs fail with `FAILED_PRECONDITION`.
+- If managed publishing is on in the Play Console, a committed change waits
+  in Publishing overview until "Send for review" (console only).
+
 ## Latest checkpoint (2026-06-21) — message-attached location implemented (companion side)
 
 Implemented the **companion half of message-attached location** (backend shipped in Mantle

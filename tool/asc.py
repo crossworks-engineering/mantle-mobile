@@ -9,8 +9,13 @@ prints key material.
 
     tool/asc.py app                          app record, categories, versions,
                                              listing text per locale
+    tool/asc.py version new [1.14.0]         make the next App Store version
+        [--release-type AFTER_APPROVAL]      (default: the pubspec version);
+        [--build N]                          optionally attach build N
     tool/asc.py listing set FILE.json        set the listing text (see
-        [--locale en-US]                     store/appstore/listing.json)
+        [--locale en-US] [--version-only]    store/appstore/listing.json); on a
+                                             live app the locked app-info fields
+                                             are skipped with a note
     tool/asc.py screenshots DIR              replace the screenshots of one
         --display APP_IPHONE_67              display type from DIR/*.png
         [--locale en-US]
@@ -27,6 +32,11 @@ prints key material.
                                              (default newest VALID) to Beta Review
     tool/asc.py submit                       send the version to App Store review
 
+Every command takes --dry-run: reads run for real,
+every write (POST, PATCH, DELETE, upload) is printed and NOT sent.
+
+    tool/asc.py --dry-run version new 1.14.0
+
 Env: ASC_KEY_ID, ASC_ISSUER_ID, ASC_APP_ID override the defaults below.
 """
 
@@ -35,6 +45,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -80,14 +91,44 @@ def token() -> str:
     return f"{header}.{claims}.{_b64(_der_to_raw(der))}"
 
 
+DRY_ID = "DRY-RUN"
+SECRET_HINTS = ("password", "token", "secret")
+
+
+def _redact(value):
+    """For --dry-run output: hide secret-looking values, shorten long text."""
+    if isinstance(value, dict):
+        return {k: ("<hidden>" if any(h in k.lower() for h in SECRET_HINTS) else _redact(v))
+                for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact(v) for v in value]
+    if isinstance(value, str) and len(value) > 80:
+        return value[:77] + "..."
+    return value
+
+
 class ASC:
-    def __init__(self):
+    def __init__(self, dry_run: bool = False):
+        self.dry_run = dry_run
         self.token = token()
 
     def call(self, method: str, path: str, body=None, params=None):
         url = path if path.startswith("http") else f"{API}{path}"
         if params:
             url += ("&" if "?" in url else "?") + urllib.parse.urlencode(params)
+        if self.dry_run and (method != "GET" or DRY_ID in url):
+            if method != "GET":
+                print(f"[dry-run] {method} {url.replace(API, '')}")
+                if body is not None:
+                    print("          " + json.dumps(_redact(body), ensure_ascii=False))
+            data = (body or {}).get("data") if isinstance(body, dict) else None
+            fake = {"id": DRY_ID, "type": (data or {}).get("type", "dry-run") if isinstance(data, dict) else "dry-run",
+                    "attributes": dict((data or {}).get("attributes") or {}) if isinstance(data, dict) else {},
+                    "relationships": {}}
+            if method == "GET":  # a read of something only the dry run "made"
+                last = url.split("?")[0].rstrip("/").split("/")[-1]
+                return {"data": fake if last == DRY_ID else []}
+            return {"data": fake}
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Authorization", f"Bearer {self.token}")
@@ -166,38 +207,98 @@ VERSION_FIELDS = ("description", "keywords", "supportUrl", "marketingUrl",
                   "promotionalText", "whatsNew")
 
 
+# A live app has two appInfo records and (while a new version is being
+# made) two appStoreVersions: the live one, which Apple locks, and the
+# editable one. Always write to the editable one.
+EDITABLE = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED",
+            "METADATA_REJECTED", "INVALID_BINARY"}
+# A version in any state outside DONE blocks a new version.
+DONE = {"READY_FOR_SALE", "READY_FOR_DISTRIBUTION", "REPLACED_WITH_NEW_VERSION",
+        "REMOVED_FROM_SALE", "DEVELOPER_REMOVED_FROM_SALE"}
+
+
+def _state(item) -> str:
+    a = item["attributes"]
+    return a.get("appVersionState") or a.get("state") or a.get("appStoreState") or "?"
+
+
+def _states(item) -> set:
+    a = item["attributes"]
+    return {a.get(k) for k in ("appVersionState", "state", "appStoreState")} - {None}
+
+
 def _find_locale(items, locale):
     return next((i for i in items if i["attributes"]["locale"] == locale), None)
+
+
+def _editable_info(asc: ASC):
+    """The appInfo that accepts writes, or None when every one is locked."""
+    infos = asc.get(f"/apps/{APP_ID}/appInfos")["data"]
+    return next((i for i in infos if _states(i) & EDITABLE), None)
+
+
+def _versions(asc: ASC):
+    return asc.get(f"/apps/{APP_ID}/appStoreVersions", **{"filter[platform]": "IOS"})["data"]
+
+
+def _editable_version(asc: ASC):
+    """The version that accepts writes, or None."""
+    return next((v for v in _versions(asc) if _states(v) & EDITABLE), None)
 
 
 def cmd_listing(asc: ASC, args):
     with open(args.file) as f:
         text = json.load(f)
-    info = asc.get(f"/apps/{APP_ID}/appInfos")["data"][0]
-    loc = _find_locale(asc.get(f"/appInfos/{info['id']}/appInfoLocalizations")["data"], args.locale)
-    if loc is None:
-        sys.exit(f"asc.py: no appInfo localization for {args.locale}")
-    attrs = {k: text[k] for k in INFO_FIELDS if k in text}
-    if attrs:
-        asc.patch(f"/appInfoLocalizations/{loc['id']}", "appInfoLocalizations", loc["id"], attrs)
-        print(f"appInfo [{args.locale}] set: {', '.join(attrs)}")
-    if "primaryCategory" in text:
-        asc.call("PATCH", f"/appInfos/{info['id']}", body={"data": {
-            "type": "appInfos", "id": info["id"],
-            "relationships": {"primaryCategory": _rel("appCategories", text["primaryCategory"])}}})
-        print(f"primaryCategory set: {text['primaryCategory']}")
+    version = _editable_version(asc)
+    if version is None:
+        sys.exit("asc.py: no editable App Store version (all are live or in review); "
+                 "make one first: tool/asc.py version new")
 
-    version = asc.get(f"/apps/{APP_ID}/appStoreVersions",
-                      **{"filter[platform]": "IOS", "limit": 1})["data"][0]
-    if text.get("copyright") and text["copyright"] != version["attributes"].get("copyright"):
+    # App-level fields (name, subtitle, privacy URLs, category). Apple locks
+    # them on the live appInfo; they open again on the editable appInfo that
+    # comes with a new version. Send only the fields that change.
+    info_attrs = {k: text[k] for k in INFO_FIELDS if k in text}
+    if args.version_only:
+        if info_attrs or "primaryCategory" in text:
+            print("app-info fields skipped (--version-only)")
+    else:
+        info = _editable_info(asc)
+        if info is None:
+            if info_attrs or "primaryCategory" in text:
+                print("note: the app info is locked (live or in review); app-info fields "
+                      "skipped: " + ", ".join(list(info_attrs) +
+                                             (["primaryCategory"] if "primaryCategory" in text else [])))
+        else:
+            loc = _find_locale(asc.get(f"/appInfos/{info['id']}/appInfoLocalizations")["data"],
+                               args.locale)
+            if loc is None:
+                sys.exit(f"asc.py: no appInfo localization for {args.locale}")
+            info_attrs = {k: v for k, v in info_attrs.items() if loc["attributes"].get(k) != v}
+            if info_attrs:
+                asc.patch(f"/appInfoLocalizations/{loc['id']}", "appInfoLocalizations",
+                          loc["id"], info_attrs)
+                print(f"appInfo [{args.locale}] set: {', '.join(info_attrs)}")
+            else:
+                print(f"appInfo [{args.locale}]: no change")
+            if "primaryCategory" in text:
+                cur = asc.get(f"/appInfos/{info['id']}/primaryCategory").get("data") or {}
+                if cur.get("id") != text["primaryCategory"]:
+                    asc.call("PATCH", f"/appInfos/{info['id']}", body={"data": {
+                        "type": "appInfos", "id": info["id"],
+                        "relationships": {"primaryCategory": _rel("appCategories",
+                                                                  text["primaryCategory"])}}})
+                    print(f"primaryCategory set: {text['primaryCategory']}")
+
+    va = version["attributes"]
+    if text.get("copyright") and text["copyright"] != va.get("copyright"):
         asc.patch(f"/appStoreVersions/{version['id']}", "appStoreVersions", version["id"],
                   {"copyright": text["copyright"]})
         print(f"copyright set: {text['copyright']}")
-    if text.get("versionString") and text["versionString"] != version["attributes"]["versionString"]:
+    if text.get("versionString") and text["versionString"] != va["versionString"]:
         asc.patch(f"/appStoreVersions/{version['id']}", "appStoreVersions", version["id"],
                   {"versionString": text["versionString"]})
-        print(f"versionString {version['attributes']['versionString']} -> {text['versionString']}")
-        version["attributes"]["versionString"] = text["versionString"]
+        print(f"versionString {va['versionString']} -> {text['versionString']}")
+        va["versionString"] = text["versionString"]
     vloc = _find_locale(asc.get(f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations")["data"],
                         args.locale)
     if vloc is None:
@@ -206,15 +307,63 @@ def cmd_listing(asc: ASC, args):
     if attrs:
         asc.patch(f"/appStoreVersionLocalizations/{vloc['id']}", "appStoreVersionLocalizations",
                   vloc["id"], attrs)
-        print(f"version {version['attributes']['versionString']} [{args.locale}] set: {', '.join(attrs)}")
+        print(f"version {va['versionString']} [{args.locale}] set: {', '.join(attrs)}")
+
+
+# --- new version ------------------------------------------------------
+def _pubspec_version() -> str:
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pubspec.yaml")
+    with open(path) as f:
+        m = re.search(r"^version:\s*([0-9]+\.[0-9]+\.[0-9]+)", f.read(), re.M)
+    if not m:
+        sys.exit("asc.py: no version in pubspec.yaml; give the version string")
+    return m.group(1)
+
+
+def _vkey(s: str):
+    return tuple(int(x) if x.isdigit() else 0 for x in s.split("."))
+
+
+def cmd_version(asc: ASC, args):
+    want = args.version or _pubspec_version()
+    if not re.fullmatch(r"[0-9]+(\.[0-9]+){1,2}", want):
+        sys.exit(f"asc.py: bad version string {want!r} (use 1.2.3)")
+    versions = _versions(asc)
+    for v in versions:
+        print(f"  have {v['attributes']['versionString']:8} {_state(v)}")
+    if any(v["attributes"]["versionString"] == want for v in versions):
+        sys.exit(f"asc.py: version {want} already exists")
+    busy = [v for v in versions if not (_states(v) & DONE)]
+    if busy:
+        b = busy[0]
+        sys.exit(f"asc.py: version {b['attributes']['versionString']} is still {_state(b)}; "
+                 "Apple allows one open version. Wait until it is live. If it is still "
+                 "editable, `listing set` can change its versionString instead.")
+    newest = max((v["attributes"]["versionString"] for v in versions), key=_vkey, default=None)
+    if newest and _vkey(want) <= _vkey(newest):
+        sys.exit(f"asc.py: {want} is not higher than {newest}")
+    build = _valid_build(asc, args.build) if args.build else None
+    rel = {"app": _rel("apps", APP_ID)}
+    if build:
+        rel["build"] = _rel("builds", build["id"])
+    v = asc.post("appStoreVersions", {"platform": "IOS", "versionString": want,
+                                      "releaseType": args.release_type}, rel)["data"]
+    print(("[dry-run] would create " if asc.dry_run else "created ") +
+          f"version {want}, release {args.release_type}"
+          + (f", build {build['attributes']['version']} attached" if build else ""))
+    print("Apple copies the listing text from the live version; set whatsNew with "
+          "`tool/asc.py listing set store/appstore/listing.json`.")
 
 
 # --- screenshots ------------------------------------------------------
 def _upload(asc: ASC, reservation: dict, path: str):
     """Reserve → PUT each chunk → commit with the md5."""
-    ops = reservation["attributes"]["uploadOperations"]
     with open(path, "rb") as f:
         raw = f.read()
+    if asc.dry_run:
+        print(f"[dry-run] upload {os.path.basename(path)} ({len(raw)} bytes)")
+        return hashlib.md5(raw).hexdigest()
+    ops = reservation["attributes"]["uploadOperations"]
     for op in ops:
         chunk = raw[op["offset"]:op["offset"] + op["length"]]
         req = urllib.request.Request(op["url"], data=chunk, method=op["method"])
@@ -229,8 +378,7 @@ def cmd_screenshots(asc: ASC, args):
     files = sorted(f for f in os.listdir(args.dir) if f.lower().endswith(".png"))
     if not files:
         sys.exit(f"asc.py: no .png in {args.dir}")
-    version = asc.get(f"/apps/{APP_ID}/appStoreVersions",
-                      **{"filter[platform]": "IOS", "limit": 1})["data"][0]
+    version = _version(asc)
     vloc = _find_locale(asc.get(f"/appStoreVersions/{version['id']}/appStoreVersionLocalizations")["data"],
                         args.locale)
     sets = asc.get(f"/appStoreVersionLocalizations/{vloc['id']}/appScreenshotSets")["data"]
@@ -258,8 +406,7 @@ def cmd_screenshots(asc: ASC, args):
 def cmd_review(asc: ASC, args):
     with open(args.file) as f:
         attrs = json.load(f)
-    version = asc.get(f"/apps/{APP_ID}/appStoreVersions",
-                      **{"filter[platform]": "IOS", "limit": 1})["data"][0]
+    version = _version(asc)
     rd = asc.get(f"/appStoreVersions/{version['id']}/appStoreReviewDetail").get("data")
     if rd:
         asc.patch(f"/appStoreReviewDetails/{rd['id']}", "appStoreReviewDetails", rd["id"], attrs)
@@ -279,8 +426,12 @@ def cmd_builds(asc: ASC, _args):
 
 
 def _version(asc: ASC):
-    return asc.get(f"/apps/{APP_ID}/appStoreVersions",
-                   **{"filter[platform]": "IOS", "limit": 1})["data"][0]
+    """The editable version; exits with a clear note when there is none."""
+    v = _editable_version(asc)
+    if v is None:
+        sys.exit("asc.py: no editable App Store version (all are live or in review); "
+                 "make one first: tool/asc.py version new")
+    return v
 
 
 def cmd_build(asc: ASC, args):
@@ -298,7 +449,10 @@ def cmd_build(asc: ASC, args):
 def cmd_age_rating(asc: ASC, args):
     with open(args.file) as f:
         attrs = json.load(f)
-    info = asc.get(f"/apps/{APP_ID}/appInfos")["data"][0]
+    info = _editable_info(asc)
+    if info is None:
+        sys.exit("asc.py: the app info is locked (live or in review); the age rating "
+                 "opens again with a new version: tool/asc.py version new")
     decl = asc.get(f"/appInfos/{info['id']}/ageRatingDeclaration")["data"]
     asc.patch(f"/ageRatingDeclarations/{decl['id']}", "ageRatingDeclarations", decl["id"], attrs)
     print(f"age rating set ({len(attrs)} answers)")
@@ -417,11 +571,38 @@ def cmd_submit(asc: ASC, _args):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
+                                formatter_class=argparse.RawDescriptionHelpFormatter,
+                                epilog=__doc__.split("\n\n", 1)[1])
+    p.add_argument("--dry-run", action="store_true",
+                   help="run the reads, print every write, send no write")
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("app")
-    li = sub.add_parser("listing"); li.add_argument("action", choices=["set"])
+    sub.add_parser("app", help="app record, categories, versions, listing text")
+    vn = sub.add_parser("version", help="make the next App Store version",
+                        description="Make a new App Store version for a live app. Apple "
+                        "allows one open version: this refuses while another version is "
+                        "not yet live, when the version exists, or when it is not higher "
+                        "than the newest one. Apple copies the listing text from the live "
+                        "version; whatsNew stays empty until `listing set`.")
+    vn.add_argument("action", choices=["new"])
+    vn.add_argument("version", nargs="?",
+                    help="version string such as 1.14.0 (default: the version in pubspec.yaml)")
+    vn.add_argument("--release-type", default="AFTER_APPROVAL",
+                    choices=["AFTER_APPROVAL", "MANUAL"],
+                    help="AFTER_APPROVAL goes live by itself after review (default); "
+                    "MANUAL waits for you to release it")
+    vn.add_argument("--build", metavar="N", help="also attach VALID build number N")
+    li = sub.add_parser("listing", help="set the listing text from a JSON file",
+                        description="Set the listing text. Version fields (description, "
+                        "keywords, URLs, promotionalText, whatsNew, copyright, versionString) "
+                        "go to the editable version. App-info fields (name, subtitle, "
+                        "privacy URLs, primaryCategory) go to the editable app info and "
+                        "only when they change; on a live app with no new version they "
+                        "are locked, so they are skipped with a note.")
+    li.add_argument("action", choices=["set"])
     li.add_argument("file"); li.add_argument("--locale", default="en-US")
+    li.add_argument("--version-only", action="store_true",
+                    help="send only the version fields; skip the app-info fields")
     sc = sub.add_parser("screenshots"); sc.add_argument("dir")
     sc.add_argument("--display", default="APP_IPHONE_67"); sc.add_argument("--locale", default="en-US")
     rv = sub.add_parser("review"); rv.add_argument("action", choices=["set"]); rv.add_argument("file")
@@ -435,9 +616,14 @@ def main():
     tf = sub.add_parser("testflight"); tf.add_argument("action", choices=["public"])
     tf.add_argument("file"); tf.add_argument("number", nargs="?")
     sub.add_parser("submit")
+    for sp in sub.choices.values():  # --dry-run also works after the command name
+        sp.add_argument("--dry-run", action="store_true", default=argparse.SUPPRESS,
+                        help="run the reads, print every write, send no write")
     args = p.parse_args()
-    asc = ASC()
-    {"app": cmd_app, "listing": cmd_listing, "screenshots": cmd_screenshots,
+    asc = ASC(dry_run=args.dry_run)
+    if args.dry_run:
+        print("[dry-run] no write is sent")
+    {"app": cmd_app, "version": cmd_version, "listing": cmd_listing, "screenshots": cmd_screenshots,
      "review": cmd_review, "builds": cmd_builds, "build": cmd_build,
      "age-rating": cmd_age_rating, "rights": cmd_rights, "pricing": cmd_pricing,
      "availability": cmd_availability, "testflight": cmd_testflight,
