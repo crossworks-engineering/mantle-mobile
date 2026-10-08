@@ -4,5 +4,5 @@
   "feedbackEmail": "jason@crossworks.engineering",
   "marketingUrl": "https://jackdaw.run",
   "privacyPolicyUrl": "https://mantle-ai.tech/privacy/",
-  "whatsNew": "First public test build. Try: connect to your Mantle (or the demo at https://demo.mantle-ai.tech with any login), chat with streaming replies, search, notes, tasks, files, and push notifications."
+  "whatsNew": "Up next on the home screen shows your next events and the tasks that are due. Tap a notification to go straight to the event or task it is about, on the right login. Alarm taps now open their event on iPhone too."
 }
