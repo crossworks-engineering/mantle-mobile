@@ -31,6 +31,15 @@ class EventsApi {
     );
   }
 
+  /// `GET /api/events/{id}`: one event. A 404 (deleted, or another login's)
+  /// throws like any failure; callers tell the two apart by status.
+  Future<EventRow> get(String id) async {
+    final res = await _dio.get<Map<String, dynamic>>('/api/events/$id');
+    return EventRow.fromJson(
+      (res.data?['event'] as Map).cast<String, dynamic>(),
+    );
+  }
+
   /// `POST /api/events` — create (201 → the saved row). `startsAt` is an
   /// absolute instant; the optional reminder lead mirrors the server worker's
   /// ping and this client's local alarm.

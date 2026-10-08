@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'local_notifications.dart';
+import 'notification_tap.dart';
 import 'push_decryptor.dart';
 import 'push_text.dart';
 
@@ -53,17 +54,23 @@ class PushNotifier {
     if (payload == null) return;
 
     final text = pushNotificationText(payload);
+    // The tap needs the item and the login the push names, not just its
+    // link: they ride in the local notification's payload.
+    final tap = NotificationTap.parse(payload);
     await showPlain(
       title: text.title,
       body: text.body,
-      deepLink: payload['deepLink'] as String?,
+      payload: tap?.toPayload(),
     );
   }
 
   /// Show a plaintext notification — used by the **direct connection** path
   /// (no-Google Android), where the message arrives over the user's own TLS SSE
   /// stream, so there's nothing to decrypt.
-  static Future<void> showPlain({required String title, required String body, String? deepLink}) async {
+  ///
+  /// [payload] is what a tap hands back ([NotificationTap.parse] reads it):
+  /// a JSON tap, or a bare in-app path.
+  static Future<void> showPlain({required String title, required String body, String? payload}) async {
     await _ensureInit();
     await _plugin.show(
       id: title.hashCode,
@@ -77,7 +84,7 @@ class PushNotifier {
           priority: Priority.high,
         ),
       ),
-      payload: deepLink,
+      payload: payload,
     );
   }
 }

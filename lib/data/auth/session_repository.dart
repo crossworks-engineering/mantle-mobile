@@ -191,6 +191,19 @@ class SessionRepository {
     );
   }
 
+  /// The brain and login ids `GET /api/auth/whoami` answered for this
+  /// session: the pair a push names, so a tap can find the login it was for.
+  Future<void> recordBrainIdentity(
+    String sessionId, {
+    required String brainId,
+    required String loginId,
+  }) {
+    return (_db.update(_db.sessions)..where((s) => s.id.equals(sessionId)))
+        .write(
+      SessionsCompanion(brainId: Value(brainId), loginId: Value(loginId)),
+    );
+  }
+
   /// The brain refused this session's bearer. Its row stays, to sign back in
   /// to; its bearer and its cached rows go. No other session is touched, and
   /// none is made active: that is the controller's decision.

@@ -126,8 +126,21 @@ GoRouter goRouter(Ref ref) {
             NoteViewScreen(noteId: state.pathParameters['id']!),
       ),
       GoRoute(path: '/tasks', builder: (_, _) => const TasksScreen()),
+      // One task: the list, with that task's sheet open on top (or a short
+      // message when it is gone). What a task row and a task push open.
+      GoRoute(
+        path: '/tasks/:id',
+        builder: (context, state) =>
+            TasksScreen(focusId: state.pathParameters['id']),
+      ),
       GoRoute(path: '/journal', builder: (_, _) => const JournalScreen()),
       GoRoute(path: '/events', builder: (_, _) => const EventsScreen()),
+      // One event, the same way: what an event row and a reminder open.
+      GoRoute(
+        path: '/events/:id',
+        builder: (context, state) =>
+            EventsScreen(focusId: state.pathParameters['id']),
+      ),
       GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
       GoRoute(
         path: '/settings/logins',

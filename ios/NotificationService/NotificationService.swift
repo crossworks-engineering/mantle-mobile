@@ -30,12 +30,13 @@ class NotificationService: UNNotificationServiceExtension {
       // markdown, and a blank teaser must not show as an empty notification.
       content.title = PushText.title(json["t"] as? String)
       content.body = PushText.body(json["b"] as? String)
-      // Carry the deep link through for tap handling in the app.
-      if let deepLink = json["deepLink"] as? String {
-        var info = content.userInfo
-        info["deepLink"] = deepLink
-        content.userInfo = info
+      // Carry what a tap needs through to the app: the link, the item the
+      // push is about, and the brain and login it was sealed for.
+      var info = content.userInfo
+      for key in ["deepLink", "itemLink", "brainId", "loginId"] {
+        if let value = json[key] as? String { info[key] = value }
       }
+      content.userInfo = info
     } else {
       // Couldn't decrypt — show a generic, non-leaky fallback.
       content.title = PushText.defaultTitle

@@ -305,6 +305,28 @@ class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _brainIdMeta = const VerificationMeta(
+    'brainId',
+  );
+  @override
+  late final GeneratedColumn<String> brainId = GeneratedColumn<String>(
+    'brain_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _loginIdMeta = const VerificationMeta(
+    'loginId',
+  );
+  @override
+  late final GeneratedColumn<String> loginId = GeneratedColumn<String>(
+    'login_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -315,6 +337,8 @@ class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
     addedAt,
     lastUsedAt,
     needsSignIn,
+    brainId,
+    loginId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -390,6 +414,18 @@ class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
         ),
       );
     }
+    if (data.containsKey('brain_id')) {
+      context.handle(
+        _brainIdMeta,
+        brainId.isAcceptableOrUnknown(data['brain_id']!, _brainIdMeta),
+      );
+    }
+    if (data.containsKey('login_id')) {
+      context.handle(
+        _loginIdMeta,
+        loginId.isAcceptableOrUnknown(data['login_id']!, _loginIdMeta),
+      );
+    }
     return context;
   }
 
@@ -431,6 +467,14 @@ class $SessionsTable extends Sessions with TableInfo<$SessionsTable, Session> {
         DriftSqlType.bool,
         data['${effectivePrefix}needs_sign_in'],
       )!,
+      brainId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}brain_id'],
+      ),
+      loginId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}login_id'],
+      ),
     );
   }
 
@@ -456,6 +500,12 @@ class Session extends DataClass implements Insertable<Session> {
   /// True once the brain has refused this session's bearer: it can be signed
   /// back in to, not switched to.
   final bool needsSignIn;
+
+  /// The brain's own id and this login's id on it, as `GET /api/auth/whoami`
+  /// answers them. Null until learned, and on a brain too old to say. A push
+  /// names the same pair, which is how a tap finds the login it was for.
+  final String? brainId;
+  final String? loginId;
   const Session({
     required this.id,
     required this.baseUrl,
@@ -465,6 +515,8 @@ class Session extends DataClass implements Insertable<Session> {
     required this.addedAt,
     required this.lastUsedAt,
     required this.needsSignIn,
+    this.brainId,
+    this.loginId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -481,6 +533,12 @@ class Session extends DataClass implements Insertable<Session> {
     map['added_at'] = Variable<DateTime>(addedAt);
     map['last_used_at'] = Variable<DateTime>(lastUsedAt);
     map['needs_sign_in'] = Variable<bool>(needsSignIn);
+    if (!nullToAbsent || brainId != null) {
+      map['brain_id'] = Variable<String>(brainId);
+    }
+    if (!nullToAbsent || loginId != null) {
+      map['login_id'] = Variable<String>(loginId);
+    }
     return map;
   }
 
@@ -498,6 +556,12 @@ class Session extends DataClass implements Insertable<Session> {
       addedAt: Value(addedAt),
       lastUsedAt: Value(lastUsedAt),
       needsSignIn: Value(needsSignIn),
+      brainId: brainId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(brainId),
+      loginId: loginId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(loginId),
     );
   }
 
@@ -515,6 +579,8 @@ class Session extends DataClass implements Insertable<Session> {
       addedAt: serializer.fromJson<DateTime>(json['addedAt']),
       lastUsedAt: serializer.fromJson<DateTime>(json['lastUsedAt']),
       needsSignIn: serializer.fromJson<bool>(json['needsSignIn']),
+      brainId: serializer.fromJson<String?>(json['brainId']),
+      loginId: serializer.fromJson<String?>(json['loginId']),
     );
   }
   @override
@@ -529,6 +595,8 @@ class Session extends DataClass implements Insertable<Session> {
       'addedAt': serializer.toJson<DateTime>(addedAt),
       'lastUsedAt': serializer.toJson<DateTime>(lastUsedAt),
       'needsSignIn': serializer.toJson<bool>(needsSignIn),
+      'brainId': serializer.toJson<String?>(brainId),
+      'loginId': serializer.toJson<String?>(loginId),
     };
   }
 
@@ -541,6 +609,8 @@ class Session extends DataClass implements Insertable<Session> {
     DateTime? addedAt,
     DateTime? lastUsedAt,
     bool? needsSignIn,
+    Value<String?> brainId = const Value.absent(),
+    Value<String?> loginId = const Value.absent(),
   }) => Session(
     id: id ?? this.id,
     baseUrl: baseUrl ?? this.baseUrl,
@@ -550,6 +620,8 @@ class Session extends DataClass implements Insertable<Session> {
     addedAt: addedAt ?? this.addedAt,
     lastUsedAt: lastUsedAt ?? this.lastUsedAt,
     needsSignIn: needsSignIn ?? this.needsSignIn,
+    brainId: brainId.present ? brainId.value : this.brainId,
+    loginId: loginId.present ? loginId.value : this.loginId,
   );
   Session copyWithCompanion(SessionsCompanion data) {
     return Session(
@@ -567,6 +639,8 @@ class Session extends DataClass implements Insertable<Session> {
       needsSignIn: data.needsSignIn.present
           ? data.needsSignIn.value
           : this.needsSignIn,
+      brainId: data.brainId.present ? data.brainId.value : this.brainId,
+      loginId: data.loginId.present ? data.loginId.value : this.loginId,
     );
   }
 
@@ -580,7 +654,9 @@ class Session extends DataClass implements Insertable<Session> {
           ..write('siteName: $siteName, ')
           ..write('addedAt: $addedAt, ')
           ..write('lastUsedAt: $lastUsedAt, ')
-          ..write('needsSignIn: $needsSignIn')
+          ..write('needsSignIn: $needsSignIn, ')
+          ..write('brainId: $brainId, ')
+          ..write('loginId: $loginId')
           ..write(')'))
         .toString();
   }
@@ -595,6 +671,8 @@ class Session extends DataClass implements Insertable<Session> {
     addedAt,
     lastUsedAt,
     needsSignIn,
+    brainId,
+    loginId,
   );
   @override
   bool operator ==(Object other) =>
@@ -607,7 +685,9 @@ class Session extends DataClass implements Insertable<Session> {
           other.siteName == this.siteName &&
           other.addedAt == this.addedAt &&
           other.lastUsedAt == this.lastUsedAt &&
-          other.needsSignIn == this.needsSignIn);
+          other.needsSignIn == this.needsSignIn &&
+          other.brainId == this.brainId &&
+          other.loginId == this.loginId);
 }
 
 class SessionsCompanion extends UpdateCompanion<Session> {
@@ -619,6 +699,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
   final Value<DateTime> addedAt;
   final Value<DateTime> lastUsedAt;
   final Value<bool> needsSignIn;
+  final Value<String?> brainId;
+  final Value<String?> loginId;
   final Value<int> rowid;
   const SessionsCompanion({
     this.id = const Value.absent(),
@@ -629,6 +711,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
     this.addedAt = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
     this.needsSignIn = const Value.absent(),
+    this.brainId = const Value.absent(),
+    this.loginId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SessionsCompanion.insert({
@@ -640,6 +724,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
     required DateTime addedAt,
     required DateTime lastUsedAt,
     this.needsSignIn = const Value.absent(),
+    this.brainId = const Value.absent(),
+    this.loginId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        baseUrl = Value(baseUrl),
@@ -654,6 +740,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
     Expression<DateTime>? addedAt,
     Expression<DateTime>? lastUsedAt,
     Expression<bool>? needsSignIn,
+    Expression<String>? brainId,
+    Expression<String>? loginId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -665,6 +753,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
       if (addedAt != null) 'added_at': addedAt,
       if (lastUsedAt != null) 'last_used_at': lastUsedAt,
       if (needsSignIn != null) 'needs_sign_in': needsSignIn,
+      if (brainId != null) 'brain_id': brainId,
+      if (loginId != null) 'login_id': loginId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -678,6 +768,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
     Value<DateTime>? addedAt,
     Value<DateTime>? lastUsedAt,
     Value<bool>? needsSignIn,
+    Value<String?>? brainId,
+    Value<String?>? loginId,
     Value<int>? rowid,
   }) {
     return SessionsCompanion(
@@ -689,6 +781,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
       addedAt: addedAt ?? this.addedAt,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       needsSignIn: needsSignIn ?? this.needsSignIn,
+      brainId: brainId ?? this.brainId,
+      loginId: loginId ?? this.loginId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -720,6 +814,12 @@ class SessionsCompanion extends UpdateCompanion<Session> {
     if (needsSignIn.present) {
       map['needs_sign_in'] = Variable<bool>(needsSignIn.value);
     }
+    if (brainId.present) {
+      map['brain_id'] = Variable<String>(brainId.value);
+    }
+    if (loginId.present) {
+      map['login_id'] = Variable<String>(loginId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -737,6 +837,8 @@ class SessionsCompanion extends UpdateCompanion<Session> {
           ..write('addedAt: $addedAt, ')
           ..write('lastUsedAt: $lastUsedAt, ')
           ..write('needsSignIn: $needsSignIn, ')
+          ..write('brainId: $brainId, ')
+          ..write('loginId: $loginId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1739,6 +1841,8 @@ typedef $$SessionsTableCreateCompanionBuilder =
       required DateTime addedAt,
       required DateTime lastUsedAt,
       Value<bool> needsSignIn,
+      Value<String?> brainId,
+      Value<String?> loginId,
       Value<int> rowid,
     });
 typedef $$SessionsTableUpdateCompanionBuilder =
@@ -1751,6 +1855,8 @@ typedef $$SessionsTableUpdateCompanionBuilder =
       Value<DateTime> addedAt,
       Value<DateTime> lastUsedAt,
       Value<bool> needsSignIn,
+      Value<String?> brainId,
+      Value<String?> loginId,
       Value<int> rowid,
     });
 
@@ -1800,6 +1906,16 @@ class $$SessionsTableFilterComposer
 
   ColumnFilters<bool> get needsSignIn => $composableBuilder(
     column: $table.needsSignIn,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get brainId => $composableBuilder(
+    column: $table.brainId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get loginId => $composableBuilder(
+    column: $table.loginId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1852,6 +1968,16 @@ class $$SessionsTableOrderingComposer
     column: $table.needsSignIn,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get brainId => $composableBuilder(
+    column: $table.brainId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get loginId => $composableBuilder(
+    column: $table.loginId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SessionsTableAnnotationComposer
@@ -1892,6 +2018,12 @@ class $$SessionsTableAnnotationComposer
     column: $table.needsSignIn,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get brainId =>
+      $composableBuilder(column: $table.brainId, builder: (column) => column);
+
+  GeneratedColumn<String> get loginId =>
+      $composableBuilder(column: $table.loginId, builder: (column) => column);
 }
 
 class $$SessionsTableTableManager
@@ -1930,6 +2062,8 @@ class $$SessionsTableTableManager
                 Value<DateTime> addedAt = const Value.absent(),
                 Value<DateTime> lastUsedAt = const Value.absent(),
                 Value<bool> needsSignIn = const Value.absent(),
+                Value<String?> brainId = const Value.absent(),
+                Value<String?> loginId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SessionsCompanion(
                 id: id,
@@ -1940,6 +2074,8 @@ class $$SessionsTableTableManager
                 addedAt: addedAt,
                 lastUsedAt: lastUsedAt,
                 needsSignIn: needsSignIn,
+                brainId: brainId,
+                loginId: loginId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1952,6 +2088,8 @@ class $$SessionsTableTableManager
                 required DateTime addedAt,
                 required DateTime lastUsedAt,
                 Value<bool> needsSignIn = const Value.absent(),
+                Value<String?> brainId = const Value.absent(),
+                Value<String?> loginId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SessionsCompanion.insert(
                 id: id,
@@ -1962,6 +2100,8 @@ class $$SessionsTableTableManager
                 addedAt: addedAt,
                 lastUsedAt: lastUsedAt,
                 needsSignIn: needsSignIn,
+                brainId: brainId,
+                loginId: loginId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

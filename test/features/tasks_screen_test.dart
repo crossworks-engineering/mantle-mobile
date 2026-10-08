@@ -2,6 +2,7 @@
 // circle checks off through the API; a tap on the row opens the edit sheet
 // prefilled.
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/tasks/tasks_api.dart';
@@ -92,5 +93,42 @@ void main() {
     expect(find.widgetWithText(EditTaskSheet, 'Task a'), findsOneWidget);
     expect(find.text('No due date'), findsOneWidget);
     expect(find.text('Pick a day'), findsOneWidget);
+  });
+
+  group('opened on one task (/tasks/<id>)', () {
+    Future<void> pumpFocused(WidgetTester tester, String id) => pumpScreen(
+          tester,
+          TasksScreen(focusId: id),
+          container: ProviderContainer(
+            overrides: [tasksApiProvider.overrideWithValue(api)],
+          ),
+        );
+
+    testWidgets('opens that task\'s sheet over the list', (tester) async {
+      when(() => api.get('zz')).thenAnswer((_) async => _task('zz'));
+      await pumpFocused(tester, 'zz');
+      expect(find.byType(EditTaskSheet), findsOneWidget);
+      expect(find.text('Task a'), findsOneWidget);
+    });
+
+    testWidgets('a task that is gone leaves the list with a short message',
+        (tester) async {
+      when(() => api.get('gone')).thenThrow(
+        DioException(
+          requestOptions: RequestOptions(path: '/api/tasks/gone'),
+          response: Response(
+            requestOptions: RequestOptions(path: '/api/tasks/gone'),
+            statusCode: 404,
+          ),
+        ),
+      );
+      await pumpFocused(tester, 'gone');
+      expect(find.byType(EditTaskSheet), findsNothing);
+      expect(find.text('Task a'), findsOneWidget);
+      expect(
+        find.text("That task is gone, or this login can't open it."),
+        findsOneWidget,
+      );
+    });
   });
 }

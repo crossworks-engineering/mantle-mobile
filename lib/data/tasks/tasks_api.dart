@@ -30,6 +30,42 @@ class TasksApi {
     );
   }
 
+  /// Every task not yet done (`status=active`: open, in progress, blocked),
+  /// up to [pageSize] in one call. A brain older than the `active` filter
+  /// answers 400 to it; that one is asked for everything instead and the
+  /// done ones dropped here.
+  Future<List<TaskRow>> listNotDone({int pageSize = 200}) async {
+    try {
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/api/tasks',
+        queryParameters: {'status': 'active', 'pageSize': pageSize},
+      );
+      return _rows(res.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 400) rethrow;
+      final res = await _dio.get<Map<String, dynamic>>(
+        '/api/tasks',
+        queryParameters: {'status': 'all', 'pageSize': pageSize},
+      );
+      return [
+        for (final t in _rows(res.data))
+          if (!t.done) t,
+      ];
+    }
+  }
+
+  static List<TaskRow> _rows(Map<String, dynamic>? data) =>
+      ((data?['tasks'] as List?) ?? const [])
+          .map((e) => TaskRow.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+  /// `GET /api/tasks/{id}`: one task. A 404 (deleted, or another login's)
+  /// throws like any failure; callers tell the two apart by status.
+  Future<TaskRow> get(String id) async {
+    final res = await _dio.get<Map<String, dynamic>>('/api/tasks/$id');
+    return TaskRow.fromJson((res.data?['task'] as Map).cast<String, dynamic>());
+  }
+
   /// `POST /api/tasks` — create an open task (201 → the saved row).
   Future<TaskRow> create(String title, {DateTime? dueAt}) async {
     final res = await _dio.post<Map<String, dynamic>>(

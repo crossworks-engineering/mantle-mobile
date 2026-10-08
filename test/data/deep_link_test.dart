@@ -23,6 +23,8 @@ void main() {
         '/notes',
         '/notes/abc',
         '/tasks',
+        '/tasks/0f1e2d3c-1234-5678-9abc-def012345678',
+        '/events/0f1e2d3c-1234-5678-9abc-def012345678',
         '/journal',
         '/settings',
         '/settings/appearance',
@@ -63,13 +65,17 @@ void main() {
     });
   });
 
-  test('DeepLinkRouter.offer only queues sanitized links', () {
+  test('DeepLinkRouter.offer only queues taps with an app route', () {
     final router = DeepLinkRouter.instance;
     router.pending.value = null;
     router.offer('https://evil.example/x');
     expect(router.pending.value, isNull);
+    router.offer({'deepLink': '//evil.example/x', 'brainId': 'b'});
+    expect(router.pending.value, isNull);
     router.offer('/pending?x=1');
-    expect(router.pending.value, '/pending');
+    expect(router.pending.value?.route, '/pending');
+    router.offer({'deepLink': '/chat/ada', 'itemLink': '/events/e1'});
+    expect(router.pending.value?.route, '/events/e1');
     router.pending.value = null;
   });
 }

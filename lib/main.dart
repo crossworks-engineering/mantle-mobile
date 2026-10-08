@@ -9,7 +9,9 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'core/lifecycle/app_lifecycle.dart';
 import 'data/push/deep_link.dart';
+import 'data/push/local_notifications.dart';
 import 'data/push/push_notifier.dart';
+import 'features/auth/session_identity.dart';
 import 'features/events/events_controller.dart';
 import 'features/settings/brain_appearance_sync.dart';
 import 'features/settings/color_theme_controller.dart';
@@ -17,6 +19,7 @@ import 'features/settings/push/direct_push_controller.dart';
 import 'features/settings/random_theme_controller.dart';
 import 'features/settings/theme_mode_controller.dart';
 import 'routing/app_router.dart';
+import 'routing/notification_router.dart';
 import 'theme/mantle_theme.dart';
 
 Future<void> main() async {
@@ -25,9 +28,13 @@ Future<void> main() async {
   // iOS uses raw APNs + the Notification Service Extension (no Firebase).
   if (Platform.isAndroid) {
     await setupAndroidPush();
+  } else {
+    // An event alarm tapped while the app was closed: the local-notification
+    // plugin holds it (Android's comes through setupAndroidPush).
+    await consumeLocalNotificationLaunchDeepLink();
   }
-  // Listen for notification-tap deep links (iOS over the mantle/push channel;
-  // Android via push_notifier). The root widget routes on each link.
+  // Listen for notification taps (iOS pushes over the mantle/push channel;
+  // local notifications on both). The root widget routes on each tap.
   await DeepLinkRouter.instance.start();
   runApp(const ProviderScope(child: JackdawApp()));
 }
@@ -64,15 +71,15 @@ class _JackdawAppState extends ConsumerState<JackdawApp>
     super.dispose();
   }
 
-  /// Navigate to a tapped notification's deep link, then clear it. The router's
-  /// auth redirect handles the not-logged-in case (it bounces to /login).
+  /// Act on a tapped notification, then clear it: the router picks the login
+  /// it was for and opens its screen once the session has settled.
   void _onDeepLink() {
-    final link = DeepLinkRouter.instance.pending.value;
-    if (link == null) return;
+    final tap = DeepLinkRouter.instance.pending.value;
+    if (tap == null) return;
     DeepLinkRouter.instance.pending.value = null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.read(goRouterProvider).go(link);
+      ref.read(notificationRouterProvider).open(tap);
     });
   }
 
@@ -96,6 +103,8 @@ class _JackdawAppState extends ConsumerState<JackdawApp>
     ref.watch(directPushFollowProvider);
     // Follow the brain's colour theme (unless this phone picked its own).
     ref.watch(brainAppearanceSyncProvider);
+    // Learn which (brain, login) the login in use is, so a push names it.
+    ref.watch(brainIdentitySyncProvider);
     final router = ref.watch(goRouterProvider);
 
     // MantleColors sits above ShadApp so every route can resolve the active

@@ -2,10 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import 'deep_link.dart';
 
-/// Prefix identifying event-alarm payloads (`event-alarm:<id>:<ms>:<kind>`).
-/// Lives here (not in event_alarms.dart) because the shared tap handler needs
-/// it to translate payloads and the alarm service needs it to mint them.
-const String kEventAlarmPayloadPrefix = 'event-alarm:';
+export 'notification_tap.dart' show kEventAlarmPayloadPrefix;
 
 /// ONE local-notifications bootstrap for the whole app.
 ///
@@ -14,7 +11,7 @@ const String kEventAlarmPayloadPrefix = 'event-alarm:';
 /// — which is a singleton with a SINGLE tap callback. Two features calling
 /// `initialize` with their own handlers would silently overwrite each other
 /// (last init wins), so they both route through here instead: one init, one
-/// tap handler, one payload→deep-link translation.
+/// tap handler, one payload→tap translation ([NotificationTap.parse]).
 final FlutterLocalNotificationsPlugin localNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
@@ -36,19 +33,9 @@ Future<void> ensureLocalNotificationsInit() async {
   await localNotificationsPlugin.initialize(
     settings: const InitializationSettings(android: android, iOS: darwin),
     onDidReceiveNotificationResponse: (response) =>
-        DeepLinkRouter.instance.offer(deepLinkForPayload(response.payload)),
+        DeepLinkRouter.instance.offer(response.payload),
   );
   _inited = true;
-}
-
-/// A notification payload → the in-app route to open. Push payloads carry the
-/// route itself (`/chat/<slug>`, `/pending`); event-alarm payloads carry the
-/// schedule key (`event-alarm:<id>:<ms>:<kind>`), which maps to the events
-/// screen. Null when there's nothing to route.
-String? deepLinkForPayload(String? payload) {
-  if (payload == null || payload.isEmpty) return null;
-  if (payload.startsWith(kEventAlarmPayloadPrefix)) return '/events';
-  return payload;
 }
 
 /// If the app was cold-launched by tapping any local notification (a push or
@@ -58,8 +45,6 @@ Future<void> consumeLocalNotificationLaunchDeepLink() async {
   final details =
       await localNotificationsPlugin.getNotificationAppLaunchDetails();
   if (details?.didNotificationLaunchApp ?? false) {
-    DeepLinkRouter.instance.offer(
-      deepLinkForPayload(details?.notificationResponse?.payload),
-    );
+    DeepLinkRouter.instance.offer(details?.notificationResponse?.payload);
   }
 }

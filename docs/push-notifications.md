@@ -380,6 +380,43 @@ be left unclosed.
   the cases in `test/data/push_text_test.dart`; change both together. CI runs
   it in the iOS job.
 
+### 9.2b Opening the item a push is about
+
+A tap opens the item the notification is about, on the login it was for, on
+a cold start and while the app is open. Every arrival path becomes one
+`NotificationTap` (`lib/data/push/notification_tap.dart`):
+
+| Path | Carries |
+| --- | --- |
+| iOS push (the extension copies the fields into `userInfo`, the AppDelegate hands them over the `mantle/push` channel as a map) | `deepLink`, `itemLink`, `brainId`, `loginId` |
+| Android push (FCM data message, shown as a local notification) | the same four, as the local payload (JSON) |
+| Direct connection (Android, no Google) | the chat link and the device-local `sessionId` of its stream |
+| Event alarm this phone armed (`event-alarm:<id>:<ms>:<kind>`) | that event: `/events/<id>` |
+
+**Where to.** `itemLink` (a brain from v0.239 sends `/events/<id>` on an event
+reminder) wins when it is one of the app's routes; else `deepLink`. Both pass
+`sanitizeDeepLink`. `/events/<id>` and `/tasks/<id>` open the list with that
+item's sheet on top; an item that is gone, or not this login's, leaves the list
+with a short message. Home goes under it, so Back lands on Home. No brain
+sends a task push yet; the route is ready for one.
+
+**Which login** (`resolveTap`, the contract in the brain's
+`docs/mobile-companion-backend.md`, "Push routing on a device with several
+logins"). Each held login stores the (`brainId`, `loginId`) pair `GET
+/api/auth/whoami` answers (schema v4), learned when it is in use
+(`BrainIdentitySync`) or, at tap time, by asking that login's own brain with
+its own bearer. A push naming its pair switches to the held login with that
+pair. The same brain id held at two addresses is ambiguous, and a pair no
+held login has is for a login signed out here: both open Home and follow
+nothing. A push naming no pair (an older brain, an alarm) opens on the login
+in use, as before.
+
+**Cold start.** The router waits for the session to settle before it acts
+(navigating during the splash is undone by the auth gate). On iOS an alarm tap
+that launched the app is read from the local-notification plugin at start-up;
+the AppDelegate hands any notification without a `deepLink` (an alarm) to the
+plugin through `super`, so alarm taps route on iOS too.
+
 ### 9.3 Android, the no-Google path — **built-in direct connection** (decided)
 
 FCM needs **Google Play Services**, which de-Googled ROMs (GrapheneOS, /e/OS,

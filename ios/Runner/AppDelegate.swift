@@ -11,7 +11,7 @@ import UserNotifications
   private var pushChannel: FlutterMethodChannel?
   // A notification tapped before Dart attached its handler (cold launch). Held
   // until Dart pulls it via the `getInitialDeepLink` MethodChannel call.
-  private var pendingLaunchDeepLink: String?
+  private var pendingLaunchDeepLink: [String: String]?
 
   override func application(
     _ application: UIApplication,
@@ -103,19 +103,32 @@ extension AppDelegate {
     completionHandler([.banner, .sound, .badge])
   }
 
-  // A tapped notification: route to its deep link (set by the NSE in userInfo).
-  // We both invoke the channel (app already running) and stash it for
-  // `getInitialDeepLink` (cold launch, before Dart's handler is attached) — the
-  // stash is consumed at most once, so there's no double navigation.
+  // A tapped push: route to its deep link (set by the NSE in userInfo), with
+  // the item and the login it names. We both invoke the channel (app already
+  // running) and stash it for `getInitialDeepLink` (cold launch, before
+  // Dart's handler is attached); the stash is consumed at most once, so
+  // there's no double navigation.
+  //
+  // Anything else (an event alarm this app scheduled) belongs to
+  // flutter_local_notifications: super hands it to the plugin, which routes
+  // its payload and calls the completion handler itself.
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     didReceive response: UNNotificationResponse,
     withCompletionHandler completionHandler: @escaping () -> Void
   ) {
-    if let deepLink = response.notification.request.content.userInfo["deepLink"] as? String {
-      pendingLaunchDeepLink = deepLink
-      pushChannel?.invokeMethod("deepLink", arguments: deepLink)
+    let info = response.notification.request.content.userInfo
+    guard info["deepLink"] is String else {
+      super.userNotificationCenter(
+        center, didReceive: response, withCompletionHandler: completionHandler)
+      return
     }
+    var tap: [String: String] = [:]
+    for key in ["deepLink", "itemLink", "brainId", "loginId"] {
+      if let value = info[key] as? String { tap[key] = value }
+    }
+    pendingLaunchDeepLink = tap
+    pushChannel?.invokeMethod("deepLink", arguments: tap)
     completionHandler()
   }
 }

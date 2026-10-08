@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../data/tasks/tasks_api.dart';
 import '../../data/tasks/tasks_models.dart';
+import '../events/events_screen.dart' show itemMissingMessage;
 import '../../core/format/dates.dart';
 import '../../widgets/choice_pill.dart';
 import '../../widgets/mantle_header.dart';
@@ -15,8 +17,14 @@ import 'tasks_controller.dart';
 /// tap the row to edit title, due date and priority), then done tasks muted
 /// below. Server-sorted; check-off and add are optimistic. Backed by
 /// `GET/POST/PATCH /api/tasks` via [TasksController].
+///
+/// With [focusId] (`/tasks/<id>`: an "Up next" row, a task push) it opens
+/// that task's sheet over the list; a task that is gone, or not this login's,
+/// leaves the list with a short message instead.
 class TasksScreen extends ConsumerStatefulWidget {
-  const TasksScreen({super.key});
+  const TasksScreen({super.key, this.focusId});
+
+  final String? focusId;
 
   @override
   ConsumerState<TasksScreen> createState() => _TasksScreenState();
@@ -34,6 +42,31 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     _input.dispose();
     _inputFocus.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_openFocused);
+  }
+
+  /// Open the task the route names, read from the brain (it may not be in
+  /// the list: archived, or beyond the first page).
+  Future<void> _openFocused() async {
+    final id = widget.focusId;
+    if (id == null) return;
+    TaskRow row;
+    try {
+      row = await ref.read(tasksApiProvider).get(id);
+    } catch (e) {
+      if (!mounted) return;
+      ShadToaster.maybeOf(context)?.show(
+        ShadToast(description: Text(itemMissingMessage(e, 'task'))),
+      );
+      return;
+    }
+    if (!mounted) return;
+    _edit(row);
   }
 
   Future<void> _add() async {

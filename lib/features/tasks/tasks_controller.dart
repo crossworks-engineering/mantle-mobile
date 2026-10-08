@@ -3,6 +3,8 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../data/tasks/tasks_api.dart';
 import '../../data/tasks/tasks_models.dart';
 
+import '../dashboard/up_next_controller.dart';
+
 part 'tasks_controller.g.dart';
 
 /// Owns the task list (first page, server-sorted: open before done, due date
@@ -37,6 +39,7 @@ class TasksController extends _$TasksController {
     }
     try {
       await ref.read(tasksApiProvider).setDone(id, done: done);
+      if (ref.mounted) refreshUpNextIfShown(ref);
     } catch (_) {
       await _reloadSilently();
     }
@@ -50,6 +53,7 @@ class TasksController extends _$TasksController {
     try {
       final row = await ref.read(tasksApiProvider).create(trimmed);
       if (!ref.mounted) return;
+      refreshUpNextIfShown(ref);
       final current = state.value;
       if (current != null) {
         state = AsyncData([row, ...current]);
@@ -78,6 +82,7 @@ class TasksController extends _$TasksController {
           clearDueAt: clearDueAt,
         );
     if (!ref.mounted) return;
+    refreshUpNextIfShown(ref);
     final current = state.value;
     if (current != null) {
       state = AsyncData([
@@ -99,6 +104,7 @@ class TasksController extends _$TasksController {
     }
     try {
       await ref.read(tasksApiProvider).delete(id);
+      if (ref.mounted) refreshUpNextIfShown(ref);
     } catch (_) {
       await _reloadSilently();
     }

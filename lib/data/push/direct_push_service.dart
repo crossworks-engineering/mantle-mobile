@@ -8,6 +8,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/network/auth_failure.dart';
 import '../auth/token_store.dart';
+import 'notification_tap.dart';
 import 'push_notifier.dart';
 import 'push_text.dart';
 
@@ -158,6 +159,7 @@ void startDirectPushCallback() {
 class _DirectPushTaskHandler extends TaskHandler {
   CancelToken? _cancel;
   Dio? _dio;
+  String? _sessionId;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -172,6 +174,7 @@ class _DirectPushTaskHandler extends TaskHandler {
       await FlutterForegroundTask.stopService();
       return;
     }
+    _sessionId = sessionId;
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
       headers: {'Authorization': 'Bearer $token'},
@@ -235,7 +238,11 @@ class _DirectPushTaskHandler extends TaskHandler {
         await PushNotifier.showPlain(
           title: text.title,
           body: text.body,
-          deepLink: '/chat/$agentSlug',
+          // The stream is one login's: a tap opens the chat on that login.
+          payload: NotificationTap(
+            deepLink: '/chat/$agentSlug',
+            sessionId: _sessionId,
+          ).toPayload(),
         );
         return;
       }

@@ -1,9 +1,11 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../data/events/event_alarms.dart';
+import '../../data/events/events_api.dart';
 import '../../data/events/events_models.dart';
 import '../../core/format/dates.dart';
 import '../../widgets/choice_pill.dart';
@@ -19,8 +21,14 @@ import 'events_controller.dart';
 /// on a row opens the same sheet to edit it. Every change re-syncs REAL
 /// device alarms (see EventAlarms) so events ring at their start time even
 /// offline.
+///
+/// With [focusId] (`/events/<id>`: an "Up next" row, a reminder tap) it opens
+/// that event's sheet over the list; an event that is gone, or not this
+/// login's, leaves the list with a short message instead.
 class EventsScreen extends ConsumerStatefulWidget {
-  const EventsScreen({super.key});
+  const EventsScreen({super.key, this.focusId});
+
+  final String? focusId;
 
   @override
   ConsumerState<EventsScreen> createState() => _EventsScreenState();
@@ -30,7 +38,38 @@ class _EventsScreenState extends ConsumerState<EventsScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(_secureAlarms);
+    Future.microtask(() async {
+      // The permission step first (its sheet would cover the event's), but
+      // a failure there must not keep the named event shut.
+      try {
+        await _secureAlarms();
+      } catch (_) {
+        /* alarms are best-effort; the event still opens */
+      }
+      await _openFocused();
+    });
+  }
+
+  /// Open the event the route names, read from the brain (it may not be in
+  /// the list: a past one, or beyond the first page).
+  Future<void> _openFocused() async {
+    final id = widget.focusId;
+    if (id == null) return;
+    EventRow row;
+    try {
+      row = await ref.read(eventsApiProvider).get(id);
+    } catch (e) {
+      if (!mounted) return;
+      ShadToaster.maybeOf(context)?.show(
+        ShadToast(description: Text(itemMissingMessage(e, 'event'))),
+      );
+      return;
+    }
+    if (!mounted) return;
+    await showShadSheet<void>(
+      context: context,
+      builder: (_) => EventSheet(existing: row),
+    );
   }
 
   /// Secure what alarms need (iOS notification permission, Android 12+
@@ -541,4 +580,14 @@ class _AlarmRationaleSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The short line shown when an item a route names cannot be opened: gone
+/// (or another login's) versus not reachable right now.
+String itemMissingMessage(Object error, String kind) {
+  final status = error is DioException ? error.response?.statusCode : null;
+  if (status == 404 || status == 403 || status == 400) {
+    return "That $kind is gone, or this login can't open it.";
+  }
+  return "Couldn't open that $kind. Check your connection.";
 }

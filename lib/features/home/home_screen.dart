@@ -9,10 +9,11 @@ import '../../widgets/mantle_header.dart';
 import '../auth/logins_screen.dart';
 import '../dashboard/dashboard_controller.dart';
 import 'last_message_card.dart';
+import 'up_next_card.dart';
 
-/// The landing dashboard: the latest message received, quick actions (chat /
-/// pending / settings) and Mantle's headline stats (spend, pending, brain,
-/// vectors, server health).
+/// The landing dashboard: the latest message received, what is up next
+/// (events and tasks due), quick actions (chat / pending / settings) and
+/// Mantle's headline stats (spend, pending, brain, vectors, server health).
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -60,6 +61,8 @@ class HomeScreen extends ConsumerWidget {
                   // The newest message received, above the controls: what a
                   // person opening the app after a notification came for.
                   const LastMessageCard(),
+                  // What is coming: the next events and the tasks due.
+                  const UpNextCard(),
                   Row(
                     children: [
                       Expanded(

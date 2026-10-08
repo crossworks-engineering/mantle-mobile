@@ -300,7 +300,8 @@ saved.
 paths matching the router's own routes, nothing else. A route added to
 `app_router.dart` is not reachable from a push until it is added to that
 allowlist too; anything unmatched at the router lands on a themed
-not-found screen.
+not-found screen. A tap also picks the login it was for and the item it
+is about; see `docs/push-notifications.md` §9.2b.
 
 ### Which address is "the server" (Mantle ≥ v0.200.0)
 

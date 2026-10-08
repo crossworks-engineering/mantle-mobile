@@ -9,6 +9,8 @@ import '../../data/events/events_api.dart';
 import '../../data/events/events_models.dart';
 import '../auth/session_controller.dart';
 
+import '../dashboard/up_next_controller.dart';
+
 part 'events_controller.g.dart';
 
 /// Owns the upcoming-events list. Every successful load or mutation also
@@ -67,6 +69,7 @@ class EventsController extends _$EventsController {
           remindMinutesBefore: remindMinutesBefore,
         );
     if (!ref.mounted) return;
+    refreshUpNextIfShown(ref);
     final current = state.value;
     if (current != null) {
       final merged = [...current, row]
@@ -96,6 +99,7 @@ class EventsController extends _$EventsController {
           remindMinutesBefore: remindMinutesBefore,
         );
     if (!ref.mounted) return;
+    refreshUpNextIfShown(ref);
     final current = state.value;
     if (current != null) {
       final next = [
@@ -125,6 +129,7 @@ class EventsController extends _$EventsController {
     try {
       final updated = await ref.read(eventsApiProvider).setTags(id, tags);
       if (!ref.mounted) return;
+      refreshUpNextIfShown(ref);
       final next = [
         for (final e in current)
           if (e.id == id) updated else e,
@@ -149,6 +154,7 @@ class EventsController extends _$EventsController {
     }
     try {
       await ref.read(eventsApiProvider).delete(id);
+      if (ref.mounted) refreshUpNextIfShown(ref);
     } catch (_) {
       await _reloadSilently();
     }

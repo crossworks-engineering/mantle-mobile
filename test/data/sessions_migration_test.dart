@@ -228,4 +228,41 @@ void main() {
       expect(id, matches(RegExp(r'^[0-9a-f]{32}$')));
     }
   });
+
+  // v3 → v4: the held logins learn their (brain, login) pair, so a push can
+  // name the login it was for. The update keeps every login as it was.
+  test('the update to v4 keeps every login and adds an empty identity pair',
+      () async {
+    final db = AppDatabase.forTesting(
+      NativeDatabase.memory(
+        setup: (raw) {
+          raw.execute(
+            'CREATE TABLE app_settings (key TEXT NOT NULL, value TEXT NOT '
+            'NULL, PRIMARY KEY (key));',
+          );
+          raw.execute(
+            "CREATE TABLE sessions (id TEXT NOT NULL, base_url TEXT NOT NULL, "
+            "email TEXT NOT NULL DEFAULT '', display_name TEXT NULL, "
+            'site_name TEXT NULL, added_at INTEGER NOT NULL, last_used_at '
+            'INTEGER NOT NULL, needs_sign_in INTEGER NOT NULL DEFAULT 0, '
+            'PRIMARY KEY (id));',
+          );
+          raw.execute(
+            "INSERT INTO sessions VALUES ('s1', 'https://m.example.com', "
+            "'owner@example.com', NULL, NULL, 1700000000, 1700000000, 0)",
+          );
+          raw.execute("INSERT INTO app_settings VALUES ('active_session_id', 's1')");
+          raw.userVersion = 3;
+        },
+      ),
+    );
+    addTearDown(db.close);
+
+    final s = (await db.select(db.sessions).get()).single;
+    expect(s.id, 's1');
+    expect(s.email, 'owner@example.com');
+    expect(s.brainId, isNull);
+    expect(s.loginId, isNull);
+    expect(await db.getSetting(AppDatabase.activeSessionKey), 's1');
+  });
 }

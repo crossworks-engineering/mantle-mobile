@@ -41,6 +41,12 @@ class Sessions extends Table {
   /// back in to, not switched to.
   BoolColumn get needsSignIn => boolean().withDefault(const Constant(false))();
 
+  /// The brain's own id and this login's id on it, as `GET /api/auth/whoami`
+  /// answers them. Null until learned, and on a brain too old to say. A push
+  /// names the same pair, which is how a tap finds the login it was for.
+  TextColumn get brainId => text().nullable()();
+  TextColumn get loginId => text().nullable()();
+
   @override
   Set<Column<Object>> get primaryKey => {id};
 }
@@ -122,7 +128,7 @@ class AppDatabase extends _$AppDatabase {
   String currentSessionId = '';
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -159,6 +165,17 @@ class AppDatabase extends _$AppDatabase {
                   newColumns: [outboxTurns.sessionId],
                 ),
               );
+            }
+          }
+          if (from >= 3) {
+            // A v3 table lacks the identity pair (a table the step above
+            // created already has it). Checked first, so a re-run is safe.
+            final have = await _columnsOf('sessions');
+            if (!have.contains('brain_id')) {
+              await m.addColumn(sessions, sessions.brainId);
+            }
+            if (!have.contains('login_id')) {
+              await m.addColumn(sessions, sessions.loginId);
             }
           }
         }),
@@ -201,6 +218,11 @@ class AppDatabase extends _$AppDatabase {
     await setSetting(activeSessionKey, id);
     await setSetting(legacyBearerOwnerKey, id);
     return id;
+  }
+
+  Future<Set<String>> _columnsOf(String table) async {
+    final rows = await customSelect('PRAGMA table_info($table)').get();
+    return {for (final r in rows) r.read<String>('name')};
   }
 
   /// A fresh session id: 128 random bits, hex. Only letters and digits, so it

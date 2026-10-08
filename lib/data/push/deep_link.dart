@@ -1,23 +1,27 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Surfaces notification-tap deep links into the app so a tap can jump to the
-/// right screen (e.g. an approval push → `/pending`, a message → `/chat/<slug>`).
+import 'notification_tap.dart';
+
+/// Surfaces notification taps into the app so a tap can jump to the right
+/// screen (an approval push → `/pending`, a reminder → that event), on the
+/// login the push was for.
 ///
 /// Two arrival paths feed one [pending] notifier:
 ///   - iOS: native taps come over the `mantle/push` MethodChannel — the
-///     AppDelegate invokes `deepLink` with the tapped link, and a cold-launch
-///     tap is fetched once via `getInitialDeepLink` (the tap fires before Dart
-///     attaches its handler).
-///   - Android: the SHARED flutter_local_notifications tap callback + app-
-///     launch details feed [offer], with payload→route translation for event
-///     alarms (see local_notifications.dart).
+///     AppDelegate invokes `deepLink` with the tapped push's fields, and a
+///     cold-launch tap is fetched once via `getInitialDeepLink` (the tap
+///     fires before Dart attaches its handler).
+///   - Both platforms: the SHARED flutter_local_notifications tap callback +
+///     app-launch details feed [offer] with the local payload (an Android
+///     push, a direct-connection message, an event alarm; see
+///     local_notifications.dart).
 ///
-/// Every link passes through [sanitizeDeepLink] first: a push payload is
-/// data from the network, not a command, so only the app's own routes get
-/// through. The root widget listens to [pending] and routes via go_router,
-/// then clears it. Singleton so the platform channel handler and the Android
-/// notifier share one queue.
+/// Every tap is parsed into a [NotificationTap], whose route passes only the
+/// app's own routes ([sanitizeDeepLink]): a push payload is data from the
+/// network, not a command. The root widget listens to [pending], picks the
+/// login and routes, then clears it. Singleton so the platform channel
+/// handler and the local-notification callback share one queue.
 class DeepLinkRouter {
   DeepLinkRouter._();
 
@@ -25,9 +29,10 @@ class DeepLinkRouter {
 
   static const _channel = MethodChannel('mantle/push');
 
-  /// The most recent un-consumed deep link, or null. The root widget watches
-  /// this, navigates, and resets it to null.
-  final ValueNotifier<String?> pending = ValueNotifier<String?>(null);
+  /// The most recent un-consumed tap, or null. The root widget watches this,
+  /// acts on it, and resets it to null.
+  final ValueNotifier<NotificationTap?> pending =
+      ValueNotifier<NotificationTap?>(null);
 
   bool _started = false;
 
@@ -39,15 +44,15 @@ class DeepLinkRouter {
     // Warm (foreground/background) taps: native → Dart over the shared channel.
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'deepLink') {
-        offer(call.arguments as String?);
+        offer(call.arguments);
       }
       return null;
     });
 
-    // Cold launch via a notification tap: the native side stored the link
+    // Cold launch via a notification tap: the native side stored the tap
     // before Dart was ready, so pull it once now.
     try {
-      final initial = await _channel.invokeMethod<String>('getInitialDeepLink');
+      final initial = await _channel.invokeMethod<Object?>('getInitialDeepLink');
       offer(initial);
     } on PlatformException {
       /* no initial link */
@@ -56,11 +61,12 @@ class DeepLinkRouter {
     }
   }
 
-  /// Queue a deep link for the root widget to consume. Anything that is not
-  /// one of the app's own routes is dropped ([sanitizeDeepLink]).
-  void offer(String? link) {
-    final safe = sanitizeDeepLink(link);
-    if (safe != null) pending.value = safe;
+  /// Queue a tap for the root widget to act on: a bare path, a local
+  /// payload string or the iOS channel's map ([NotificationTap.parse]). A tap
+  /// with no route of the app's own is dropped.
+  void offer(Object? raw) {
+    final tap = NotificationTap.parse(raw);
+    if (tap != null && tap.route != null) pending.value = tap;
   }
 }
 
@@ -83,8 +89,10 @@ final List<RegExp> _allowedDeepLinks = [
   RegExp(r'^/notes$'),
   RegExp('^/notes/$_seg\$'),
   RegExp(r'^/tasks$'),
+  RegExp('^/tasks/$_seg\$'),
   RegExp(r'^/journal$'),
   RegExp(r'^/events$'),
+  RegExp('^/events/$_seg\$'),
   RegExp(r'^/settings$'),
   RegExp(r'^/settings/(appearance|notifications)$'),
 ];
