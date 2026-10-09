@@ -23,3 +23,18 @@ Future<BrainIdentity?> fetchBrainIdentity(Dio dio) async {
     rethrow;
   }
 }
+
+/// The role of the login [dio] carries (`admin`, `member` or `client`), from
+/// the same `GET /api/auth/whoami`. Null when the brain cannot say (a brain
+/// older than whoami, or no role in the answer). Network and auth failures
+/// throw, as any request does.
+Future<String?> fetchLoginRole(Dio dio) async {
+  try {
+    final res = await dio.get<Map<String, dynamic>>('/api/auth/whoami');
+    final role = res.data?['role'];
+    return role is String && role.isNotEmpty ? role : null;
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 404) return null;
+    rethrow;
+  }
+}

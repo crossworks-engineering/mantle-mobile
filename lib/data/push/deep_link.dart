@@ -97,11 +97,38 @@ final List<RegExp> _allowedDeepLinks = [
   RegExp(r'^/settings/(appearance|notifications)$'),
 ];
 
-/// Reduce a link from a notification payload to a route this app owns, or
-/// null. Rules: it must be an absolute in-app path (no scheme, no host, no
-/// `//`), its path must match one of the app's routes exactly, and only the
-/// Files routes keep a query string (they take `?path=` / `?name=`).
-String? sanitizeDeepLink(String? link) {
+/// The workspace each review kind waits in, as the brain names it
+/// (mantle `reviewDeepLink`): a "waiting for approval" push opens
+/// `/<workspace>?review=<id>`.
+const Map<String, String> reviewWorkspaces = {
+  'page': '/pages',
+  'note': '/notes',
+  'table': '/tables',
+  'draw': '/draw',
+  'file': '/files',
+};
+
+/// Of those, the workspaces this app has a screen for. A table or a drawing
+/// has no screen on the phone, so its push opens Home.
+const Set<String> _phoneWorkspaces = {'/pages', '/notes', '/files'};
+
+/// The old review link (`/team-admin?view=review[&item=<id>]`), from a brain
+/// older than review in each workspace.
+const String _legacyReviewPath = '/team-admin';
+
+final RegExp _uuid = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
+/// An item waiting for an admin's approval, named by a push: its id and the
+/// workspace it waits in. [workspace] is null for an old link, which does not
+/// say the kind.
+typedef ReviewLink = ({String id, String? workspace});
+
+/// The parsed in-app link, or null. Rules: it must be an absolute in-app path
+/// (no scheme, no host, no `//`), with no backslash, control character or
+/// dot segment.
+Uri? _inAppUri(String? link) {
   if (link == null) return null;
   final s = link.trim();
   if (s.isEmpty || !s.startsWith('/') || s.startsWith('//')) return null;
@@ -114,10 +141,59 @@ String? sanitizeDeepLink(String? link) {
   if (rawPath.split('/').any((seg) => seg == '.' || seg == '..')) return null;
   final uri = Uri.tryParse(s);
   if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
+  return uri;
+}
+
+/// True for the old review link, with or without an item.
+bool _isLegacyReview(Uri uri) =>
+    uri.path == _legacyReviewPath && uri.queryParameters['view'] == 'review';
+
+/// Reduce a link from a notification payload to a route this app owns, or
+/// null. Its path must match one of the app's routes exactly, and only the
+/// Files routes keep a query string (they take `?path=` / `?name=`).
+///
+/// A review link's workspace without a phone screen (Tables, Draw) and the
+/// old review link open Home. The `review` id is never kept here: it is for
+/// an admin only, and [reviewRoute] adds it back once the login is known to
+/// be one.
+String? sanitizeDeepLink(String? link) {
+  final uri = _inAppUri(link);
+  if (uri == null) return null;
   final path = uri.path;
+  if (path == '/tables' || path == '/draw' || _isLegacyReview(uri)) return '/';
   if (!_allowedDeepLinks.any((r) => r.hasMatch(path))) return null;
   if (path.startsWith('/files') && uri.hasQuery) {
-    return Uri(path: path, query: uri.query).toString();
+    if (!uri.queryParameters.containsKey('review')) {
+      return Uri(path: path, query: uri.query).toString();
+    }
+    final query = Map.of(uri.queryParameters)..remove('review');
+    return query.isEmpty
+        ? path
+        : Uri(path: path, queryParameters: query).toString();
   }
   return path;
+}
+
+/// The item a review push names, or null. Only a UUID is an item id: any
+/// other `review` (or `item`) value is dropped, and so is the link.
+ReviewLink? reviewLinkOf(String? link) {
+  final uri = _inAppUri(link);
+  if (uri == null) return null;
+  if (_isLegacyReview(uri)) {
+    final id = uri.queryParameters['item'];
+    return id != null && _uuid.hasMatch(id) ? (id: id, workspace: null) : null;
+  }
+  if (!reviewWorkspaces.containsValue(uri.path)) return null;
+  final id = uri.queryParameters['review'];
+  return id != null && _uuid.hasMatch(id) ? (id: id, workspace: uri.path) : null;
+}
+
+/// Where an admin's review tap opens: the workspace's screen with the item
+/// named (`/pages?review=<id>`), or Home when the phone has no screen for
+/// that workspace or the kind is not known. [kind] is the item's kind as the
+/// brain reports it, for an old link that does not say.
+String reviewRoute(ReviewLink link, {String? kind}) {
+  final workspace = link.workspace ?? reviewWorkspaces[kind];
+  if (workspace == null || !_phoneWorkspaces.contains(workspace)) return '/';
+  return Uri(path: workspace, queryParameters: {'review': link.id}).toString();
 }

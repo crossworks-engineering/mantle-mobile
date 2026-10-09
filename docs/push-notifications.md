@@ -400,6 +400,21 @@ item's sheet on top; an item that is gone, or not this login's, leaves the list
 with a short message. Home goes under it, so Back lands on Home. No brain
 sends a task push yet; the route is ready for one.
 
+**Waiting for approval** (`reviewLinkOf`, `reviewRoute`,
+`NotificationRouter.routeFor`). A brain with review in each workspace sends
+`/<workspace>?review=<id>` (workspace `pages`, `notes`, `tables`, `draw` or
+`files`); an older one sends `/team-admin?view=review[&item=<id>]`. The id
+is kept only when it is a UUID. `sanitizeDeepLink` never keeps it: Pages,
+Notes and Files open their list, Tables, Draw and the old link open Home
+(the phone has no Tables or Draw screen and no review list). After the login
+is picked, the router asks `GET /api/auth/whoami`; only when it answers
+`role: admin` does the tap open `/<workspace>?review=<id>`, and for an old
+link with an item it asks `GET /api/team-admin/submissions/<id>` for the
+kind first (unknown: Home). A member, a client, a brain that cannot say and
+any failure follow the plain route, and never call the admin route (its 401
+would sign the login out). No phone screen opens a member's item yet: the
+id rides in the route for the workspace review screens to read.
+
 **Which login** (`resolveTap`, the contract in the brain's
 `docs/mobile-companion-backend.md`, "Push routing on a device with several
 logins"). Each held login stores the (`brainId`, `loginId`) pair `GET

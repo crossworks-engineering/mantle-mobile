@@ -51,6 +51,11 @@ class NotificationTap {
   /// brain's link, else nothing.
   String? get route => sanitizeDeepLink(itemLink) ?? sanitizeDeepLink(deepLink);
 
+  /// The item waiting for approval the push names, if any. For an admin
+  /// only: the tap router opens it ([reviewRoute]) once the login in use is
+  /// known to be one, and follows [route] otherwise.
+  ReviewLink? get review => reviewLinkOf(itemLink) ?? reviewLinkOf(deepLink);
+
   /// True when the push names the login it was for.
   bool get namesLogin =>
       (brainId?.isNotEmpty ?? false) && (loginId?.isNotEmpty ?? false);
