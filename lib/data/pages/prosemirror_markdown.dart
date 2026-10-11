@@ -141,16 +141,27 @@ String _plain(List<Map> nodes) => [
                 : _plain(_content(n)),
     ].join();
 
+/// The characters that would make literal text into markdown: an image or a
+/// link (`![`, `[`, `](`), emphasis, a heading, a quote, code, strike.
+final _markdownSyntax = RegExp(r'[\\*_\[\]()!#>~`]');
+
+/// [text] as it was typed: every character markdown would read as syntax is
+/// escaped, so `![x](https://…)` typed in a paragraph stays those words and
+/// never turns into a picture fetched from a host, or a link.
+String _escaped(String text) =>
+    text.replaceAllMapped(_markdownSyntax, (m) => '\\${m[0]}');
+
 String _marked(Map node) {
-  var text = node['text'] is String ? node['text'] as String : '';
-  if (text.isEmpty) return '';
+  final raw = node['text'] is String ? node['text'] as String : '';
+  if (raw.isEmpty) return '';
   final marks = node['marks'];
-  if (marks is! List) return text;
   final types = {
-    for (final m in marks)
-      if (m is Map && m['type'] is String) m['type'] as String: m,
+    if (marks is List)
+      for (final m in marks)
+        if (m is Map && m['type'] is String) m['type'] as String: m,
   };
-  if (types.containsKey('code')) return '`$text`';
+  if (types.containsKey('code')) return '`$raw`';
+  var text = _escaped(raw);
   if (types.containsKey('bold')) text = '**$text**';
   if (types.containsKey('italic')) text = '*$text*';
   if (types.containsKey('strike')) text = '~~$text~~';
@@ -176,7 +187,7 @@ String _label(Map node) {
   final a = _attrs(node);
   for (final key in ['label', 'title', 'name', 'text']) {
     final v = a[key];
-    if (v is String && v.isNotEmpty) return v;
+    if (v is String && v.isNotEmpty) return _escaped(v);
   }
   return '';
 }

@@ -2,6 +2,7 @@
 // markdown export being an Admin user's route).
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:markdown/markdown.dart' show markdownToHtml;
 import 'package:jackdaw/data/pages/prosemirror_markdown.dart';
 
 Map<String, dynamic> _t(String text, [List<String> marks = const []]) => {
@@ -120,5 +121,30 @@ void main() {
   test('no document, no words', () {
     expect(proseMirrorToMarkdown(null), '');
     expect(proseMirrorToMarkdown({'type': 'doc'}), '');
+  });
+
+  test('markdown typed as text stays text: no picture, no link', () {
+    final md = proseMirrorToMarkdown({
+      'type': 'doc',
+      'content': [
+        _p([_t('![x](https://tracker.example/p.png) and [y](https://a.example)')]),
+        _p([_t('# not a heading, > not a quote, *a*, _b_, ~~c~~, `d`, \\')]),
+        _p([_t('[bold](https://a.example)', ['bold'])]),
+      ],
+    });
+    expect(
+      md,
+      r'\!\[x\]\(https://tracker.example/p.png\) and '
+      r'\[y\]\(https://a.example\)'
+      '\n\n'
+      r'\# not a heading, \> not a quote, \*a\*, \_b\_, \~\~c\~\~, \`d\`, \\'
+      '\n\n'
+      r'**\[bold\]\(https://a.example\)**',
+    );
+    // The renderer reads it back as the words typed.
+    final html = markdownToHtml(md);
+    expect(html, isNot(contains('<img')));
+    expect(html, isNot(contains('<a ')));
+    expect(html, contains('![x](https://tracker.example/p.png)'));
   });
 }
