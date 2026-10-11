@@ -111,16 +111,24 @@ class FolderGlyph extends StatelessWidget {
 /// is information, not a control, so it takes the quiet pair (`muted`), not
 /// the chip pair a pressable pill uses.
 class TreeBadge extends StatelessWidget {
-  const TreeBadge(this.label, {super.key});
+  const TreeBadge(
+    this.label, {
+    super.key,
+    this.margin = const EdgeInsets.only(left: 8),
+  });
 
   final String label;
+
+  /// Room around it: to the left at the end of a row, to the right in a
+  /// line of chips.
+  final EdgeInsets margin;
 
   @override
   Widget build(BuildContext context) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
     return Container(
-      margin: const EdgeInsets.only(left: 8),
+      margin: margin,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       // A long workspace name must not push the row's title out.
       constraints: const BoxConstraints(maxWidth: 112),
@@ -141,16 +149,34 @@ class TreeBadge extends StatelessWidget {
 /// How many workspace chips a row shows before it counts the rest.
 const kTreeChipsShown = 2;
 
-/// The chips that say who reads a folder or an item: its workspaces (the
-/// first [kTreeChipsShown], then "+N") and "Public" when a live link exists.
-/// Nothing when the brain sent none (an item only its home reads still names
-/// that workspace).
-List<Widget> workspaceChips(List<TreeWorkspace> workspaces, bool hasLink) => [
-      for (final w in workspaces.take(kTreeChipsShown)) TreeBadge(w.name),
+/// The chips that say who reads a folder or an item, under its title: its
+/// workspaces (the first [kTreeChipsShown], then "+N") and "Public" when a
+/// live link exists. They wrap rather than squeeze the title. Nothing when
+/// the brain sent none.
+class WorkspaceChips extends StatelessWidget {
+  const WorkspaceChips({
+    super.key,
+    required this.workspaces,
+    required this.hasLink,
+  });
+
+  final List<TreeWorkspace> workspaces;
+  final bool hasLink;
+
+  @override
+  Widget build(BuildContext context) {
+    const margin = EdgeInsets.only(right: 6, top: 4);
+    final chips = [
+      for (final w in workspaces.take(kTreeChipsShown))
+        TreeBadge(w.name, margin: margin),
       if (workspaces.length > kTreeChipsShown)
-        TreeBadge('+${workspaces.length - kTreeChipsShown}'),
-      if (hasLink) const TreeBadge('Public'),
+        TreeBadge('+${workspaces.length - kTreeChipsShown}', margin: margin),
+      if (hasLink) const TreeBadge('Public', margin: margin),
     ];
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Wrap(children: chips);
+  }
+}
 
 /// What a screen reader hears for the chips: "Team, Sales, public link".
 String workspaceChipsSpoken(List<TreeWorkspace> workspaces, bool hasLink) => [
@@ -217,12 +243,15 @@ class TreeFolderTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.small.copyWith(color: muted),
                     ),
+                    WorkspaceChips(
+                      workspaces: folder.workspaces,
+                      hasLink: folder.hasLink,
+                    ),
                   ],
                 ),
               ),
-              // Workspaces read it (W5b2): the chips. An older brain's share
-              // badge only when it sends no workspaces.
-              ...workspaceChips(folder.workspaces, folder.hasLink),
+              // An older brain's share badge only when it sends no
+              // workspaces (the chips under the name say who reads it).
               if (folder.workspaces.isEmpty && shared != null)
                 TreeBadge(levelLabel(shared)),
               Padding(
@@ -322,11 +351,16 @@ class TreeItemTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.small.copyWith(color: muted),
                       ),
+                    // Who reads it: the workspaces (grants, W5b2) and a link.
+                    if (state == null)
+                      WorkspaceChips(
+                        workspaces: item.workspaces,
+                        hasLink: item.hasLink,
+                      ),
                   ],
                 ),
               ),
               if (state != null) TreeBadge(stateLabel(state)),
-              if (state == null) ...workspaceChips(item.workspaces, item.hasLink),
               if (state == null &&
                   item.workspaces.isEmpty &&
                   level != null &&

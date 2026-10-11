@@ -2,6 +2,7 @@
 // wiped device. Real ServerConfig + SessionController over in-memory Drift;
 // the token store and the wipe are mocked; the network is a stub adapter.
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
@@ -10,6 +11,8 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/core/network/dio_provider.dart';
+import 'package:jackdaw/core/network/mobile_build.dart';
+import 'package:jackdaw/data/auth/token_refresh.dart';
 import 'package:jackdaw/data/auth/session_wipe.dart';
 import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
@@ -92,6 +95,31 @@ void main() {
     final dio = c.read(dioProvider)..httpClientAdapter = adapter;
     return (c, dio);
   }
+
+  test('names the phone build on every request', () async {
+    MobileBuild.debugOverride('1.15.0+27');
+    addTearDown(MobileBuild.debugReset);
+    final adapter = _StubAdapter(200);
+    final (_, dio) = await boot(adapter);
+    await dio.get<void>('/api/x');
+    expect(adapter.last?.headers[kMobileBuildHeader], '1.15.0+27');
+  });
+
+  test('a request waits while the bearer is being rotated', () async {
+    final adapter = _StubAdapter(200);
+    final (c, dio) = await boot(adapter);
+    final release = Completer<void>();
+    final rotation = c.read(tokenRefreshGateProvider).run(() => release.future);
+    var sent = false;
+    final request = dio.get<void>('/api/x').then((_) => sent = true);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(sent, isFalse);
+    expect(adapter.last, isNull);
+    release.complete();
+    await rotation;
+    await request;
+    expect(sent, isTrue);
+  });
 
   test('injects the bearer on every request', () async {
     final adapter = _StubAdapter(200);

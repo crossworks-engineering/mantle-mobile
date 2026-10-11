@@ -106,6 +106,18 @@ class LoginAccess {
         isOwner = false,
         legacy = true;
 
+  /// Nobody is signed in: nothing is offered.
+  const LoginAccess.signedOut()
+      : role = LoginRole.client,
+        loginId = null,
+        email = null,
+        displayName = null,
+        brainId = null,
+        workspaces = const [],
+        areas = const {},
+        isOwner = false,
+        legacy = false;
+
   /// What a sign-in answer said before whoami answers: only the role.
   factory LoginAccess.fromRole(String? role) {
     final parsed = LoginRole.parse(role);

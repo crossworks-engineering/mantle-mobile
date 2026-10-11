@@ -12,6 +12,8 @@ import 'package:jackdaw/data/auth/session_wipe.dart';
 import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
+import 'package:jackdaw/data/auth/login_access.dart';
+import 'package:jackdaw/features/auth/login_access_controller.dart';
 import 'package:jackdaw/features/auth/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -116,6 +118,29 @@ void main() {
     // Settings shows who is signed in from this.
     expect(await db.getSetting('account_email'), 'owner@example.com');
     expect(await c.read(accountEmailProvider.future), 'owner@example.com');
+  });
+
+  test('a member\'s sign-in is remembered as a member before whoami answers',
+      () async {
+    await db.setSetting('server_base_url', 'https://m.example.com');
+    when(() => tokenStore.read()).thenAnswer((_) async => null);
+    when(() => authRepo.login(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenAnswer(
+      (_) async => const SignInResult(token: 't', role: 'member'),
+    );
+
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    await c
+        .read(sessionControllerProvider.notifier)
+        .signIn(email: 'mia@example.invalid', password: 'pw');
+
+    final id = (await db.getSetting('active_session_id'))!;
+    final hint = await readCachedAccess(db, id);
+    expect(hint?.role, LoginRole.member);
+    expect(hint?.ownerContent, isFalse);
   });
 
   test('signInWithPairing sets the server from the QR, claims, flips to '

@@ -52,11 +52,13 @@ class LoginAccessController extends _$LoginAccessController {
   @override
   Future<LoginAccess> build() async {
     ref.watch(sessionEpochProvider);
-    final status = ref.watch(sessionControllerProvider).value;
-    if (status != AuthStatus.loggedIn) return const LoginAccess.legacyAdmin();
+    // Wait for the session to settle: an answer given before it would be a
+    // guess, and a guess must never be an Admin user's surface.
+    final status = await ref.watch(sessionControllerProvider.future);
+    if (status != AuthStatus.loggedIn) return const LoginAccess.signedOut();
     final sessionId =
         await ref.read(sessionRepositoryProvider).activeId() ?? '';
-    if (sessionId.isEmpty) return const LoginAccess.legacyAdmin();
+    if (sessionId.isEmpty) return const LoginAccess.signedOut();
     final db = ref.read(appDatabaseProvider);
     final cached = await readCachedAccess(db, sessionId);
     if (cached != null) {
@@ -104,8 +106,12 @@ class LoginAccessController extends _$LoginAccessController {
   }
 }
 
-/// The login in use's access as it stands: null until the first answer (a
-/// screen then offers only what every login has).
+/// The login in use's access as it stands: null while it is being worked
+/// out (at start, and for the moment after a sign-in or a switch, when the
+/// last answer is another login's). A screen then offers only what every
+/// login has.
 @Riverpod(keepAlive: true)
-LoginAccess? currentAccess(Ref ref) =>
-    ref.watch(loginAccessControllerProvider).value;
+LoginAccess? currentAccess(Ref ref) {
+  final async = ref.watch(loginAccessControllerProvider);
+  return async.isLoading ? null : async.value;
+}

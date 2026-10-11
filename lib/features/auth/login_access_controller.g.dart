@@ -64,7 +64,7 @@ final class LoginAccessControllerProvider
 }
 
 String _$loginAccessControllerHash() =>
-    r'433922ac15654106c3f49bb267eff919df9758d8';
+    r'1ba046219f5a3588a2c9dc5ac9bbba2ac48c00c4';
 
 /// Who the login in use is, and what the phone offers it ([LoginAccess]).
 ///
@@ -95,20 +95,26 @@ abstract class _$LoginAccessController extends $AsyncNotifier<LoginAccess> {
   }
 }
 
-/// The login in use's access as it stands: null until the first answer (a
-/// screen then offers only what every login has).
+/// The login in use's access as it stands: null while it is being worked
+/// out (at start, and for the moment after a sign-in or a switch, when the
+/// last answer is another login's). A screen then offers only what every
+/// login has.
 
 @ProviderFor(currentAccess)
 final currentAccessProvider = CurrentAccessProvider._();
 
-/// The login in use's access as it stands: null until the first answer (a
-/// screen then offers only what every login has).
+/// The login in use's access as it stands: null while it is being worked
+/// out (at start, and for the moment after a sign-in or a switch, when the
+/// last answer is another login's). A screen then offers only what every
+/// login has.
 
 final class CurrentAccessProvider
     extends $FunctionalProvider<LoginAccess?, LoginAccess?, LoginAccess?>
     with $Provider<LoginAccess?> {
-  /// The login in use's access as it stands: null until the first answer (a
-  /// screen then offers only what every login has).
+  /// The login in use's access as it stands: null while it is being worked
+  /// out (at start, and for the moment after a sign-in or a switch, when the
+  /// last answer is another login's). A screen then offers only what every
+  /// login has.
   CurrentAccessProvider._()
     : super(
         from: null,
@@ -142,4 +148,4 @@ final class CurrentAccessProvider
   }
 }
 
-String _$currentAccessHash() => r'53b71db53fbacc04c1310f226ddf05f44358dd3c';
+String _$currentAccessHash() => r'eca3bdbf13d0fc97710a65ac904773521ff749a4';
