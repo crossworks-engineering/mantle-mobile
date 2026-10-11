@@ -86,7 +86,10 @@ void main() {
     }
   }
 
-  ProviderContainer makeContainer({LoginAccess? access}) {
+  // An Admin user unless a test says otherwise: the live turn stream is
+  // theirs, and an access not known yet (null) is offered no more than any
+  // login.
+  ProviderContainer makeContainer({LoginAccess? access = adminAccess}) {
     final c = ProviderContainer(
       overrides: [
         currentAccessProvider.overrideWithValue(access),
@@ -850,6 +853,41 @@ void main() {
       expect(state.active, isNull);
       expect(state.messages.map((m) => m.id), ['i1', 'o1']);
       expect(state.messages.last.text, 'Hi there');
+      verifyNever(() => repo.streamTurn(any(),
+          cancelToken: any(named: 'cancelToken')));
+    });
+
+    test('access not known yet: the turn is polled, the stream never opened',
+        () async {
+      final at = DateTime(2026, 10, 12, 9);
+      var polls = 0;
+      when(() => repo.history(
+            before: any(named: 'before'),
+            limit: any(named: 'limit'),
+            agentSlug: any(named: 'agentSlug'),
+          )).thenAnswer((_) async {
+        polls++;
+        if (polls == 1) return const HistoryPage(messages: []);
+        final inbound = _msg('i1', MessageDirection.inbound, 'hello', at: at);
+        final reply = ChatMessage(
+          id: 'o1',
+          direction: MessageDirection.outbound,
+          text: 'Hi there',
+          createdAt: at.add(const Duration(seconds: 2)),
+          status: MessageStatus.sent,
+        );
+        return HistoryPage(messages: [inbound, reply]);
+      });
+      whenSend().thenAnswer((_) async => const TurnAccepted('ws-m.k0'));
+
+      final c = makeContainer(access: null);
+      await c.read(chatControllerProvider(_slug).future);
+      final outcome =
+          await c.read(chatControllerProvider(_slug).notifier).send('hello');
+
+      expect(outcome, SendOutcome.sent);
+      expect(c.read(chatControllerProvider(_slug)).value!.messages.last.text,
+          'Hi there');
       verifyNever(() => repo.streamTurn(any(),
           cancelToken: any(named: 'cancelToken')));
     });

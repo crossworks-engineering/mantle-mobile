@@ -9,10 +9,14 @@ enum LoginRole {
   /// A client login. The brain serves none to the phone yet.
   client;
 
+  /// No role at all is a brain from before roles: every login there was an
+  /// Admin user. A role this build does not know is never read as more than
+  /// a member: unknown means the least, not the most.
   static LoginRole parse(Object? raw) => switch (raw) {
-        'member' => LoginRole.member,
+        null => LoginRole.admin,
+        'admin' => LoginRole.admin,
         'client' => LoginRole.client,
-        _ => LoginRole.admin,
+        _ => LoginRole.member,
       };
 }
 

@@ -639,7 +639,9 @@ class ChatController extends _$ChatController {
       // turn stream. Any other login has no live stream: its turn is queued
       // and the reply lands in its thread, so the phone polls for it.
       if (resp is TurnAccepted) {
-        final live = ref.read(currentAccessProvider)?.liveTurnStream ?? true;
+        // Access not known yet: poll. The turn stream refuses a member, and
+        // polling works for every login.
+        final live = ref.read(currentAccessProvider)?.liveTurnStream ?? false;
         if (!live) {
           return await _runPolledTurn(
             resp.turnId,

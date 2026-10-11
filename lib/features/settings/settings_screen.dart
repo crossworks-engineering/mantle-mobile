@@ -25,8 +25,9 @@ class SettingsScreen extends ConsumerWidget {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
     // Push devices and the reminder channel are an Admin user's own things
-    // (`/api/push`, `/api/profile`): a member's routes refuse them.
-    final ownerSelf = ref.watch(currentAccessProvider)?.ownerSelf ?? true;
+    // (`/api/push`, `/api/profile`): a member's routes refuse them. Hidden
+    // while the login's access is still being worked out.
+    final ownerSelf = ref.watch(currentAccessProvider)?.ownerSelf ?? false;
 
     return Container(
       color: scheme.background,

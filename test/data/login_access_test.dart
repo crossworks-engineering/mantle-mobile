@@ -35,6 +35,21 @@ Map<String, dynamic> _whoami({
     };
 
 void main() {
+  test('a role: none is the legacy Admin user, one unknown is a member',
+      () {
+    expect(LoginRole.parse(null), LoginRole.admin);
+    expect(LoginRole.parse('admin'), LoginRole.admin);
+    expect(LoginRole.parse('member'), LoginRole.member);
+    expect(LoginRole.parse('client'), LoginRole.client);
+    expect(LoginRole.parse('superuser'), LoginRole.member);
+    expect(LoginRole.parse(''), LoginRole.member);
+    expect(LoginRole.parse(7), LoginRole.member);
+    expect(LoginAccess.fromRole('auditor').isAdminUser, isFalse);
+    final unknown = LoginAccess.fromWhoami(_whoami(role: 'auditor'));
+    expect(unknown.role, LoginRole.member);
+    expect(unknown.ownerSelf, isFalse);
+  });
+
   test('whoami is read whole', () {
     final a = LoginAccess.fromWhoami(_whoami());
     expect(a.role, LoginRole.member);

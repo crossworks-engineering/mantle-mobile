@@ -10,10 +10,12 @@ import 'package:jackdaw/data/chat/chat_repository.dart';
 import 'package:jackdaw/data/chat/conversation_stream.dart';
 import 'package:jackdaw/features/chat/chat_composer.dart';
 import 'package:jackdaw/features/chat/chat_controller.dart';
+import 'package:jackdaw/features/chat/chat_screen.dart';
 import 'package:jackdaw/features/voice/voice_capture.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../helpers/fake_voice_recorder.dart';
+import '../helpers/fixed_access.dart';
 import '../helpers/pump_screen.dart';
 
 class MockChatRepository extends Mock implements ChatRepository {}
@@ -62,5 +64,53 @@ void main() {
   testWidgets('the owner surface keeps it', (tester) async {
     await pump(tester, allow: true);
     expect(find.bySemanticsLabel('Attach a photo or file'), findsOneWidget);
+  });
+
+  group('chatAttachmentsAllowed', () {
+    test('hidden while the login is not known yet', () {
+      expect(
+        chatAttachmentsAllowed(
+          access: null,
+          agentId: 'a1',
+          workspaceAgentIds: const {},
+        ),
+        isFalse,
+      );
+      expect(
+        chatAttachmentsAllowed(
+          access: null,
+          agentId: null,
+          workspaceAgentIds: null,
+        ),
+        isFalse,
+      );
+    });
+
+    test("an Admin user with an owner-surface assistant only", () {
+      expect(
+        chatAttachmentsAllowed(
+          access: adminAccess,
+          agentId: 'a1',
+          workspaceAgentIds: const {},
+        ),
+        isTrue,
+      );
+      expect(
+        chatAttachmentsAllowed(
+          access: adminAccess,
+          agentId: 'a1',
+          workspaceAgentIds: const {'a1'},
+        ),
+        isFalse,
+      );
+      expect(
+        chatAttachmentsAllowed(
+          access: memberAccess,
+          agentId: 'a1',
+          workspaceAgentIds: const {},
+        ),
+        isFalse,
+      );
+    });
   });
 }

@@ -6,6 +6,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../core/format/dates.dart';
 import '../../data/agents/agent.dart';
+import '../../data/auth/login_access.dart';
 import '../../widgets/mantle_header.dart';
 import '../agents/agent_avatar.dart';
 import '../agents/agent_controller.dart';
@@ -327,14 +328,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Pictures and files go only to the owner surface's assistants, and only
   /// from an Admin user: an assistant of another workspace takes text (the
   /// brain answers a file there with 415), and so does any other login.
-  bool _attachmentsAllowed(Agent? agent) {
-    final access = ref.watch(currentAccessProvider);
-    if (access != null && !access.chatAttachments) return false;
-    final id = agent?.id;
-    if (id == null) return true;
-    final workspaceAgents = ref.watch(workspaceAgentIdsProvider).value;
-    return !(workspaceAgents?.contains(id) ?? false);
-  }
+  bool _attachmentsAllowed(Agent? agent) => chatAttachmentsAllowed(
+        access: ref.watch(currentAccessProvider),
+        agentId: agent?.id,
+        workspaceAgentIds: ref.watch(workspaceAgentIdsProvider).value,
+      );
+}
+
+/// Whether the composer offers the attach button. Not while the login's
+/// access is still being worked out (null): an unknown login is offered only
+/// what every login has, and a member's chat takes text. Nor for an
+/// assistant of a workspace other than Admin.
+@visibleForTesting
+bool chatAttachmentsAllowed({
+  required LoginAccess? access,
+  required String? agentId,
+  required Set<String>? workspaceAgentIds,
+}) {
+  if (access == null || !access.chatAttachments) return false;
+  if (agentId == null) return true;
+  return !(workspaceAgentIds?.contains(agentId) ?? false);
 }
 
 /// The agent this thread belongs to, from the loaded agent list; null until

@@ -6,11 +6,14 @@ import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/core/app_version.dart';
+import 'package:jackdaw/data/auth/login_access.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
 import 'package:jackdaw/data/server/server_version.dart';
+import 'package:jackdaw/features/auth/login_access_controller.dart';
 import 'package:jackdaw/features/settings/settings_screen.dart';
 
+import '../helpers/fixed_access.dart';
 import '../helpers/pump_screen.dart';
 
 void main() {
@@ -18,7 +21,12 @@ void main() {
   setUp(() => db = AppDatabase.forTesting(NativeDatabase.memory()));
   tearDown(() => db.close());
 
-  Future<void> pump(WidgetTester tester, {String? serverVersion = '0.9.9'}) =>
+  Future<void> pump(
+    WidgetTester tester, {
+    String? serverVersion = '0.9.9',
+    LoginAccess? access,
+    bool overrideAccess = false,
+  }) =>
       pumpScreen(
         tester,
         const SettingsScreen(),
@@ -26,8 +34,25 @@ void main() {
           appDatabaseProvider.overrideWithValue(db),
           appVersionProvider.overrideWith((ref) async => '1.2.3 (4)'),
           serverVersionProvider.overrideWith((ref) async => serverVersion),
+          if (overrideAccess) currentAccessProvider.overrideWithValue(access),
         ]),
       );
+
+  testWidgets('push settings are hidden while the access is not known',
+      (tester) async {
+    await pump(tester, overrideAccess: true);
+    expect(find.text('Push notifications'), findsNothing);
+  });
+
+  testWidgets('push settings are an Admin user\'s', (tester) async {
+    await pump(tester, overrideAccess: true, access: adminAccess);
+    expect(find.text('Push notifications'), findsOneWidget);
+  });
+
+  testWidgets('push settings are not a member\'s', (tester) async {
+    await pump(tester, overrideAccess: true, access: memberAccess);
+    expect(find.text('Push notifications'), findsNothing);
+  });
 
   testWidgets('shows who and where: server, email, app and server version',
       (tester) async {
