@@ -340,8 +340,10 @@ From brain W7e on, any login the brain serves to the phone (an Admin user or
 a member) signs in here. A client login is refused (403 `client-login`).
 
 - **Build header.** Every request carries `X-Jackdaw-Mobile: <version>+<build>`
-  (`core/network/mobile_build.dart`), on the app client, the identity
-  client, the refresh and the Android direct connection. The brain serves a
+  (`core/network/mobile_build.dart`), on every brain API client: the app
+  client, the identity client (whoami, the refresh, signing out of a held
+  login), the server probe and the Android direct connection. The push
+  relay is not a brain and does not get it. The brain serves a
   member only to build 27 or newer; an older build gets 426 `update-app`.
 - **Sign-in.** `POST /api/auth/device-login` for every login (30 days); a
   brain without it (404) falls back to the frozen `mobile-login`. 426 says
@@ -349,10 +351,18 @@ a member) signs in here. A client login is refused (403 `client-login`).
 - **Refresh.** `POST /api/auth/token/refresh` at start, after a switch and on
   a stale resume (`data/auth/token_refresh.dart`). The newest token is
   always stored; a 401 signs that login out, anything else keeps the token.
-  While a rotation runs, the app client holds its requests
-  (`TokenRefreshGate`): a rotated token used after its successor ends every
-  session of the login on the brain. The direct connection reads the bearer
-  again before every connect for the same reason.
+  A rotated token used after its successor ends every session of the login
+  on the brain, so every bearer is taken through `TokenRefreshGate`, keyed
+  by login: it holds a request while that login's refresh runs, reads the
+  bearer again if a refresh began during the read, and counts the request
+  until its answer is in. The refresh is posted only once that count is
+  zero (skipped when it does not drain), and a refresh asked for while
+  another login's runs goes after it. A 401 sent with a bearer rotated
+  meanwhile is retried once with the new one, never a sign-out. The app
+  client, whoami learning and signing out of a held login all go through
+  the gate. The Android direct connection runs in its own isolate: the app
+  marks a rotation in its data store, and the service neither connects nor
+  fetches while it is marked, reading the bearer fresh for each.
 - **Access.** `GET /api/auth/whoami` (role, workspaces, areas, isOwner) is
   cached per login in `app_settings` (`login_access.<session>`), cache first
   (`features/auth/login_access_controller.dart`); a sign-in writes the role

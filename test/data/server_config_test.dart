@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jackdaw/core/network/mobile_build.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
 import 'package:jackdaw/data/server/server_config.dart';
@@ -114,6 +115,18 @@ void main() {
       }
       await req.response.close();
     };
+
+    test('the probe names the phone build', () async {
+      MobileBuild.debugOverride('1.15.0+27');
+      addTearDown(MobileBuild.debugReset);
+      String? named;
+      final (_, url) = await serve((req) async {
+        named = req.headers.value(kMobileBuildHeader);
+        await brain()(req);
+      });
+      expect(await probeMantleServer(url), isA<ServerProbeBrain>());
+      expect(named, '1.15.0+27');
+    });
 
     test('a real brain resolves to its own (normalized) address', () async {
       final (_, url) = await serve(brain());

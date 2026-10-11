@@ -3,6 +3,7 @@
 // login's own bearer. Real SessionRepository and TokenStore (in-memory Drift
 // and the secure-storage mock); the brains answer through a stub adapter.
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -12,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/auth/session_repository.dart';
+import 'package:jackdaw/data/auth/token_refresh.dart';
 import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
@@ -139,5 +141,28 @@ void main() {
         .decide(const NotificationTap(deepLink: '/pending'));
     expect((d as FollowOnActive).route, '/pending');
     expect(asked, isEmpty);
+  });
+
+  test('learning waits out a rotation of that login and asks with the new '
+      'bearer, never the one being replaced', () async {
+    await hold('s2', _b);
+    whoami[_b] = me('brain-b', 'admin-9');
+    final gate = c.read(tokenRefreshGateProvider);
+    final rotate = Completer<void>();
+    final rotation = gate.run('s2', () async {
+      await rotate.future;
+      await c.read(tokenStoreProvider).writeFor('s2', 'bearer-s2-new');
+    });
+
+    final session = (await c.read(sessionRepositoryProvider).byId('s2'))!;
+    final learning = c.read(sessionIdentityProvider).learn(session);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(asked, isEmpty);
+
+    rotate.complete();
+    await rotation;
+    expect(await learning, isTrue);
+    expect(asked.single.headers['Authorization'], 'Bearer bearer-s2-new');
+    expect(gate.sending('s2'), 0);
   });
 }

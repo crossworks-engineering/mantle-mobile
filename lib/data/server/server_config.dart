@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/network/mobile_build.dart';
 import '../db/database_provider.dart';
 
 part 'server_config.g.dart';
@@ -151,7 +152,8 @@ Future<ServerProbe> probeMantleServer(String url) async {
 
 /// Same redirect policy as the app client: a server that answers the probe
 /// with a 3xx (say, http → https) is NOT a brain at this address, otherwise
-/// the probe would pass on an address every later request fails on.
+/// the probe would pass on an address every later request fails on. It names
+/// the phone build too, as every client that talks to a brain does.
 Dio _probeDio(String baseUrl) => Dio(
   BaseOptions(
     baseUrl: baseUrl,
@@ -159,7 +161,7 @@ Dio _probeDio(String baseUrl) => Dio(
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ),
-);
+)..interceptors.add(MobileBuildInterceptor());
 
 /// True when `GET /api/version` answers like a Mantle server.
 Future<bool> _isMantleBrain(String baseUrl) async {

@@ -3,21 +3,28 @@
 // the secure-storage mock); AuthRepository and SessionWipe mocked, with the
 // mocked login writing a token the way the real one does.
 
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/core/network/dio_provider.dart';
+import 'package:jackdaw/core/network/mobile_build.dart';
 import 'package:jackdaw/data/auth/auth_api.dart';
 import 'package:jackdaw/data/auth/auth_repository.dart';
 import 'package:jackdaw/data/auth/session_repository.dart';
 import 'package:jackdaw/data/auth/session_wipe.dart';
+import 'package:jackdaw/data/auth/token_refresh.dart';
 import 'package:jackdaw/data/auth/token_store.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
 import 'package:jackdaw/features/auth/session_controller.dart';
+import 'package:jackdaw/features/auth/session_identity.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../helpers/stub_dio.dart';
 
 class MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -33,6 +40,7 @@ void main() {
   late MockAuthRepository authRepo;
   late MockSessionWipe wipe;
   late ProviderContainer c;
+  late List<RequestOptions> held;
   var minted = 0;
 
   setUp(() {
@@ -41,11 +49,21 @@ void main() {
     authRepo = MockAuthRepository();
     wipe = MockSessionWipe();
     minted = 0;
+    held = [];
     c = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(db),
         authRepositoryProvider.overrideWithValue(authRepo),
         sessionWipeProvider.overrideWithValue(wipe),
+        // A held login's own brain, for signing out of it.
+        identityDioFactoryProvider.overrideWithValue(
+          (baseUrl) => Dio(BaseOptions(baseUrl: baseUrl))
+            ..interceptors.add(MobileBuildInterceptor())
+            ..httpClientAdapter = StubAdapter((o) {
+              held.add(o);
+              return (status: 200, body: '{}');
+            }),
+        ),
       ],
     );
     when(() => wipe.unpairPush()).thenAnswer((_) async {});
@@ -202,6 +220,38 @@ void main() {
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
     expect(await sessions().activeId(), a);
     expect((await sessions().list()).map((s) => s.email), ['a@example.com']);
+  });
+
+  test('signing out of a held login waits out its rotation, revokes with the '
+      'newest bearer on its own brain, and names the phone build', () async {
+    MobileBuild.debugOverride('1.15.0+27');
+    addTearDown(MobileBuild.debugReset);
+    await c.read(sessionControllerProvider.future);
+    final a = await signInFresh(_brain, 'a@example.com');
+    await controller().startAddLogin();
+    await controller().signIn(email: 'b@example.com', password: 'pw');
+
+    // A's refresh, begun while it was in use, is still running.
+    final gate = c.read(tokenRefreshGateProvider);
+    final rotate = Completer<void>();
+    final rotation = gate.run(a, () async {
+      await rotate.future;
+      await c.read(tokenStoreProvider).writeFor(a, 'tok-1-new');
+    });
+    final leaving = controller().signOutOf(a);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(held, isEmpty);
+
+    rotate.complete();
+    await rotation;
+    await leaving;
+
+    final logout = held.singleWhere((o) => o.path == '/api/auth/mobile-logout');
+    expect(logout.uri.toString(), '$_brain/api/auth/mobile-logout');
+    expect(logout.headers['Authorization'], 'Bearer tok-1-new');
+    expect(logout.headers[kMobileBuildHeader], '1.15.0+27');
+    expect(gate.sending(a), 0);
+    expect(await sessions().byId(a), isNull);
   });
 
   test('signing out of the last login lands on loggedOut, brain kept',
