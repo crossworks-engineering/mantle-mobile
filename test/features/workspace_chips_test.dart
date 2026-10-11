@@ -125,11 +125,61 @@ void main() {
       expect(imageFileId(Uri.parse('/api/files/files/f2?raw=1')), 'f2');
       expect(imageFileId(Uri.parse('/api/member/files/f3')), 'f3');
       expect(
-          imageFileId(Uri.parse('https://brain.test/api/member/files/f4')),
+          imageFileId(Uri.parse('https://brain.test/api/member/files/f4'),
+              brainBaseUrl: 'https://brain.test'),
           'f4');
       expect(imageFileId(Uri.parse('/api/draws/d1/svg')), isNull);
       expect(imageFileId(Uri.parse('https://example.com/cat.png')), isNull);
       expect(imageFileId(Uri.parse('draw:d1')), isNull);
+    });
+
+    test('a route on another host is not the brain\'s: no bearer goes there',
+        () {
+      const brain = 'https://brain.test';
+      expect(
+          imageFileId(Uri.parse('https://evil.example/api/files/files/f1'),
+              brainBaseUrl: brain),
+          isNull);
+      expect(
+          imageFileId(Uri.parse('//evil.example/api/files/files/f1'),
+              brainBaseUrl: brain),
+          isNull);
+      expect(
+          imageFileId(Uri.parse('http://brain.test/api/files/files/f1'),
+              brainBaseUrl: brain),
+          isNull,
+          reason: 'another scheme is another origin');
+      expect(
+          imageFileId(Uri.parse('https://brain.test:8443/api/files/files/f1'),
+              brainBaseUrl: brain),
+          isNull);
+      expect(
+          imageFileId(Uri.parse('https://brain.test/api/files/files/f1')),
+          isNull,
+          reason: 'the brain address unknown: nothing absolute is trusted');
+      expect(
+          imageDrawId(Uri.parse('https://evil.example/api/draws/d1/svg'),
+              brainBaseUrl: brain),
+          isNull);
+      expect(
+          imageDrawId(Uri.parse('https://BRAIN.test/api/draws/d1/svg'),
+              brainBaseUrl: brain),
+          'd1');
+    });
+
+    test('an id that could step out of its path is refused', () {
+      expect(
+          imageFileId(
+              Uri.parse('/api/files/files/..%2F..%2Fauth%2Fmobile-logout')),
+          isNull);
+      expect(imageFileId(Uri.parse('media:..%2Fauth')), isNull);
+      expect(imageFileId(Uri.parse('media:a.b')), isNull);
+      expect(imageDrawId(Uri.parse('/api/draws/..%2Fx/svg')), isNull);
+      expect(imageDrawId(Uri.parse('draw:%2E%2E')), isNull);
+      expect(
+          imageFileId(
+              Uri.parse('media:3f2b8c1e-4a5d-4e6f-9a7b-1c2d3e4f5a6b')),
+          '3f2b8c1e-4a5d-4e6f-9a7b-1c2d3e4f5a6b');
     });
 
     test('drawings: draw:, the owner SVG route and the member one', () {

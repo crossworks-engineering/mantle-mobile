@@ -165,44 +165,73 @@ class RefChip extends ConsumerWidget {
   }
 }
 
+/// An id a picture route may name: a uuid or a slug, nothing that could
+/// step out of the path it is put in (no `/`, `.`, `%`).
+final _safeId = RegExp(r'^[A-Za-z0-9_-]+$');
+
+String? _safe(String id) => _safeId.hasMatch(id) ? id : null;
+
+/// The path segments of [uri] when it is the brain's own: a relative URL, or
+/// an absolute one on [brainBaseUrl]'s origin. Null for any other host (or
+/// when the brain's address is not known): the bearer goes only to the
+/// brain, and a reply cannot name a route for it on someone else's server.
+List<String>? _brainSegments(Uri uri, String? brainBaseUrl) {
+  if (uri.hasScheme && uri.scheme != 'http' && uri.scheme != 'https') {
+    return null;
+  }
+  if (uri.hasScheme || uri.hasAuthority) {
+    final base = Uri.tryParse(brainBaseUrl ?? '');
+    if (base == null || !base.hasAuthority) return null;
+    if (uri.scheme != base.scheme ||
+        uri.host.toLowerCase() != base.host.toLowerCase() ||
+        uri.port != base.port) {
+      return null;
+    }
+  }
+  return uri.pathSegments.where((s) => s.isNotEmpty).toList();
+}
+
 /// The file an image in markdown points at: `media:<id>`, the owner route
 /// `/api/files/files/<id>`, or the member route `/api/member/files/<id>` a
 /// member's chat reply still names. Every login reads a file's bytes on the
 /// owner route now (in its own scope), so all three load from there; the
-/// member byte routes are deprecated. Null for anything else.
-String? imageFileId(Uri uri) {
-  if (uri.scheme == 'media') return uri.path.isEmpty ? null : uri.path;
-  if (uri.hasScheme && uri.scheme != 'http' && uri.scheme != 'https') {
-    return null;
-  }
-  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+/// member byte routes are deprecated. A route counts only on the brain's own
+/// origin ([brainBaseUrl]) or relative, and only with a plain id. Null for
+/// anything else.
+String? imageFileId(Uri uri, {String? brainBaseUrl}) {
+  if (uri.scheme == 'media') return _safe(uri.path);
+  final segments = _brainSegments(uri, brainBaseUrl);
+  if (segments == null) return null;
   if (segments.length < 4 || segments[0] != 'api') return null;
-  if (segments[1] == 'files' && segments[2] == 'files') return segments[3];
-  if (segments[1] == 'member' && segments[2] == 'files') return segments[3];
+  if (segments[1] == 'files' && segments[2] == 'files') {
+    return _safe(segments[3]);
+  }
+  if (segments[1] == 'member' && segments[2] == 'files') {
+    return _safe(segments[3]);
+  }
   return null;
 }
 
 /// The drawing an image in markdown points at: `draw:<id>`, or a drawing's
 /// SVG route (`/api/draws/<id>/svg`, or the deprecated member one), all read
-/// on the owner route. Null for anything else.
-String? imageDrawId(Uri uri) {
-  if (uri.scheme == 'draw') return uri.path.isEmpty ? null : uri.path;
-  if (uri.hasScheme && uri.scheme != 'http' && uri.scheme != 'https') {
-    return null;
-  }
-  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+/// on the owner route. Same-origin or relative only, plain ids only, as
+/// [imageFileId]. Null for anything else.
+String? imageDrawId(Uri uri, {String? brainBaseUrl}) {
+  if (uri.scheme == 'draw') return _safe(uri.path);
+  final segments = _brainSegments(uri, brainBaseUrl);
+  if (segments == null) return null;
   if (segments.length >= 4 &&
       segments[0] == 'api' &&
       segments[1] == 'draws' &&
       segments[3] == 'svg') {
-    return segments[2];
+    return _safe(segments[2]);
   }
   if (segments.length >= 5 &&
       segments[0] == 'api' &&
       segments[1] == 'member' &&
       segments[2] == 'draws' &&
       segments[4] == 'svg') {
-    return segments[3];
+    return _safe(segments[3]);
   }
   return null;
 }
@@ -218,14 +247,11 @@ class MantleImage extends ConsumerWidget {
   final Uri uri;
   final String? alt;
 
-  String? get _fileId => imageFileId(uri);
-
-  String? get _drawId => imageDrawId(uri);
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
-    final fileId = _fileId;
+    final brain = ref.watch(serverConfigProvider).value;
+    final fileId = imageFileId(uri, brainBaseUrl: brain);
     if (fileId != null) {
       final bytes = ref.watch(fileBytesProvider(fileId));
       final data = bytes.value;
@@ -246,7 +272,7 @@ class MantleImage extends ConsumerWidget {
         ),
       );
     }
-    final drawId = _drawId;
+    final drawId = imageDrawId(uri, brainBaseUrl: brain);
     if (drawId != null) {
       final svg = ref.watch(drawSvgProvider(drawId));
       final data = svg.value;
