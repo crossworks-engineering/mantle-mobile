@@ -143,6 +143,21 @@ void main() {
     expect(hint?.ownerContent, isFalse);
   });
 
+  test('a QR sign-in (no role in the answer) leaves nothing to guess from',
+      () async {
+    when(() => tokenStore.read()).thenAnswer((_) async => null);
+    when(() => authRepo.claimPairing(any())).thenAnswer(
+      (_) async => const PairingClaim(token: 't', email: 'mia@example.invalid'),
+    );
+    final c = makeContainer();
+    await c.read(sessionControllerProvider.future);
+    await c.read(sessionControllerProvider.notifier).signInWithPairing(
+          const PairingPayload(server: 'https://qr.example.com', code: 'c1'),
+        );
+    final id = (await db.getSetting('active_session_id'))!;
+    expect(await readCachedAccess(db, id), isNull);
+  });
+
   test('signInWithPairing sets the server from the QR, claims, flips to '
       'loggedIn and remembers the email', () async {
     // Fresh install: no server yet.

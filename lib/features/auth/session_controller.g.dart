@@ -78,7 +78,7 @@ final class SessionControllerProvider
   SessionController create() => SessionController();
 }
 
-String _$sessionControllerHash() => r'f2f8d49cf67f4c1c5565c5e3be276e5b23511298';
+String _$sessionControllerHash() => r'41daa638efe6c7ff0742d5340686704ed6d504f6';
 
 /// Single source of truth for "where should the app be?". Derived from the
 /// persisted server URL + the presence of a bearer token; the router redirects

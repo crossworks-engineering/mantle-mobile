@@ -166,13 +166,19 @@ class SessionController extends _$SessionController {
   /// What the sign-in said the login is, until whoami says more: a member's
   /// phone must never offer an Admin user's screens, not even for the moment
   /// before whoami answers. A login held before keeps its fuller answer when
-  /// the role is unchanged.
+  /// the role is unchanged. A sign-in that names no role (a QR claim, an
+  /// older brain's mobile-login) leaves nothing cached, so the screens wait
+  /// for whoami instead of guessing.
   Future<void> _rememberRole(String sessionId, String? role) async {
     try {
       final db = ref.read(appDatabaseProvider);
+      if (role == null) {
+        await db.setSetting(loginAccessKey(sessionId), kAccessUnknown);
+        return;
+      }
       final hint = LoginAccess.fromRole(role);
       final cached = await readCachedAccess(db, sessionId);
-      if (cached != null && cached.role == hint.role && role != null) return;
+      if (cached != null && cached.role == hint.role) return;
       await writeCachedAccess(db, sessionId, hint);
     } catch (_) {
       /* whoami fills it in */

@@ -25,7 +25,7 @@ Stream<String?> turnStage(Ref ref, String agentSlug) async* {
   final chat = ref.watch(chatControllerProvider(agentSlug)).value;
   final sending =
       chat?.messages.any((m) => m.status == MessageStatus.sending) ?? false;
-  // A streamed turn carries its own live label — don't also poll. Nor does a
+  // A streamed turn carries its own live label: don't also poll. Nor does a
   // login that is not an Admin user: the stage route is the owner surface's.
   final ownerSurface = ref.watch(currentAccessProvider)?.liveTurnStream ?? true;
   if (!sending || chat?.active != null || !ownerSurface) {

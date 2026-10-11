@@ -124,6 +124,16 @@ void main() {
     expect(await readCachedAccess(db, 's1'), isNull);
   });
 
+  test('a QR sign-in on this build with whoami unreachable offers only what '
+      'every login has', () async {
+    await db.setSetting(loginAccessKey('s1'), kAccessUnknown);
+    final adapter = StubAdapter((o) => (status: 500, body: '{}'));
+    final c = boot(adapter);
+    final access = await c.read(loginAccessControllerProvider.future);
+    expect(access.isAdminUser, isFalse);
+    expect(access.ownerContent, isFalse);
+  });
+
   test('a brain without whoami (404) is the legacy Admin user', () async {
     final adapter = StubAdapter((o) => (status: 404, body: '{}'));
     final c = boot(adapter);

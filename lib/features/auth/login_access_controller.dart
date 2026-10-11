@@ -1,8 +1,10 @@
 import 'dart:async' show unawaited;
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/lifecycle/app_lifecycle.dart';
 import '../../core/network/dio_provider.dart';
 import '../../data/auth/login_access.dart';
 import '../../data/auth/session_repository.dart';
@@ -16,10 +18,14 @@ part 'login_access_controller.g.dart';
 /// The `app_settings` key a login's last whoami answer is cached under.
 String loginAccessKey(String sessionId) => 'login_access.$sessionId';
 
+/// Stored for a login signed in on this build whose sign-in named no role
+/// (a QR claim): nothing is known yet, and nothing may be guessed.
+const kAccessUnknown = '?';
+
 /// Read one login's cached access, or null.
 Future<LoginAccess?> readCachedAccess(AppDatabase db, String sessionId) async {
   final raw = await db.getSetting(loginAccessKey(sessionId));
-  if (raw == null || raw.isEmpty) return null;
+  if (raw == null || raw.isEmpty || raw == kAccessUnknown) return null;
   try {
     return LoginAccess.fromWhoami(
       (jsonDecode(raw) as Map).cast<String, dynamic>(),
@@ -59,13 +65,29 @@ class LoginAccessController extends _$LoginAccessController {
     final sessionId =
         await ref.read(sessionRepositoryProvider).activeId() ?? '';
     if (sessionId.isEmpty) return const LoginAccess.signedOut();
+    // whoami again when the app comes back: a workspace joined on the web,
+    // or an answer that could not be had before.
+    ref.listen(appLifecycleProvider, (prev, next) {
+      if (next == AppLifecycleState.resumed &&
+          prev != AppLifecycleState.resumed) {
+        unawaited(_refresh(sessionId));
+      }
+    });
     final db = ref.read(appDatabaseProvider);
     final cached = await readCachedAccess(db, sessionId);
     if (cached != null) {
       unawaited(_refresh(sessionId));
       return cached;
     }
-    return await _fetch(sessionId) ?? const LoginAccess.legacyAdmin();
+    final fetched = await _fetch(sessionId);
+    if (fetched != null) return fetched;
+    // whoami could not be reached. A login signed in on this build without
+    // a role gets only what every login has until it answers; a login from
+    // the build that served Admin users only keeps that surface.
+    final marker = await db.getSetting(loginAccessKey(sessionId));
+    return marker == kAccessUnknown
+        ? const LoginAccess(role: LoginRole.member)
+        : const LoginAccess.legacyAdmin();
   }
 
   /// Ask whoami again (on demand: a pull to refresh, a workspace change on
