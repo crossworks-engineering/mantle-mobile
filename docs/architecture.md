@@ -334,6 +334,55 @@ native client sends no `Origin`, and `mobile-login` is deliberately frozen at it
 original path, shape and 1-year TTL. Contract details:
 `mantle/docs/mobile-companion-backend.md` §The frontend/server split.
 
+## Workspaces: every login on the phone (1.15.0, build 27)
+
+From brain W7e on, any login the brain serves to the phone (an Admin user or
+a member) signs in here. A client login is refused (403 `client-login`).
+
+- **Build header.** Every request carries `X-Jackdaw-Mobile: <version>+<build>`
+  (`core/network/mobile_build.dart`), on the app client, the identity
+  client, the refresh and the Android direct connection. The brain serves a
+  member only to build 27 or newer; an older build gets 426 `update-app`.
+- **Sign-in.** `POST /api/auth/device-login` for every login (30 days); a
+  brain without it (404) falls back to the frozen `mobile-login`. 426 says
+  "Update Jackdaw"; 403 `client-login` shows the brain's words.
+- **Refresh.** `POST /api/auth/token/refresh` at start, after a switch and on
+  a stale resume (`data/auth/token_refresh.dart`). The newest token is
+  always stored; a 401 signs that login out, anything else keeps the token.
+  While a rotation runs, the app client holds its requests
+  (`TokenRefreshGate`): a rotated token used after its successor ends every
+  session of the login on the brain. The direct connection reads the bearer
+  again before every connect for the same reason.
+- **Access.** `GET /api/auth/whoami` (role, workspaces, areas, isOwner) is
+  cached per login in `app_settings` (`login_access.<session>`), cache first
+  (`features/auth/login_access_controller.dart`); a sign-in writes the role
+  it answered so a member never sees an Admin user's surface while whoami
+  is on its way. `currentAccessProvider` is null while it is being worked
+  out. `LoginAccess` says what the phone offers: the Admin workspace's own
+  items (tasks, journal, events, up next, alarms) to an Admin user, pending
+  approvals and the brain stats with the settings area, the agent catalog
+  and avatars with the assistants area, push settings to an Admin user. The
+  router sends a refused screen home (`routeAllowed`).
+- **Workspace in use.** Picked in the drawer (the quick switch sheet) and
+  kept per login (`workspace.<session>`); home shows it as a pill. Chat goes
+  to that workspace's assistant (`GET /api/workspaces` names it), the inbox
+  in the Admin workspace.
+- **Chat for a member.** Text only (no attach button; also for an Admin user
+  with another workspace's assistant), no live turn stream: a 202 turn is
+  polled from the thread until the reply lands. Refusals say why on the
+  bubble (daily cap, token budget, a reused key, no assistant, text only).
+- **Bytes.** Pictures load from `/api/files/files/:id?raw=1` and
+  `/api/draws/:id/svg` for every login; a reply that names the deprecated
+  member routes is read from these. A refused picture never signs out.
+- **Pages for a member.** The markdown export is an Admin user's route; when
+  it is refused the page view renders the page's ProseMirror document
+  (`data/pages/prosemirror_markdown.dart`).
+- **Tree chips.** Rows show the workspaces that read a folder or an item
+  (two, then "+N") and "Public" for a live link.
+
+Not in this build: push for a member (its routes are under `pushBase`,
+`/api/member/push`, and its payload's deep links), Telegram pairing.
+
 ## Agents — the server owns the list and the default
 
 `AgentController` merges two calls at launch:

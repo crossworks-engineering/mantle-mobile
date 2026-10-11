@@ -1,8 +1,10 @@
 import 'dart:async' show Completer, unawaited;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/lifecycle/app_lifecycle.dart';
 import '../../features/auth/session_controller.dart';
 import '../../features/auth/session_identity.dart' show identityDioFactoryProvider;
 import 'session_repository.dart';
@@ -136,15 +138,32 @@ TokenRefresher tokenRefresher(Ref ref) => TokenRefresher(
     );
 
 /// Refreshes the login in use's token once it is signed in: at start, after
-/// a sign-in and after a switch. Watched once from the app root; nothing
-/// reads its value.
+/// a sign-in and after a switch, and on a return to the foreground when the
+/// last refresh is more than [_resumeEvery] old (a phone that keeps the app
+/// alive for weeks still rotates in time). Watched once from the app root;
+/// nothing reads its value.
 @Riverpod(keepAlive: true)
 class TokenRefreshSync extends _$TokenRefreshSync {
+  static const _resumeEvery = Duration(hours: 6);
+
+  int? _epoch;
+  DateTime? _last;
+
   @override
   void build() {
     final status = ref.watch(sessionControllerProvider).value;
-    ref.watch(sessionEpochProvider);
+    final epoch = ref.watch(sessionEpochProvider);
+    final lifecycle = ref.watch(appLifecycleProvider);
     if (status != AuthStatus.loggedIn) return;
+    final last = _last;
+    final changed = epoch != _epoch;
+    final stale = last == null ||
+        DateTime.now().difference(last) > _resumeEvery;
+    if (!changed && !(lifecycle == AppLifecycleState.resumed && stale)) {
+      return;
+    }
+    _epoch = epoch;
+    _last = DateTime.now();
     unawaited(
       ref.read(tokenRefresherProvider).refreshActive(
             onRefused: () => ref

@@ -132,7 +132,7 @@ final class PageContentProvider
   }
 }
 
-String _$pageContentHash() => r'39af72e426b4e485fb4bd1df73a5075526698716';
+String _$pageContentHash() => r'd66487f943ba9fbe83d387e094750cbbd1582e5a';
 
 /// Everything the viewer needs for one page, fetched concurrently: metadata,
 /// the markdown export, and backlinks. Backlinks are best-effort (a failure

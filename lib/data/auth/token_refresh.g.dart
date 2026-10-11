@@ -97,20 +97,26 @@ final class TokenRefresherProvider
 String _$tokenRefresherHash() => r'9c09f89b54087985438ea6e4d13ca33b67622a90';
 
 /// Refreshes the login in use's token once it is signed in: at start, after
-/// a sign-in and after a switch. Watched once from the app root; nothing
-/// reads its value.
+/// a sign-in and after a switch, and on a return to the foreground when the
+/// last refresh is more than [_resumeEvery] old (a phone that keeps the app
+/// alive for weeks still rotates in time). Watched once from the app root;
+/// nothing reads its value.
 
 @ProviderFor(TokenRefreshSync)
 final tokenRefreshSyncProvider = TokenRefreshSyncProvider._();
 
 /// Refreshes the login in use's token once it is signed in: at start, after
-/// a sign-in and after a switch. Watched once from the app root; nothing
-/// reads its value.
+/// a sign-in and after a switch, and on a return to the foreground when the
+/// last refresh is more than [_resumeEvery] old (a phone that keeps the app
+/// alive for weeks still rotates in time). Watched once from the app root;
+/// nothing reads its value.
 final class TokenRefreshSyncProvider
     extends $NotifierProvider<TokenRefreshSync, void> {
   /// Refreshes the login in use's token once it is signed in: at start, after
-  /// a sign-in and after a switch. Watched once from the app root; nothing
-  /// reads its value.
+  /// a sign-in and after a switch, and on a return to the foreground when the
+  /// last refresh is more than [_resumeEvery] old (a phone that keeps the app
+  /// alive for weeks still rotates in time). Watched once from the app root;
+  /// nothing reads its value.
   TokenRefreshSyncProvider._()
     : super(
         from: null,
@@ -138,11 +144,13 @@ final class TokenRefreshSyncProvider
   }
 }
 
-String _$tokenRefreshSyncHash() => r'5acc4c54a624e57b8d5a2d2af2c05317bab539c6';
+String _$tokenRefreshSyncHash() => r'42246cea43647c8a156393bd42edd9891e984fbf';
 
 /// Refreshes the login in use's token once it is signed in: at start, after
-/// a sign-in and after a switch. Watched once from the app root; nothing
-/// reads its value.
+/// a sign-in and after a switch, and on a return to the foreground when the
+/// last refresh is more than [_resumeEvery] old (a phone that keeps the app
+/// alive for weeks still rotates in time). Watched once from the app root;
+/// nothing reads its value.
 
 abstract class _$TokenRefreshSync extends $Notifier<void> {
   void build();
