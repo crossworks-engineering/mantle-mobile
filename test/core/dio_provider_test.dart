@@ -230,6 +230,21 @@ void main() {
     verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
   });
 
+  test('a request that goes out bare is sent as no session, even a retry '
+      'that carried one', () async {
+    final adapter = _StubAdapter(200);
+    final (_, dio) = await boot(adapter);
+    await (db.update(db.sessions)..where((s) => s.id.equals('session-1')))
+        .write(const SessionsCompanion(
+            baseUrl: Value('https://other.example.com')));
+    await dio.get<void>(
+      '/api/x',
+      options: Options(extra: {kBearerSessionExtra: 'session-1'}),
+    );
+    expect(adapter.last!.headers['Authorization'], isNull);
+    expect(adapter.last!.extra.containsKey(kBearerSessionExtra), isFalse);
+  });
+
   group('a token rotation under requests on their way', () {
     late String current;
 

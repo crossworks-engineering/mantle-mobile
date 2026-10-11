@@ -44,6 +44,11 @@ const _kSending = 'directPushSending';
 /// it the refresh is skipped (the next start, switch or resume tries again).
 const kSendWaitMax = Duration(seconds: 20);
 
+/// How long a send of the service's waits for its answer's headers. One
+/// that has none by then is cancelled, so its mark clears and a rotation
+/// waiting on it is not held for good.
+const kSendHeadersMax = Duration(seconds: 30);
+
 /// How long a rotation marker holds the service at most. A refresh is over
 /// well within it (its client times out in seconds); an app killed mid
 /// refresh leaves a marker that simply ages out.
@@ -121,6 +126,36 @@ Future<String?> beginSend({
     return token;
   }
 }
+
+/// One send of the service's, cancelled through [cancel] when its answer's
+/// headers are not in within [within]. [endSend] clears the send's mark
+/// whichever way it ends: headers in, a failure, or the cancel.
+@visibleForTesting
+Future<T> sendWithin<T>({
+  required CancelToken cancel,
+  required Future<T> Function() send,
+  required Future<void> Function() endSend,
+  Duration within = kSendHeadersMax,
+}) async {
+  final timer = Timer(within, () {
+    if (!cancel.isCancelled) cancel.cancel('no answer within $within');
+  });
+  try {
+    return await send();
+  } finally {
+    timer.cancel();
+    await endSend();
+  }
+}
+
+/// The options for the service's conversations fetch: the bearer, and an
+/// answer within [kSendHeadersMax] (past it the fetch fails, and its mark
+/// clears).
+@visibleForTesting
+Options conversationsFetchOptions(String token) => Options(
+      headers: {'Authorization': 'Bearer $token'},
+      receiveTimeout: kSendHeadersMax,
+    );
 
 /// The app's side of [beginSend]: with the rotation already marked, wait for
 /// a send of the service's to have its answer. False when it does not within
@@ -310,6 +345,10 @@ void startDirectPushCallback() {
 
 class _DirectPushTaskHandler extends TaskHandler {
   CancelToken? _cancel;
+
+  /// The connect on its way, cancelled with the service or when its headers
+  /// are late.
+  CancelToken? _attempt;
   Dio? _dio;
   String? _sessionId;
 
@@ -358,21 +397,29 @@ class _DirectPushTaskHandler extends TaskHandler {
           return;
         }
         used = token;
-        final Response<ResponseBody> res;
-        try {
-          res = await _dio!.get<ResponseBody>(
+        // One token per connect: the service's stop cancels it, and so does
+        // a connect whose headers are late (a timeout on the whole stream
+        // would end an idle one).
+        final attempt = CancelToken();
+        _attempt = attempt;
+        if (_cancel?.isCancelled ?? true) {
+          await _endSend();
+          return;
+        }
+        // The headers are in, the connect failed or it was cancelled: the
+        // send's mark clears either way, and a rotation may go.
+        final res = await sendWithin(
+          cancel: attempt,
+          send: () => _dio!.get<ResponseBody>(
             '/api/assistant/stream',
             options: Options(
               responseType: ResponseType.stream,
               headers: {'Authorization': 'Bearer $token'},
             ),
-            cancelToken: _cancel,
-          );
-        } finally {
-          // The headers are in (or the connect failed): the brain has read
-          // the bearer, and a rotation may go.
-          await _endSend();
-        }
+            cancelToken: attempt,
+          ),
+          endSend: _endSend,
+        );
         backoff = const Duration(seconds: 1);
         final lines = res.data!.stream
             .cast<List<int>>()
@@ -385,7 +432,9 @@ class _DirectPushTaskHandler extends TaskHandler {
           }
         }
       } on DioException catch (e) {
-        if (CancelToken.isCancel(e)) return;
+        // The service stopped. A connect cancelled for want of headers is
+        // tried again after the backoff.
+        if (CancelToken.isCancel(e) && (_cancel?.isCancelled ?? true)) return;
         if (isAuthFailure(e)) {
           // Refused with a token the app has since replaced (a rotation
           // landed while this connect was on its way): connect again with
@@ -466,7 +515,7 @@ class _DirectPushTaskHandler extends TaskHandler {
       try {
         res = await _dio!.get<Map<String, dynamic>>(
           '/api/assistant/conversations',
-          options: Options(headers: {'Authorization': 'Bearer $token'}),
+          options: conversationsFetchOptions(token),
         );
       } finally {
         await _endSend();
@@ -502,6 +551,9 @@ class _DirectPushTaskHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     _cancel?.cancel();
+    _attempt?.cancel();
     _dio?.close(force: true);
+    // A send cancelled here has no answer coming: its mark goes with it.
+    await _endSend();
   }
 }

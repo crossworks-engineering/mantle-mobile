@@ -4,8 +4,44 @@
 // as it read. The service marks each send too, and a rotation waits for it:
 // whichever side looks second sees the other.
 
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/push/direct_push_service.dart';
+
+/// A brain that takes the request and never sends its headers.
+class _SilentAdapter implements HttpClientAdapter {
+  int fetched = 0;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) {
+    fetched++;
+    return Completer<ResponseBody>().future;
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+/// A brain that answers at once.
+class _PromptAdapter implements HttpClientAdapter {
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async =>
+      ResponseBody.fromString('{}', 200);
+
+  @override
+  void close({bool force = false}) {}
+}
 
 void main() {
   final now = DateTime.utc(2026, 10, 12, 9);
@@ -232,6 +268,62 @@ void main() {
         await refusedTokenReplaced(used: 'tok-old', settled: () async => null),
         isFalse,
       );
+    });
+  });
+
+  group('a send of the service\'s', () {
+    test('without headers in time is cancelled, and its mark cleared, so a '
+        'rotation waiting on it can go', () async {
+      final adapter = _SilentAdapter();
+      final dio = Dio(BaseOptions(baseUrl: 'http://brain.test'))
+        ..httpClientAdapter = adapter;
+      var marked = true;
+      final cancel = CancelToken();
+      final sent = sendWithin(
+        cancel: cancel,
+        send: () => dio.get<void>('/api/assistant/stream', cancelToken: cancel),
+        endSend: () async => marked = false,
+        within: const Duration(milliseconds: 40),
+      );
+      // A rotation that began meanwhile waits on the mark.
+      final rotation = waitForSendToClear(
+        sending: () async => marked,
+        timeout: const Duration(seconds: 2),
+        poll: const Duration(milliseconds: 5),
+      );
+      await expectLater(
+        sent,
+        throwsA(predicate((e) => e is DioException && CancelToken.isCancel(e))),
+      );
+      expect(adapter.fetched, 1);
+      expect(cancel.isCancelled, isTrue);
+      expect(marked, isFalse);
+      expect(await rotation, isTrue);
+    });
+
+    test('with headers in time is not cancelled afterwards (a stream may sit '
+        'idle for hours)', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'http://brain.test'))
+        ..httpClientAdapter = _PromptAdapter();
+      var ended = 0;
+      final cancel = CancelToken();
+      final res = await sendWithin(
+        cancel: cancel,
+        send: () => dio.get<String>('/api/x', cancelToken: cancel),
+        endSend: () async => ended++,
+        within: const Duration(milliseconds: 20),
+      );
+      expect(res.statusCode, 200);
+      expect(ended, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(cancel.isCancelled, isFalse);
+    });
+
+    test('the conversations fetch has its answer within the same bound', () {
+      final options = conversationsFetchOptions('tok');
+      expect(options.receiveTimeout, kSendHeadersMax);
+      expect(kSendHeadersMax, lessThanOrEqualTo(const Duration(seconds: 30)));
+      expect(options.headers?['Authorization'], 'Bearer tok');
     });
   });
 }

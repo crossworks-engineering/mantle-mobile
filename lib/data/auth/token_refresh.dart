@@ -1,6 +1,7 @@
 import 'dart:async' show Completer, TimeoutException, unawaited;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -167,6 +168,7 @@ class TokenRefresher {
     this._gate, {
     this.pauseStream,
     this.resumeStream,
+    this.retryDelay = const Duration(milliseconds: 1500),
   });
 
   final SessionRepository _sessions;
@@ -182,6 +184,10 @@ class TokenRefresher {
   /// the app's own that does not drain.
   final Future<bool> Function(String sessionId)? pauseStream;
   final Future<void> Function(String sessionId)? resumeStream;
+
+  /// How long a refresh whose answer was lost waits before it is asked
+  /// again, so the first one's rotation has committed on the brain by then.
+  final Duration retryDelay;
 
   /// The refresh running per login, so a caller that joins it learns what
   /// it did.
@@ -241,8 +247,12 @@ class TokenRefresher {
           paused = true;
           clear = await pause(session.id);
         }
-      } catch (_) {
+      } on MissingPluginException {
         /* no direct connection here */
+      } catch (_) {
+        // Whether the connection has a send on its way is not known: never
+        // rotate under one that might.
+        clear = false;
       }
       // The direct connection has a send on its way with this bearer: never
       // rotate under it. The next start, switch or resume tries again.
@@ -251,13 +261,25 @@ class TokenRefresher {
       // connection) is asked once more before the gate opens: the brain hands
       // the same new token back until it is first used, so asking again is
       // safe, and letting requests go on the old bearer while a new one may
-      // already be minted is what is avoided.
+      // already be minted is what is avoided. It waits a moment first, so
+      // the first one's rotation has committed. A 401 on that second ask is
+      // not a sign-out: it can be the second ask losing the race for the
+      // row to the first, or landing as the first commits. The token is
+      // kept; asked again later, the brain hands the same unused successor
+      // back.
       Response<Map<String, dynamic>> res;
       try {
         res = await dio.post<Map<String, dynamic>>('/api/auth/token/refresh');
       } on DioException catch (e) {
         if (!_answerLost(e)) rethrow;
-        res = await dio.post<Map<String, dynamic>>('/api/auth/token/refresh');
+        await Future<void>.delayed(retryDelay);
+        try {
+          res =
+              await dio.post<Map<String, dynamic>>('/api/auth/token/refresh');
+        } on DioException catch (again) {
+          if (again.response?.statusCode == 401) return RefreshOutcome.skipped;
+          rethrow;
+        }
       }
       final fresh = res.data?['token'];
       if (fresh is! String || fresh.isEmpty) return RefreshOutcome.skipped;

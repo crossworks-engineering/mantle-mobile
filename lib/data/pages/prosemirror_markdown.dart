@@ -148,8 +148,9 @@ String _plain(List<Map> nodes) => [
     ].join();
 
 /// The characters that would make literal text into markdown: an image or a
-/// link (`![`, `[`, `](`), emphasis, a heading, a quote, code, strike.
-final _markdownSyntax = RegExp(r'[\\*_\[\]()!#>~`]');
+/// link (`![`, `[`, `](`), an autolink or inline HTML (`<`), emphasis, a
+/// heading, a quote, code, strike.
+final _markdownSyntax = RegExp(r'[\\*_\[\]()!#<>~`]');
 
 /// [text] as it was typed: every character markdown would read as syntax is
 /// escaped, so `![x](https://…)` typed in a paragraph stays those words and
@@ -194,14 +195,22 @@ const _linkSchemes = {'http', 'https', 'mailto'};
 
 final _scheme = RegExp(r'^([A-Za-z][A-Za-z0-9+.\-]*):');
 
-/// [href] as a link destination, or null when it leads anywhere but the web
-/// or mail (a script, a file, an app's own scheme, a path with none).
+/// [href] as a link destination, or null when it leads anywhere but the web,
+/// mail or a path on the page's own brain (a script, a file, an app's own
+/// scheme, another host without a scheme). A path on the brain (`/pages/<id>`
+/// and the like) opens as the markdown renderer opens it anywhere else: in
+/// the app when the phone has the screen, else on the brain's web.
 String? _linkTarget(String href) {
   final trimmed = href.trim();
+  if (_brainPath.hasMatch(trimmed)) return _destination(trimmed);
   final scheme = _scheme.firstMatch(trimmed)?.group(1)?.toLowerCase();
   if (scheme == null || !_linkSchemes.contains(scheme)) return null;
   return _destination(trimmed);
 }
+
+/// A path on the brain: one slash, never two (`//host` is another host) nor
+/// a slash and a backslash (which some readers take for two).
+final _brainPath = RegExp(r'^/(?![/\\])');
 
 /// The characters that could end a `<...>` destination early, or break it
 /// across lines.

@@ -8,6 +8,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/auth/session_repository.dart';
@@ -45,8 +46,17 @@ void main() {
   });
   tearDown(() => db.close());
 
-  TokenRefresher refresherFor(StubAdapter adapter) =>
-      TokenRefresher(sessions, tokens, (_) => stubDio(adapter), gate);
+  TokenRefresher refresherFor(
+    StubAdapter adapter, {
+    Duration retryDelay = Duration.zero,
+  }) =>
+      TokenRefresher(
+        sessions,
+        tokens,
+        (_) => stubDio(adapter),
+        gate,
+        retryDelay: retryDelay,
+      );
 
   test('a rotation stores the new token, sent with the old one', () async {
     final adapter = StubAdapter((o) => (
@@ -267,6 +277,57 @@ void main() {
       expect(gate.busy, isFalse);
     });
 
+    test('is asked again only after a pause, so the first rotation can '
+        'commit', () async {
+      final sent = <DateTime>[];
+      final adapter = StubAdapter((o) {
+        sent.add(DateTime.now());
+        if (sent.length == 1) {
+          throw DioException.receiveTimeout(
+            timeout: const Duration(seconds: 8),
+            requestOptions: o,
+          );
+        }
+        return (status: 200, body: jsonEncode({'token': 'tok-new'}));
+      });
+      expect(
+        await refresherFor(
+          adapter,
+          retryDelay: const Duration(milliseconds: 120),
+        ).refreshActive(),
+        RefreshOutcome.rotated,
+      );
+      expect(sent, hasLength(2));
+      expect(
+        sent[1].difference(sent[0]),
+        greaterThanOrEqualTo(const Duration(milliseconds: 100)),
+      );
+    });
+
+    test('a 401 on the second ask is not a sign-out: the token is kept',
+        () async {
+      var n = 0;
+      final adapter = StubAdapter((o) {
+        if (++n == 1) {
+          throw DioException.connectionError(
+            requestOptions: o,
+            reason: 'reset',
+          );
+        }
+        // Lost the race for the row to the first ask, still committing.
+        return (status: 401, body: jsonEncode({'error': 'lost the race'}));
+      });
+      var refused = 0;
+      final outcome = await refresherFor(adapter).refreshActive(
+        onRefused: () async => refused++,
+      );
+      expect(outcome, RefreshOutcome.skipped);
+      expect(refused, 0);
+      expect(adapter.requests, hasLength(2));
+      expect(await tokens.readFor(sessionId), 'tok-old');
+      expect(gate.busy, isFalse);
+    });
+
     test('an answer that came is not asked again', () async {
       final adapter = StubAdapter((o) => (status: 500, body: '{}'));
       expect(await refresherFor(adapter).refreshActive(),
@@ -296,6 +357,43 @@ void main() {
     expect(adapter.requests, isEmpty);
     expect(events, ['pause', 'resume']);
     expect(await tokens.readFor(sessionId), 'tok-old');
+  });
+
+  test('a direct connection that cannot say whether a send is on its way '
+      '(the pause fails): the refresh is skipped', () async {
+    final events = <String>[];
+    final adapter = StubAdapter(
+      (o) => (status: 200, body: jsonEncode({'token': 'tok-new'})),
+    );
+    final refresher = TokenRefresher(
+      sessions,
+      tokens,
+      (_) => stubDio(adapter),
+      gate,
+      pauseStream: (id) async => throw StateError('store unreadable'),
+      resumeStream: (id) async => events.add('resume'),
+    );
+    expect(await refresher.refreshActive(), RefreshOutcome.skipped);
+    expect(adapter.requests, isEmpty);
+    expect(events, ['resume']);
+    expect(await tokens.readFor(sessionId), 'tok-old');
+  });
+
+  test('no direct connection on this platform (no plugin): the refresh goes '
+      'ahead', () async {
+    final adapter = StubAdapter(
+      (o) => (status: 200, body: jsonEncode({'token': 'tok-new'})),
+    );
+    final refresher = TokenRefresher(
+      sessions,
+      tokens,
+      (_) => stubDio(adapter),
+      gate,
+      pauseStream: (id) async =>
+          throw MissingPluginException('no foreground task'),
+    );
+    expect(await refresher.refreshActive(), RefreshOutcome.rotated);
+    expect(await tokens.readFor(sessionId), 'tok-new');
   });
 
   test('a refresh asked for while one runs learns what that one did',

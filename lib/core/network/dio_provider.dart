@@ -56,9 +56,11 @@ Dio dio(Ref ref) {
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
-        // The bearer is this interceptor's to set, every time: a retry comes
-        // back here with the header it was refused with.
+        // The bearer is this interceptor's to set, every time, and so is the
+        // session it is sent as: a retry comes back here with the header it
+        // was refused with, and the session that header was.
         options.headers.remove('Authorization');
+        options.extra = {...options.extra}..remove(kBearerSessionExtra);
         // A bearer goes ONLY to the brain it was minted by. This client is
         // built for one address and the active login can change under it (a
         // switch to a login on another brain re-reads the address a moment

@@ -234,7 +234,8 @@ void main() {
       expect(html, contains('>docs</a>'));
     });
 
-    test('only the web and mail are linked; anything else is its words', () {
+    test('only the web, mail and paths on the brain are linked; anything '
+        'else is its words', () {
       final md = proseMirrorToMarkdown({
         'type': 'doc',
         'content': [
@@ -245,7 +246,11 @@ void main() {
             _t(' '),
             link('three', 'file:///etc/hosts'),
             _t(' '),
-            link('four', '/pages/x'),
+            link('four', '//evil.example/x'),
+            _t(' '),
+            link('five', '/\\evil.example/x'),
+            _t(' '),
+            link('page', '/pages/p-1'),
             _t(' '),
             link('mail', 'mailto:mia@example.invalid'),
             _t(' '),
@@ -257,11 +262,30 @@ void main() {
       expect(html, isNot(contains('javascript')));
       expect(html, isNot(contains('JavaScript')));
       expect(html, isNot(contains('file:')));
-      expect(html, isNot(contains('/pages/x')));
-      expect(html, contains('one two three four'));
+      expect(html, isNot(contains('evil.example')));
+      expect(html, contains('one two three four five'));
+      // A page on the brain opens in the app, as the renderer opens it.
+      expect(html, contains('href="/pages/p-1"'));
       expect(html, contains('href="mailto:mia@example.invalid"'));
       expect(html, contains('href="HTTPS://a.example"'));
-      expect('<a '.allMatches(html), hasLength(2));
+      expect('<a '.allMatches(html), hasLength(3));
+    });
+
+    test('an autolink or a tag typed as text stays text', () {
+      final md = proseMirrorToMarkdown({
+        'type': 'doc',
+        'content': [
+          _p([
+            _t('<javascript:alert(1)> <https://tracker.example/x> '
+                '<mia@example.invalid> <b>bold</b>'),
+          ]),
+        ],
+      });
+      final html = markdownToHtml(md);
+      expect(html, isNot(contains('<a ')));
+      expect(html, isNot(contains('<b>')));
+      expect(html, contains('&lt;javascript:alert(1)&gt;'));
+      expect(html, contains('&lt;https://tracker.example/x&gt;'));
     });
 
     test("a picture's description is words, never markdown", () {
