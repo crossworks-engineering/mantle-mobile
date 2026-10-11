@@ -1,7 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../data/auth/auth_api.dart';
 import '../../data/auth/auth_repository.dart';
+import '../../data/auth/login_access.dart';
 import '../../data/auth/pairing_payload.dart';
 import '../../data/auth/session_repository.dart';
 import '../../data/auth/session_wipe.dart';
@@ -12,6 +14,7 @@ import '../../data/push/push_keys.dart';
 import '../../data/server/server_config.dart';
 import '../agents/agent_controller.dart';
 import '../settings/settings_repository.dart';
+import 'login_access_controller.dart';
 
 part 'session_controller.g.dart';
 
@@ -111,8 +114,9 @@ class SessionController extends _$SessionController {
     final baseUrl = ref.read(serverConfigProvider).value ?? '';
     final sessions = ref.read(sessionRepositoryProvider);
     final begun = await sessions.beginSignIn(baseUrl: baseUrl, email: email);
+    final SignInResult result;
     try {
-      await ref
+      result = await ref
           .read(authRepositoryProvider)
           .login(email: email, password: password);
     } catch (_) {
@@ -124,6 +128,7 @@ class SessionController extends _$SessionController {
       rethrow;
     }
     await sessions.completeSignIn(begun.session.id, email: email);
+    await _rememberRole(begun.session.id, result.role);
     await _signedIn();
   }
 
@@ -142,9 +147,9 @@ class SessionController extends _$SessionController {
     }
     final sessions = ref.read(sessionRepositoryProvider);
     final begun = await sessions.beginSignIn(baseUrl: payload.server);
-    String? email;
+    final PairingClaim claim;
     try {
-      email = await ref.read(authRepositoryProvider).claimPairing(payload.code);
+      claim = await ref.read(authRepositoryProvider).claimPairing(payload.code);
     } catch (_) {
       await sessions.abandonSignIn(
         sessionId: begun.session.id,
@@ -153,8 +158,25 @@ class SessionController extends _$SessionController {
       );
       rethrow;
     }
-    await sessions.completeSignIn(begun.session.id, email: email);
+    await sessions.completeSignIn(begun.session.id, email: claim.email);
+    await _rememberRole(begun.session.id, claim.role);
     await _signedIn();
+  }
+
+  /// What the sign-in said the login is, until whoami says more: a member's
+  /// phone must never offer an Admin user's screens, not even for the moment
+  /// before whoami answers. A login held before keeps its fuller answer when
+  /// the role is unchanged.
+  Future<void> _rememberRole(String sessionId, String? role) async {
+    try {
+      final db = ref.read(appDatabaseProvider);
+      final hint = LoginAccess.fromRole(role);
+      final cached = await readCachedAccess(db, sessionId);
+      if (cached != null && cached.role == hint.role && role != null) return;
+      await writeCachedAccess(db, sessionId, hint);
+    } catch (_) {
+      /* whoami fills it in */
+    }
   }
 
   Future<void> _signedIn() async {

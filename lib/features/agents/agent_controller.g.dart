@@ -69,7 +69,7 @@ final class AgentControllerProvider
   AgentController create() => AgentController();
 }
 
-String _$agentControllerHash() => r'fd1ac314c5579a1badd38f4bbb54e3fc426872bf';
+String _$agentControllerHash() => r'aa2ce0696653fe231fcec45f7c5f10f47829bf95';
 
 /// Loads the agent list and tracks the selected agent. Kept alive so the
 /// selection survives leaving the chat screen. (Persisting it across restarts

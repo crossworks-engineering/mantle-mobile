@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import 'core/lifecycle/app_lifecycle.dart';
+import 'data/auth/token_refresh.dart';
 import 'data/push/deep_link.dart';
 import 'data/push/local_notifications.dart';
 import 'data/push/push_notifier.dart';
@@ -105,6 +106,8 @@ class _JackdawAppState extends ConsumerState<JackdawApp>
     ref.watch(brainAppearanceSyncProvider);
     // Learn which (brain, login) the login in use is, so a push names it.
     ref.watch(brainIdentitySyncProvider);
+    // Rotate the login in use's bearer in its last 23 days (start, switch).
+    ref.watch(tokenRefreshSyncProvider);
     final router = ref.watch(goRouterProvider);
 
     // MantleColors sits above ShadApp so every route can resolve the active

@@ -7,6 +7,7 @@ import '../../core/lifecycle/app_lifecycle.dart';
 import '../../data/events/event_alarms.dart';
 import '../../data/events/events_api.dart';
 import '../../data/events/events_models.dart';
+import '../auth/login_access_controller.dart';
 import '../auth/session_controller.dart';
 
 import '../dashboard/up_next_controller.dart';
@@ -185,8 +186,11 @@ class EventAlarmSync extends _$EventAlarmSync {
     // are armed here. A switch between two logins on one brain changes
     // neither value above, only the client, so the client is watched too.
     ref.watch(eventsApiProvider);
+    // Events are the Admin workspace's: a member's routes refuse them.
+    final access = ref.watch(currentAccessProvider);
     if (session != AuthStatus.loggedIn) return;
     if (lifecycle != AppLifecycleState.resumed) return;
+    if (access == null || !access.ownerContent) return;
     unawaited(_syncOnce());
   }
 

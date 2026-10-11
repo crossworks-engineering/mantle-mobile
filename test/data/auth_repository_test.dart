@@ -22,16 +22,20 @@ void main() {
   });
 
   test('login mints a token and stores it securely', () async {
-    when(() => api.mobileLogin(
+    when(() => api.signIn(
           email: any(named: 'email'),
           password: any(named: 'password'),
           deviceName: any(named: 'deviceName'),
-        )).thenAnswer((_) async => 'tok_123');
+        )).thenAnswer(
+      (_) async => const SignInResult(token: 'tok_123', role: 'member'),
+    );
     when(() => store.write(any())).thenAnswer((_) async {});
 
-    await repo.login(email: 'jason@schoeman.me', password: 'pw');
+    final result =
+        await repo.login(email: 'owner@example.com', password: 'pw');
 
     verify(() => store.write('tok_123')).called(1);
+    expect(result.role, 'member');
   });
 
   test('claimPairing stores the token, labels the device, returns the email',
@@ -44,9 +48,9 @@ void main() {
     );
     when(() => store.write(any())).thenAnswer((_) async {});
 
-    final email = await repo.claimPairing('the-code');
+    final claim = await repo.claimPairing('the-code');
 
-    expect(email, 'o@example.com');
+    expect(claim.email, 'o@example.com');
     verify(() => store.write('tok_qr')).called(1);
     final label = verify(() => api.claimPairing(
           code: 'the-code',

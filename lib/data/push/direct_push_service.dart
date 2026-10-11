@@ -7,6 +7,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/network/auth_failure.dart';
+import '../../core/network/mobile_build.dart';
 import '../auth/token_store.dart';
 import 'notification_tap.dart';
 import 'push_notifier.dart';
@@ -180,7 +181,8 @@ class _DirectPushTaskHandler extends TaskHandler {
       headers: {'Authorization': 'Bearer $token'},
       followRedirects: false,
       connectTimeout: const Duration(seconds: 15),
-    ));
+    ))
+      ..interceptors.add(MobileBuildInterceptor());
     _cancel = CancelToken();
     unawaited(_run());
   }
@@ -190,6 +192,18 @@ class _DirectPushTaskHandler extends TaskHandler {
     const maxBackoff = Duration(seconds: 30);
     while (!(_cancel?.isCancelled ?? true)) {
       try {
+        // The bearer is read again before every connect: the app rotates it
+        // (token refresh), and a rotated token used after its successor ends
+        // every session of the login on the brain.
+        final sessionId = _sessionId;
+        final token = sessionId == null || sessionId.isEmpty
+            ? null
+            : await TokenStore.readDirect(sessionId);
+        if (token == null || token.isEmpty) {
+          await FlutterForegroundTask.stopService();
+          return;
+        }
+        _dio!.options.headers['Authorization'] = 'Bearer $token';
         final res = await _dio!.get<ResponseBody>(
           '/api/assistant/stream',
           options: Options(responseType: ResponseType.stream),

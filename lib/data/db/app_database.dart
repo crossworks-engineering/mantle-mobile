@@ -260,6 +260,13 @@ class AppDatabase extends _$AppDatabase {
     return transaction(() async {
       await (delete(cachedMessages)..where((r) => r.sessionId.equals(id))).go();
       await (delete(outboxTurns)..where((r) => r.sessionId.equals(id))).go();
+      // What the brain said about the login (whoami) and the workspace it
+      // was in: learned again at the next sign-in.
+      if (id.isNotEmpty) {
+        await (delete(appSettings)
+              ..where((r) => r.key.isIn(['login_access.$id', 'workspace.$id'])))
+            .go();
+      }
     });
   }
 

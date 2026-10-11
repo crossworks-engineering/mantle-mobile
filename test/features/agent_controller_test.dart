@@ -5,8 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/data/agents/agent.dart';
 import 'package:jackdaw/data/agents/agent_api.dart';
+import 'package:jackdaw/data/auth/login_access.dart';
 import 'package:jackdaw/features/agents/agent_controller.dart';
+import 'package:jackdaw/features/auth/login_access_controller.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../helpers/fixed_access.dart';
 
 class MockAgentApi extends Mock implements AgentApi {}
 
@@ -22,13 +26,46 @@ void main() {
     when(() => api.threadInfo()).thenAnswer((_) async => null);
   });
 
-  ProviderContainer make() {
+  ProviderContainer make({LoginAccess access = adminAccess}) {
     final c = ProviderContainer(
-      overrides: [agentApiProvider.overrideWithValue(api)],
+      overrides: [
+        agentApiProvider.overrideWithValue(api),
+        loginAccessControllerProvider.overrideWith(() => FixedAccess(access)),
+      ],
     );
     addTearDown(c.dispose);
     return c;
   }
+
+  group('a login without the assistants area', () {
+    test('a member chats from the thread route\'s agents; /api/agents is '
+        'never asked', () async {
+      when(() => api.threadInfo()).thenAnswer(
+        (_) async => const AssistantThreadInfo(
+          chattableSlugs: {'team', 'sales'},
+          defaultSlug: 'team',
+          agents: [
+            Agent(id: 'a-sales', slug: 'sales', name: 'Sales'),
+            Agent(id: 'a-team', slug: 'team', name: 'Team'),
+          ],
+        ),
+      );
+      final c = make(access: memberAccess);
+
+      final state = await c.read(agentControllerProvider.future);
+      expect(state.agents.map((a) => a.slug), ['sales', 'team']);
+      expect(state.active?.slug, 'team');
+      verifyNever(() => api.list());
+    });
+
+    test('an older brain with no thread answer leaves no agents', () async {
+      final c = make(access: memberAccess);
+      final state = await c.read(agentControllerProvider.future);
+      expect(state.agents, isEmpty);
+      expect(state.active, isNull);
+      verifyNever(() => api.list());
+    });
+  });
 
   test('build loads agents and defaults active to the first', () async {
     when(() => api.list()).thenAnswer((_) async => [_saskia, _pages]);

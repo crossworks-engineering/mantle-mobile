@@ -86,6 +86,11 @@ class TokenStore {
   }
 
   Future<String?> readFor(String sessionId) => _storage.read(key: keyFor(sessionId));
+
+  /// Store [token] as [sessionId]'s bearer, whichever login is active: a
+  /// refreshed token belongs to the login that asked for it.
+  Future<void> writeFor(String sessionId, String token) =>
+      _storage.write(key: keyFor(sessionId), value: token);
   Future<void> clearFor(String sessionId) => _storage.delete(key: keyFor(sessionId));
 
   /// Read one session's token straight from secure storage, for isolates

@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/agents/agent.dart';
 import '../../data/agents/agent_api.dart';
+import '../auth/login_access_controller.dart';
 
 part 'agent_controller.g.dart';
 
@@ -34,6 +35,22 @@ class AgentController extends _$AgentController {
   @override
   Future<AgentsState> build() async {
     final api = ref.read(agentApiProvider);
+    // A login without the assistants area (a member, or an Admin user whose
+    // area is off) cannot read `/api/agents`: its agents are the ones the
+    // thread route names, the assistants of its own workspaces.
+    final access = await ref.watch(loginAccessControllerProvider.future);
+    if (!access.agentCatalog) {
+      final info = await api.threadInfo();
+      final agents = info?.agents ?? const <Agent>[];
+      Agent? active;
+      for (final a in agents) {
+        if (a.slug == info?.defaultSlug) active = a;
+      }
+      return AgentsState(
+        agents: agents,
+        active: active ?? (agents.isEmpty ? null : agents.first),
+      );
+    }
     // Both in flight together — the thread call is best-effort, so a failure
     // there must not cost the user their agent list.
     final results = await (api.list(), api.threadInfo()).wait;

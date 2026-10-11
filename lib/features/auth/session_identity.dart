@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../core/network/mobile_build.dart';
 import '../../data/auth/session_repository.dart';
 import '../../data/auth/token_store.dart';
 import '../../data/auth/whoami_api.dart';
@@ -14,6 +15,7 @@ part 'session_identity.g.dart';
 /// A bare client for one brain, used to ask it who a held login is. Not the
 /// app's client: that one is the login in use's, and its auth handler signs
 /// that login out on a 401. A provider so tests can answer for the brain.
+/// It names the phone build too, as every request does.
 @Riverpod(keepAlive: true)
 Dio Function(String baseUrl) identityDioFactory(Ref ref) => (baseUrl) => Dio(
       BaseOptions(
@@ -22,7 +24,7 @@ Dio Function(String baseUrl) identityDioFactory(Ref ref) => (baseUrl) => Dio(
         connectTimeout: const Duration(seconds: 8),
         receiveTimeout: const Duration(seconds: 8),
       ),
-    );
+    )..interceptors.add(MobileBuildInterceptor());
 
 /// Learns the (brain, login) pair of the logins this device holds, so a tap
 /// on a push can find the login it was for ([resolveTap]).

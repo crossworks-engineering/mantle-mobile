@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/network/dio_provider.dart';
+import '../../features/auth/login_access_controller.dart';
 import 'agent.dart';
 
 part 'agent_api.g.dart';
@@ -20,10 +21,16 @@ class AssistantThreadInfo {
   const AssistantThreadInfo({
     required this.chattableSlugs,
     required this.defaultSlug,
+    this.agents = const [],
   });
 
   final Set<String> chattableSlugs;
   final String? defaultSlug;
+
+  /// The chattable agents as the thread route lists them (id, slug, name,
+  /// role; no avatar). What a login without the assistants area chats from:
+  /// `/api/agents` is the Admin area's.
+  final List<Agent> agents;
 }
 
 /// Reads the owner's agents from Mantle (`GET /api/agents`, priority-ordered).
@@ -70,6 +77,11 @@ class AgentApi {
       return AssistantThreadInfo(
         chattableSlugs: slugs,
         defaultSlug: defaultSlug,
+        agents: [
+          for (final e in rows)
+            if (e is Map && e['slug'] is String)
+              Agent.fromJson(e.cast<String, dynamic>()),
+        ],
       );
     } catch (_) {
       return null;
@@ -86,6 +98,10 @@ AgentApi agentApi(Ref ref) => AgentApi(ref.watch(dioProvider));
 @Riverpod(keepAlive: true)
 Future<String?> agentAvatarSvg(Ref ref, String slug) async {
   try {
+    // The avatar route is the assistants area's: a login without it would
+    // only collect a refusal per agent.
+    final access = ref.watch(currentAccessProvider);
+    if (access != null && !access.agentCatalog) return null;
     final res = await ref.watch(dioProvider).get<String>(
       '/api/agents/$slug/avatar',
       queryParameters: {'size': 96},

@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/core/network/dio_provider.dart';
+import 'package:jackdaw/data/auth/auth_api.dart';
 import 'package:jackdaw/data/auth/auth_repository.dart';
 import 'package:jackdaw/data/auth/session_repository.dart';
 import 'package:jackdaw/data/auth/session_wipe.dart';
@@ -137,7 +138,9 @@ void main() {
           email: any(named: 'email'),
           password: any(named: 'password'),
         )).thenAnswer((_) async {
-      await c.read(tokenStoreProvider).write('tok-${++minted}');
+      final token = 'tok-${++minted}';
+      await c.read(tokenStoreProvider).write(token);
+      return SignInResult(token: token, role: 'admin');
     });
   });
   tearDown(() async {

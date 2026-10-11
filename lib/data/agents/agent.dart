@@ -2,11 +2,16 @@
 /// enough to identify and switch agents in the chat header.
 class Agent {
   const Agent({
+    this.id,
     required this.slug,
     required this.name,
     this.role,
     this.hasAvatar = false,
   });
+
+  /// The agent row's id: what a workspace names as its assistant. Absent
+  /// from a brain that does not send it.
+  final String? id;
 
   final String slug;
   final String name;
@@ -18,6 +23,7 @@ class Agent {
   final bool hasAvatar;
 
   factory Agent.fromJson(Map<String, dynamic> json) => Agent(
+    id: json['id'] is String ? json['id'] as String : null,
     slug: json['slug'] as String,
     name: (json['name'] as String?) ?? (json['slug'] as String),
     role: json['role'] as String?,

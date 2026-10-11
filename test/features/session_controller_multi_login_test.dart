@@ -61,7 +61,9 @@ void main() {
           email: any(named: 'email'),
           password: any(named: 'password'),
         )).thenAnswer((_) async {
-      await c.read(tokenStoreProvider).write('tok-${++minted}');
+      final token = 'tok-${++minted}';
+      await c.read(tokenStoreProvider).write(token);
+      return SignInResult(token: token, role: 'admin');
     });
   });
   tearDown(() async {

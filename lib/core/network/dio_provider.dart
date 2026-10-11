@@ -2,10 +2,12 @@ import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/auth/session_repository.dart';
+import '../../data/auth/token_refresh.dart';
 import '../../data/auth/token_store.dart';
 import '../../data/server/server_config.dart';
 import '../../features/auth/session_controller.dart';
 import 'auth_failure.dart';
+import 'mobile_build.dart';
 
 part 'dio_provider.g.dart';
 
@@ -36,9 +38,20 @@ Dio dio(Ref ref) {
     ),
   );
 
+  // The build header first: every request names the phone build, the
+  // sign-in calls included (a member's QR claim needs it).
+  dio.interceptors.add(MobileBuildInterceptor());
+
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
+        // A token refresh in flight rotates the bearer: wait for it, so no
+        // request goes out with the token it replaces (the brain reads a
+        // rotated token used after its successor as stolen, and ends every
+        // session of the login).
+        if (options.extra['skipRefreshGate'] != true) {
+          await ref.read(tokenRefreshGateProvider).wait();
+        }
         // A bearer goes ONLY to the brain it was minted by. This client is
         // built for one address and the active login can change under it (a
         // switch to a login on another brain re-reads the address a moment

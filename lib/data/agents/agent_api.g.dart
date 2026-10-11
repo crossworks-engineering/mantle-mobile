@@ -110,7 +110,7 @@ final class AgentAvatarSvgProvider
   }
 }
 
-String _$agentAvatarSvgHash() => r'ae281872c8332c5b83e3f7353c14bbab3b02e735';
+String _$agentAvatarSvgHash() => r'd4aa47fe02cc831be095ae6c99d64015b24106ad';
 
 /// The agent's generated avatar as an SVG string (`GET /api/agents/{slug}/avatar`),
 /// or `null` if the agent has none (404) or the fetch fails — the UI then shows

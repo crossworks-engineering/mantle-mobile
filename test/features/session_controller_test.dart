@@ -102,7 +102,7 @@ void main() {
     when(() => authRepo.login(
           email: any(named: 'email'),
           password: any(named: 'password'),
-        )).thenAnswer((_) async {});
+        )).thenAnswer((_) async => const SignInResult(token: 't'));
 
     final c = makeContainer();
     await c.read(sessionControllerProvider.future); // settle to loggedOut
@@ -122,8 +122,9 @@ void main() {
       'loggedIn and remembers the email', () async {
     // Fresh install: no server yet.
     when(() => tokenStore.read()).thenAnswer((_) async => null);
-    when(() => authRepo.claimPairing(any()))
-        .thenAnswer((_) async => 'owner@example.com');
+    when(() => authRepo.claimPairing(any())).thenAnswer(
+      (_) async => const PairingClaim(token: 't', email: 'owner@example.com'),
+    );
 
     final c = makeContainer();
     expect(await c.read(sessionControllerProvider.future),

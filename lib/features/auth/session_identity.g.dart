@@ -11,6 +11,7 @@ part of 'session_identity.dart';
 /// A bare client for one brain, used to ask it who a held login is. Not the
 /// app's client: that one is the login in use's, and its auth handler signs
 /// that login out on a 401. A provider so tests can answer for the brain.
+/// It names the phone build too, as every request does.
 
 @ProviderFor(identityDioFactory)
 final identityDioFactoryProvider = IdentityDioFactoryProvider._();
@@ -18,6 +19,7 @@ final identityDioFactoryProvider = IdentityDioFactoryProvider._();
 /// A bare client for one brain, used to ask it who a held login is. Not the
 /// app's client: that one is the login in use's, and its auth handler signs
 /// that login out on a 401. A provider so tests can answer for the brain.
+/// It names the phone build too, as every request does.
 
 final class IdentityDioFactoryProvider
     extends
@@ -30,6 +32,7 @@ final class IdentityDioFactoryProvider
   /// A bare client for one brain, used to ask it who a held login is. Not the
   /// app's client: that one is the login in use's, and its auth handler signs
   /// that login out on a 401. A provider so tests can answer for the brain.
+  /// It names the phone build too, as every request does.
   IdentityDioFactoryProvider._()
     : super(
         from: null,
@@ -65,7 +68,7 @@ final class IdentityDioFactoryProvider
 }
 
 String _$identityDioFactoryHash() =>
-    r'5135d4c0ad34900ff578606c90722fd9ad0846c7';
+    r'ba6b17ef50d58f33440d42f692e6315c8d08e8b1';
 
 @ProviderFor(sessionIdentity)
 final sessionIdentityProvider = SessionIdentityProvider._();

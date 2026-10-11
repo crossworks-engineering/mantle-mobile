@@ -130,7 +130,7 @@ final class EventAlarmSyncProvider
   }
 }
 
-String _$eventAlarmSyncHash() => r'4f67fa1ec4350fd57600fc1d7e7d8fb314153aae';
+String _$eventAlarmSyncHash() => r'de63d54d0afce64c2630e04c552f98255b2a0a98';
 
 /// Keeps device alarms fresh WITHOUT the events screen ever being opened:
 /// on login and on every foreground resume it pulls the upcoming window and

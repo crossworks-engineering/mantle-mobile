@@ -16,25 +16,31 @@ class AuthRepository {
   final AuthApi _api;
   final TokenStore _tokenStore;
 
-  Future<void> login({required String email, required String password}) async {
-    final token = await _api.mobileLogin(
+  /// Sign in with email and password (device-login, or the older brain's
+  /// mobile-login) and store the bearer. Returns who the brain said it is.
+  Future<SignInResult> login({
+    required String email,
+    required String password,
+  }) async {
+    final result = await _api.signIn(
       email: email,
       password: password,
       deviceName: _deviceName(),
     );
-    await _tokenStore.write(token);
+    await _tokenStore.write(result.token);
+    return result;
   }
 
-  /// Sign in with a pairing code scanned from the web app: same token, same
-  /// storage as [login]; the device label says how it got here. Returns the
+  /// Sign in with a pairing code scanned from the web app: same storage as
+  /// [login]; the device label says how it got here. The answer carries the
   /// account email when the server sends one.
-  Future<String?> claimPairing(String code) async {
+  Future<PairingClaim> claimPairing(String code) async {
     final claim = await _api.claimPairing(
       code: code,
       deviceName: '${_deviceName()} · paired by QR',
     );
     await _tokenStore.write(claim.token);
-    return claim.email;
+    return claim;
   }
 
   /// Revoke the token server-side, then clear it locally. The revoke is
