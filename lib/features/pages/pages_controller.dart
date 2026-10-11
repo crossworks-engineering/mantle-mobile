@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart' show DioException;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/pages/pages_api.dart';
@@ -5,6 +6,7 @@ import '../../data/pages/pages_models.dart';
 import '../../data/tree/tree_api.dart';
 import '../../data/tree/tree_models.dart';
 import '../tree/tree_controller.dart' show noTreeRetry;
+import '../../data/pages/prosemirror_markdown.dart';
 
 part 'pages_controller.g.dart';
 
@@ -45,14 +47,24 @@ class PagesController extends _$PagesController {
 @riverpod
 Future<PageContent> pageContent(Ref ref, String pageId) async {
   final api = ref.watch(pagesApiProvider);
+  // The markdown export is an Admin user's route. A member reads the page's
+  // own document (the detail answer carries it) and the phone turns it into
+  // markdown; null here means the export was refused.
+  final exported = api.markdown(pageId).then<String?>((md) => md).catchError(
+        (Object e) => e is DioException && e.response?.statusCode == 403
+            ? null
+            : throw e,
+      );
   final results = await Future.wait([
-    api.meta(pageId),
-    api.markdown(pageId),
+    api.detail(pageId),
+    exported,
     api.backlinks(pageId).catchError((_) => const <Backlink>[]),
   ]);
+  final detail = results[0] as ({PageRow meta, Object? doc});
   return PageContent(
-    meta: results[0] as PageRow,
-    markdown: results[1] as String,
+    meta: detail.meta,
+    markdown:
+        (results[1] as String?) ?? proseMirrorToMarkdown(detail.doc),
     backlinks: results[2] as List<Backlink>,
   );
 }

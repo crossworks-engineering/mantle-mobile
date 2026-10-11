@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 // PageViewScreen against the golden page: test/fixtures/golden_page.md is the
 // server's own markdown export (mantle doc-to-markdown) of a page that uses
 // every node the web editor can make (dev brain page 90971a5c…). One test per
@@ -61,7 +62,8 @@ void main() {
 
   Future<void> pump(WidgetTester tester,
       {String? markdown, bool hasDraft = false}) async {
-    when(() => pages.meta(_pageId)).thenAnswer((_) async => _meta(hasDraft: hasDraft));
+    when(() => pages.detail(_pageId))
+        .thenAnswer((_) async => (meta: _meta(hasDraft: hasDraft), doc: null));
     when(() => pages.markdown(_pageId)).thenAnswer((_) async => markdown ?? golden);
     await pumpScreen(
       tester,
@@ -246,5 +248,49 @@ void main() {
   testWidgets('a draft-only page says so instead of "empty"', (tester) async {
     await pump(tester, markdown: '', hasDraft: true);
     expect(find.textContaining('unsaved draft changes'), findsOneWidget);
+  });
+
+  testWidgets('a member (the export refused) reads the page from its document',
+      (tester) async {
+    when(() => pages.detail(_pageId)).thenAnswer((_) async => (
+          meta: _meta(),
+          doc: {
+            'type': 'doc',
+            'content': [
+              {
+                'type': 'heading',
+                'attrs': {'level': 2},
+                'content': [
+                  {'type': 'text', 'text': 'Team notes'},
+                ],
+              },
+              {
+                'type': 'paragraph',
+                'content': [
+                  {'type': 'text', 'text': 'Read by the team.'},
+                ],
+              },
+            ],
+          },
+        ));
+    when(() => pages.markdown(_pageId)).thenAnswer((_) async => throw DioException(
+      requestOptions: RequestOptions(path: '/api/export/$_pageId'),
+      response: Response(
+        requestOptions: RequestOptions(path: '/api/export/$_pageId'),
+        statusCode: 403,
+        data: {'error': 'forbidden', 'reason': 'member-login'},
+      ),
+      type: DioExceptionType.badResponse,
+    ));
+    await pumpScreen(
+      tester,
+      const PageViewScreen(pageId: _pageId),
+      container: ProviderContainer(overrides: [
+        pagesApiProvider.overrideWithValue(pages),
+        nodesApiProvider.overrideWithValue(nodes),
+      ]),
+    );
+    expect(find.text('Team notes'), findsOneWidget);
+    expect(find.text('Read by the team.'), findsOneWidget);
   });
 }

@@ -47,6 +47,15 @@ class PagesApi {
     );
   }
 
+  /// `GET /api/pages/{id}`: the row and its ProseMirror `doc` (null when
+  /// absent), for a login the markdown export refuses (see
+  /// [proseMirrorToMarkdown]).
+  Future<({PageRow meta, Object? doc})> detail(String id) async {
+    final res = await _dio.get<Map<String, dynamic>>('/api/pages/$id');
+    final page = (res.data?['page'] as Map).cast<String, dynamic>();
+    return (meta: PageRow.fromJson(page), doc: page['doc']);
+  }
+
   /// `GET /api/export/{id}?format=md` — the page content as markdown bytes
   /// (`text/markdown`). Rendered with the same MantleMarkdown the chat uses.
   Future<String> markdown(String id) async {

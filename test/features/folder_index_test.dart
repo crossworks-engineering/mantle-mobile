@@ -92,8 +92,8 @@ void main() {
     });
 
     Future<void> pump(WidgetTester tester, Map<String, dynamic> page) async {
-      when(() => pages.meta(pageId))
-          .thenAnswer((_) async => PageRow.fromJson(page));
+      when(() => pages.detail(pageId))
+          .thenAnswer((_) async => (meta: PageRow.fromJson(page), doc: null));
       await pumpScreen(
         tester,
         const PageViewScreen(pageId: pageId),
