@@ -35,6 +35,15 @@ const _serviceId = 4242;
 // the service does not connect with the token being replaced. Not a secret.
 const _kRotating = 'directPushRotating';
 
+// Set by the service while a send of its own is on its way with a login's
+// bearer (`<sessionId>|<ms>`), cleared once its answer's headers are in. A
+// rotation of that login waits for it to clear before the refresh is posted.
+const _kSending = 'directPushSending';
+
+/// How long a rotation waits for the service's send to have its answer. Past
+/// it the refresh is skipped (the next start, switch or resume tries again).
+const kSendWaitMax = Duration(seconds: 20);
+
 /// How long a rotation marker holds the service at most. A refresh is over
 /// well within it (its client times out in seconds); an app killed mid
 /// refresh leaves a marker that simply ages out.
@@ -46,6 +55,7 @@ String rotationMarker(String sessionId, DateTime at) =>
     '$sessionId|${at.millisecondsSinceEpoch}';
 
 /// Whether [marker] says [sessionId]'s bearer is being rotated right now.
+/// The service's send mark has the same shape, and is read the same way.
 @visibleForTesting
 bool rotationPending(String? marker, String sessionId, DateTime now) {
   if (marker == null || marker.isEmpty) return false;
@@ -58,9 +68,10 @@ bool rotationPending(String? marker, String sessionId, DateTime now) {
   return age < kRotationPauseMax && !age.isNegative;
 }
 
-/// The bearer to connect with, read once no rotation of it is running: wait
-/// while [rotating], read, and read again if a rotation began meanwhile (the
-/// token read may be the one being replaced).
+/// The bearer as stored once no rotation of it is running: wait while
+/// [rotating], read, and read again if a rotation began meanwhile (the token
+/// read may be the one being replaced). For a look at the token; a send
+/// takes its bearer through [beginSend].
 @visibleForTesting
 Future<String?> readTokenWhenSettled({
   required Future<bool> Function() rotating,
@@ -74,6 +85,70 @@ Future<String?> readTokenWhenSettled({
     final token = await read();
     if (!await rotating()) return token;
   }
+}
+
+/// The bearer for one send of the service's, through a handshake with the
+/// app's rotation of it (the service runs in its own isolate, outside the
+/// app's refresh gate).
+///
+/// Two-sided, so the two can never both go ahead: the app marks the rotation
+/// first and then looks for a send ([waitForSendToClear]); the service marks
+/// its send first ([mark]) and then looks for a rotation. Whichever looks
+/// second sees the other. A rotation seen here means the send stands down
+/// and waits it out; otherwise the bearer is read with the send marked, so a
+/// rotation that begins now waits for it, and the caller clears the mark
+/// ([unmark]) once the answer's headers are in. Null (nothing marked) when
+/// the login holds no bearer.
+@visibleForTesting
+Future<String?> beginSend({
+  required Future<bool> Function() rotating,
+  required Future<void> Function() mark,
+  required Future<void> Function() unmark,
+  required Future<String?> Function() read,
+  Duration poll = const Duration(milliseconds: 250),
+}) async {
+  while (true) {
+    while (await rotating()) {
+      await Future<void>.delayed(poll);
+    }
+    await mark();
+    if (await rotating()) {
+      await unmark();
+      continue;
+    }
+    final token = await read();
+    if (token == null || token.isEmpty) await unmark();
+    return token;
+  }
+}
+
+/// The app's side of [beginSend]: with the rotation already marked, wait for
+/// a send of the service's to have its answer. False when it does not within
+/// [timeout]: the refresh must not be posted under it.
+@visibleForTesting
+Future<bool> waitForSendToClear({
+  required Future<bool> Function() sending,
+  Duration timeout = kSendWaitMax,
+  Duration poll = const Duration(milliseconds: 100),
+}) async {
+  final until = DateTime.now().add(timeout);
+  while (await sending()) {
+    if (!DateTime.now().isBefore(until)) return false;
+    await Future<void>.delayed(poll);
+  }
+  return true;
+}
+
+/// Whether a refusal of a send made with [used] was of a token the app has
+/// since replaced, judged by the token as [settled] reads it (outside any
+/// rotation of it: in the middle of one, the store may still hold [used]).
+@visibleForTesting
+Future<bool> refusedTokenReplaced({
+  required String? used,
+  required Future<String?> Function() settled,
+}) async {
+  final now = await settled();
+  return now != null && now.isNotEmpty && now != used;
 }
 
 /// The **direct connection** push transport (no-Google Android, §9.3). Runs a
@@ -164,12 +239,25 @@ class DirectPush {
 
   /// Hold the service's reconnects while [sessionId]'s bearer rotates: a
   /// connect with the token being replaced, landing after its successor was
-  /// used, would end every session of the login. Best-effort.
-  Future<void> pauseForRotation(String sessionId) async {
-    if (!supported) return;
+  /// used, would end every session of the login. The rotation is marked
+  /// first, then a send the service already has on its way is waited for
+  /// ([beginSend] is the other side). False when that send has no answer in
+  /// [kSendWaitMax]: the refresh is then skipped.
+  Future<bool> pauseForRotation(String sessionId) async {
+    if (!supported) return true;
     await FlutterForegroundTask.saveData(
       key: _kRotating,
       value: rotationMarker(sessionId, DateTime.now()),
+    );
+    // A service that is not running sends nothing (one starting now sees
+    // the rotation marked).
+    if (!await FlutterForegroundTask.isRunningService) return true;
+    return waitForSendToClear(
+      sending: () async => rotationPending(
+        await FlutterForegroundTask.getData<String>(key: _kSending),
+        sessionId,
+        DateTime.now(),
+      ),
     );
   }
 
@@ -239,6 +327,9 @@ class _DirectPushTaskHandler extends TaskHandler {
       return;
     }
     _sessionId = sessionId;
+    // A mark left by a service that was killed mid send: nothing of this
+    // one's is on its way yet.
+    await _endSend();
     // The bearer goes on each request, read fresh: the app rotates it.
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
@@ -259,21 +350,29 @@ class _DirectPushTaskHandler extends TaskHandler {
         // The bearer is read again before every connect: the app rotates it
         // (token refresh), and a rotated token used after its successor ends
         // every session of the login on the brain. Never in the middle of
-        // a rotation either (the app marks it).
-        final token = await _settledToken();
+        // a rotation either, and no rotation is posted while the connect is
+        // on its way (the handshake in [beginSend]).
+        final token = await _beginSend();
         if (token == null || token.isEmpty) {
           await FlutterForegroundTask.stopService();
           return;
         }
         used = token;
-        final res = await _dio!.get<ResponseBody>(
-          '/api/assistant/stream',
-          options: Options(
-            responseType: ResponseType.stream,
-            headers: {'Authorization': 'Bearer $token'},
-          ),
-          cancelToken: _cancel,
-        );
+        final Response<ResponseBody> res;
+        try {
+          res = await _dio!.get<ResponseBody>(
+            '/api/assistant/stream',
+            options: Options(
+              responseType: ResponseType.stream,
+              headers: {'Authorization': 'Bearer $token'},
+            ),
+            cancelToken: _cancel,
+          );
+        } finally {
+          // The headers are in (or the connect failed): the brain has read
+          // the bearer, and a rotation may go.
+          await _endSend();
+        }
         backoff = const Duration(seconds: 1);
         final lines = res.data!.stream
             .cast<List<int>>()
@@ -290,12 +389,14 @@ class _DirectPushTaskHandler extends TaskHandler {
         if (isAuthFailure(e)) {
           // Refused with a token the app has since replaced (a rotation
           // landed while this connect was on its way): connect again with
-          // the new one.
-          final sessionId = _sessionId;
-          final now = sessionId == null || sessionId.isEmpty
-              ? null
-              : await TokenStore.readDirect(sessionId);
-          if (now != null && now.isNotEmpty && now != used) continue;
+          // the new one. Judged once any rotation running is over: in the
+          // middle of one the store still holds the token being replaced.
+          if (await refusedTokenReplaced(
+            used: used,
+            settled: _settledToken,
+          )) {
+            continue;
+          }
           // Token revoked or expired — give up rather than reconnect forever.
           await FlutterForegroundTask.stopService();
           return;
@@ -306,6 +407,36 @@ class _DirectPushTaskHandler extends TaskHandler {
       }
       await Future<void>.delayed(backoff);
       backoff = backoff * 2 > maxBackoff ? maxBackoff : backoff * 2;
+    }
+  }
+
+  /// The bearer for one send, with the send marked until [_endSend].
+  Future<String?> _beginSend() async {
+    final sessionId = _sessionId;
+    if (sessionId == null || sessionId.isEmpty) return null;
+    return beginSend(
+      rotating: () async => rotationPending(
+        await FlutterForegroundTask.getData<String>(key: _kRotating),
+        sessionId,
+        DateTime.now(),
+      ),
+      mark: () async {
+        await FlutterForegroundTask.saveData(
+          key: _kSending,
+          value: rotationMarker(sessionId, DateTime.now()),
+        );
+      },
+      unmark: _endSend,
+      read: () => TokenStore.readDirect(sessionId),
+    );
+  }
+
+  /// The send marked by [_beginSend] has its answer.
+  Future<void> _endSend() async {
+    try {
+      await FlutterForegroundTask.removeData(key: _kSending);
+    } catch (_) {
+      /* the mark ages out on its own */
     }
   }
 
@@ -327,13 +458,19 @@ class _DirectPushTaskHandler extends TaskHandler {
   Future<void> _notify(String agentSlug) async {
     try {
       // The stream may have been opened weeks of rotations ago: this fetch
-      // takes the bearer as it is now, never the one the stream began with.
-      final token = await _settledToken();
+      // takes the bearer as it is now, never the one the stream began with,
+      // and holds a rotation off until its answer is in.
+      final token = await _beginSend();
       if (token == null || token.isEmpty) return;
-      final res = await _dio!.get<Map<String, dynamic>>(
-        '/api/assistant/conversations',
-        options: Options(headers: {'Authorization': 'Bearer $token'}),
-      );
+      final Response<Map<String, dynamic>> res;
+      try {
+        res = await _dio!.get<Map<String, dynamic>>(
+          '/api/assistant/conversations',
+          options: Options(headers: {'Authorization': 'Bearer $token'}),
+        );
+      } finally {
+        await _endSend();
+      }
       final list = (res.data?['conversations'] as List?) ?? const [];
       for (final raw in list) {
         final m = raw as Map<String, dynamic>;

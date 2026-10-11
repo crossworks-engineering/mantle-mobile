@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -208,7 +209,10 @@ void main() {
       tokens,
       (_) => stubDio(adapter),
       gate,
-      pauseStream: (id) async => events.add('pause $id'),
+      pauseStream: (id) async {
+        events.add('pause $id');
+        return true;
+      },
       resumeStream: (id) async {
         events.add('resume $id');
         // Let go only once the new token is stored.
@@ -217,5 +221,105 @@ void main() {
     );
     expect(await refresher.refreshActive(), RefreshOutcome.rotated);
     expect(events, ['pause $sessionId', 'post', 'resume $sessionId']);
+  });
+  group('a refresh whose answer was lost', () {
+    for (final lost in <DioException Function(RequestOptions)>[
+      (o) => DioException.receiveTimeout(
+            timeout: const Duration(seconds: 8),
+            requestOptions: o,
+          ),
+      (o) => DioException.connectionError(requestOptions: o, reason: 'reset'),
+    ]) {
+      test('is asked once more before the gate opens (${lost(RequestOptions()).type.name})',
+          () async {
+        var n = 0;
+        var closedOnRetry = false;
+        final adapter = StubAdapter((o) {
+          if (++n == 1) throw lost(o);
+          // Nothing gets the old bearer while the refresh is asked again.
+          closedOnRetry = gate.busyFor(sessionId);
+          return (status: 200, body: jsonEncode({'token': 'tok-new'}));
+        });
+
+        expect(await refresherFor(adapter).refreshActive(),
+            RefreshOutcome.rotated);
+        expect(adapter.requests, hasLength(2));
+        expect(closedOnRetry, isTrue);
+        expect(
+          adapter.requests.map((o) => o.headers['Authorization']),
+          everyElement('Bearer tok-old'),
+        );
+        expect(await tokens.readFor(sessionId), 'tok-new');
+      });
+    }
+
+    test('is asked once more only', () async {
+      final adapter = StubAdapter(
+        (o) => throw DioException.receiveTimeout(
+          timeout: const Duration(seconds: 8),
+          requestOptions: o,
+        ),
+      );
+      expect(await refresherFor(adapter).refreshActive(),
+          RefreshOutcome.skipped);
+      expect(adapter.requests, hasLength(2));
+      expect(await tokens.readFor(sessionId), 'tok-old');
+      expect(gate.busy, isFalse);
+    });
+
+    test('an answer that came is not asked again', () async {
+      final adapter = StubAdapter((o) => (status: 500, body: '{}'));
+      expect(await refresherFor(adapter).refreshActive(),
+          RefreshOutcome.skipped);
+      expect(adapter.requests, hasLength(1));
+    });
+  });
+
+  test('the direct connection with a send still on its way: the refresh is '
+      'skipped, and the connection let go', () async {
+    final events = <String>[];
+    final adapter = StubAdapter(
+      (o) => (status: 200, body: jsonEncode({'token': 'tok-new'})),
+    );
+    final refresher = TokenRefresher(
+      sessions,
+      tokens,
+      (_) => stubDio(adapter),
+      gate,
+      pauseStream: (id) async {
+        events.add('pause');
+        return false;
+      },
+      resumeStream: (id) async => events.add('resume'),
+    );
+    expect(await refresher.refreshActive(), RefreshOutcome.skipped);
+    expect(adapter.requests, isEmpty);
+    expect(events, ['pause', 'resume']);
+    expect(await tokens.readFor(sessionId), 'tok-old');
+  });
+
+  test('a refresh asked for while one runs learns what that one did',
+      () async {
+    final answer = Completer<void>();
+    final adapter = StubAdapter(
+      (o) => (status: 200, body: jsonEncode({'token': 'tok-old'})),
+    );
+    final refresher = TokenRefresher(
+      sessions,
+      tokens,
+      (_) => stubDio(adapter),
+      gate,
+      pauseStream: (id) async {
+        await answer.future;
+        return true;
+      },
+    );
+    final first = refresher.refreshActive();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final second = refresher.refreshActive();
+    answer.complete();
+    expect(await first, RefreshOutcome.unchanged);
+    expect(await second, RefreshOutcome.unchanged);
+    expect(adapter.requests, hasLength(1));
   });
 }

@@ -72,7 +72,7 @@ class FakeDirectPush implements DirectPush {
   }
 
   @override
-  Future<void> pauseForRotation(String sessionId) async {}
+  Future<bool> pauseForRotation(String sessionId) async => true;
 
   @override
   Future<void> resumeAfterRotation(String sessionId) async {}

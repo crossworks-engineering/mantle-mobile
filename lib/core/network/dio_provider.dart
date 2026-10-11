@@ -42,6 +42,17 @@ Dio dio(Ref ref) {
   // sign-in calls included (a member's QR claim needs it).
   dio.interceptors.add(MobileBuildInterceptor());
 
+  // Read once, here, and never through [ref] from an interceptor: a switch
+  // of login rebuilds this provider, and a request still on its way across
+  // the switch answers into a client whose [ref] is gone. Each of these is
+  // kept alive for the app's life, so the copies held here stay the ones in
+  // use. The session controller is reached through the container when it
+  // is needed: its notifier is recreated whenever it rebuilds.
+  final gate = ref.read(tokenRefreshGateProvider);
+  final tokens = ref.read(tokenStoreProvider);
+  final sessions = ref.read(sessionRepositoryProvider);
+  final container = ref.container;
+
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) async {
@@ -57,11 +68,10 @@ Dio dio(Ref ref) {
         // The bearer is read for THAT session, not "the active one" a
         // second time: a switch between the two reads would pair this
         // session's address check with another session's bearer.
-        final active = await ref.read(sessionRepositoryProvider).active();
+        final active = await sessions.active();
         var bearer = false;
         if (active != null && active.baseUrl == baseUrl) {
-          Future<String?> read() =>
-              ref.read(tokenStoreProvider).readFor(active.id);
+          Future<String?> read() => tokens.readFor(active.id);
           // A token refresh of this login rotates the bearer: the gate holds
           // the request while one runs, reads the bearer again if one began
           // while it was being read, and counts the request until its answer
@@ -70,9 +80,8 @@ Dio dio(Ref ref) {
           // used after its successor as stolen, and ends every session of
           // the login).
           final skipGate = options.extra['skipRefreshGate'] == true;
-          final token = skipGate
-              ? await read()
-              : await ref.read(tokenRefreshGateProvider).acquire(active.id, read);
+          final token =
+              skipGate ? await read() : await gate.acquire(active.id, read);
           if (token != null && token.isNotEmpty) {
             options.headers['Authorization'] = 'Bearer $token';
             options.extra = {
@@ -93,53 +102,87 @@ Dio dio(Ref ref) {
         handler.next(options);
       },
       onResponse: (response, handler) {
-        _release(ref, response.requestOptions);
+        _release(gate, response.requestOptions);
         handler.next(response);
       },
       onError: (e, handler) async {
         final options = e.requestOptions;
-        _release(ref, options);
+        _release(gate, options);
         // Login opts out (a 401 there means "wrong password", not "log out").
         final optedOut = options.extra['skipAuthHandler'] == true;
         if (optedOut || !isAuthFailure(e)) return handler.next(e);
-        // Refused with a bearer that is no longer the login's (a rotation
-        // landed while it was on its way): that says nothing about the token
-        // in use. Ask once more with the current one, while that login is
-        // still the one in use; never sign anyone out over it.
+        Future<void> signOut() => container
+            .read(sessionControllerProvider.notifier)
+            .sessionInvalidated();
         final sessionId = options.extra[kBearerSessionExtra];
-        if (sessionId is String) {
-          final current = await ref.read(tokenStoreProvider).readFor(sessionId);
-          final sent = options.headers['Authorization'];
-          if (current != null &&
-              current.isNotEmpty &&
-              sent != 'Bearer $current') {
-            final retried = options.extra[_kRetried] == true;
-            final stillActive =
-                await ref.read(sessionRepositoryProvider).activeId() ==
-                    sessionId;
-            if (retried || !stillActive) return handler.next(e);
-            try {
-              final again = await dio.fetch<dynamic>(
-                options.copyWith(
-                  extra: {
-                    ...options.extra,
-                    _kRetried: true,
-                  }..remove(_kCounted),
-                ),
-              );
-              return handler.resolve(again);
-            } on DioException catch (failed) {
-              return handler.next(failed);
-            }
+        if (sessionId is! String) {
+          await signOut();
+          return handler.next(e);
+        }
+        // Only the login in use is ever signed out, and only over its own
+        // bearer: a refusal of a login switched away from meanwhile says
+        // nothing about the one in use.
+        if (await sessions.activeId() != sessionId) return handler.next(e);
+        final retried = options.extra[_kRetried] == true;
+        final sent = options.headers['Authorization'];
+
+        // Ask once more with the login's bearer as it is now, as a retry
+        // that never comes back here for another. A body that cannot be
+        // sent twice (a form, a stream) is not asked again: it fails with
+        // the refusal, and signs nobody out, as the refusal was of a bearer
+        // that is no longer the login's.
+        Future<void> askAgain() async {
+          if (!_replayable(options)) return handler.next(e);
+          try {
+            final again = await dio.fetch<dynamic>(
+              options.copyWith(
+                extra: {
+                  ...options.extra,
+                  _kRetried: true,
+                }..remove(_kCounted),
+              ),
+            );
+            return handler.resolve(again);
+          } on DioException catch (failed) {
+            return handler.next(failed);
           }
         }
-        await ref.read(sessionControllerProvider.notifier).sessionInvalidated();
+
+        bool replaced(String? current) =>
+            current != null && current.isNotEmpty && sent != 'Bearer $current';
+
+        // Refused with a bearer that is no longer the login's (a rotation
+        // landed while it was on its way): that says nothing about the token
+        // in use. Never sign anyone out over it.
+        if (replaced(await tokens.readFor(sessionId))) {
+          if (retried) return handler.next(e);
+          return askAgain();
+        }
+        // Refused with the bearer in use. Before signing the login out, ask
+        // the brain about that token once through a refresh: a new token
+        // means the request is asked again with it, the same token back
+        // means the token is alive and this refusal is not a sign-out.
+        if (!retried) {
+          final outcome =
+              await container.read(tokenRefresherProvider).refreshActive();
+          if (await sessions.activeId() != sessionId) return handler.next(e);
+          if (replaced(await tokens.readFor(sessionId))) return askAgain();
+          if (outcome == RefreshOutcome.unchanged) return handler.next(e);
+        }
+        await signOut();
         handler.next(e);
       },
     ),
   );
 
   return dio;
+}
+
+/// Whether [options]' body can be sent a second time. A form is spent once
+/// it has been sent, and a stream once it has been read.
+bool _replayable(RequestOptions options) {
+  final data = options.data;
+  return data is! FormData && data is! Stream;
 }
 
 /// The session whose bearer a request carries (in `RequestOptions.extra`).
@@ -152,11 +195,9 @@ const _kCounted = 'bearerCounted';
 const _kRetried = 'bearerRetried';
 
 /// Hand the request's in-flight count back to the gate, once.
-void _release(Ref ref, RequestOptions options) {
+void _release(TokenRefreshGate gate, RequestOptions options) {
   if (options.extra[_kCounted] != true) return;
   options.extra = {...options.extra}..remove(_kCounted);
   final sessionId = options.extra[kBearerSessionExtra];
-  if (sessionId is String) {
-    ref.read(tokenRefreshGateProvider).release(sessionId);
-  }
+  if (sessionId is String) gate.release(sessionId);
 }

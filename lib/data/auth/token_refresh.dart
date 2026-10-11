@@ -176,17 +176,43 @@ class TokenRefresher {
 
   /// Holds the Android direct connection's reconnects while a rotation is
   /// posted (it runs in its own isolate, outside the gate), and lets them go
-  /// once the new token is stored.
-  final Future<void> Function(String sessionId)? pauseStream;
+  /// once the new token is stored. [pauseStream] answers false when a send
+  /// of the connection's, made with the bearer being replaced, has not had
+  /// its answer in time: the refresh is then skipped, as for a request of
+  /// the app's own that does not drain.
+  final Future<bool> Function(String sessionId)? pauseStream;
   final Future<void> Function(String sessionId)? resumeStream;
+
+  /// The refresh running per login, so a caller that joins it learns what
+  /// it did.
+  final Map<String, Future<RefreshOutcome>> _running = {};
 
   /// Refresh the active login's token. [onRefused] runs when the brain says
   /// the token is dead, and only while that login is still the one in use.
+  /// A call while that login's refresh runs joins it, and answers its
+  /// outcome.
   Future<RefreshOutcome> refreshActive({
     Future<void> Function()? onRefused,
   }) async {
     final session = await _sessions.active();
     if (session == null || session.needsSignIn) return RefreshOutcome.skipped;
+    final joined = _running[session.id];
+    if (joined != null) return joined;
+    final running = _runFor(session, onRefused);
+    _running[session.id] = running;
+    try {
+      return await running;
+    } finally {
+      if (identical(_running[session.id], running)) {
+        _running.remove(session.id);
+      }
+    }
+  }
+
+  Future<RefreshOutcome> _runFor(
+    Session session,
+    Future<void> Function()? onRefused,
+  ) async {
     var outcome = RefreshOutcome.skipped;
     await _gate.run(session.id, () async {
       outcome = await _refresh(session, onRefused: onRefused);
@@ -208,15 +234,31 @@ class TokenRefresher {
     dio.options.headers['Authorization'] = 'Bearer $token';
     var paused = false;
     try {
+      var clear = true;
+      final pause = pauseStream;
       try {
-        await pauseStream?.call(session.id);
-        paused = pauseStream != null;
+        if (pause != null) {
+          paused = true;
+          clear = await pause(session.id);
+        }
       } catch (_) {
         /* no direct connection here */
       }
-      final res = await dio.post<Map<String, dynamic>>(
-        '/api/auth/token/refresh',
-      );
+      // The direct connection has a send on its way with this bearer: never
+      // rotate under it. The next start, switch or resume tries again.
+      if (!clear) return RefreshOutcome.skipped;
+      // A refresh whose answer was lost on the way back (a timeout, a broken
+      // connection) is asked once more before the gate opens: the brain hands
+      // the same new token back until it is first used, so asking again is
+      // safe, and letting requests go on the old bearer while a new one may
+      // already be minted is what is avoided.
+      Response<Map<String, dynamic>> res;
+      try {
+        res = await dio.post<Map<String, dynamic>>('/api/auth/token/refresh');
+      } on DioException catch (e) {
+        if (!_answerLost(e)) rethrow;
+        res = await dio.post<Map<String, dynamic>>('/api/auth/token/refresh');
+      }
       final fresh = res.data?['token'];
       if (fresh is! String || fresh.isEmpty) return RefreshOutcome.skipped;
       if (fresh == token) return RefreshOutcome.unchanged;
@@ -248,6 +290,20 @@ class TokenRefresher {
     }
   }
 }
+
+/// Whether [e] may have come after the refresh was posted, with its answer
+/// lost: a timeout on the way out or back, or a connection that broke. A
+/// connect that never happened, or any answer, is not.
+bool _answerLost(DioException e) =>
+    e.response == null &&
+    switch (e.type) {
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.connectionError ||
+      DioExceptionType.unknown =>
+        true,
+      _ => false,
+    };
 
 @Riverpod(keepAlive: true)
 TokenRefresher tokenRefresher(Ref ref) {

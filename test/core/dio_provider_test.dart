@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jackdaw/core/network/dio_provider.dart';
 import 'package:jackdaw/core/network/mobile_build.dart';
@@ -19,7 +20,10 @@ import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/db/database_provider.dart';
 import 'package:jackdaw/data/server/server_config.dart';
 import 'package:jackdaw/features/auth/session_controller.dart';
+import 'package:jackdaw/features/auth/session_identity.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../helpers/stub_dio.dart';
 
 class MockTokenStore extends Mock implements TokenStore {}
 
@@ -76,8 +80,14 @@ void main() {
   late AppDatabase db;
   late MockTokenStore tokenStore;
   late MockSessionWipe wipe;
+  // The brain's answer to a token refresh, and every refresh asked for. By
+  // default the token is dead (401), as for any token a request was refused.
+  late StubAnswer Function(RequestOptions) refreshAnswer;
+  late List<RequestOptions> refreshes;
 
   setUp(() async {
+    refreshAnswer = (_) => (status: 401, body: '{}');
+    refreshes = [];
     db = AppDatabase.forTesting(NativeDatabase.memory());
     await db.setSetting('server_base_url', 'https://m.example.com');
     // The login that server address belongs to: the client attaches a bearer
@@ -106,14 +116,21 @@ void main() {
   });
   tearDown(() => db.close());
 
-  Future<(ProviderContainer, Dio)> boot(_StubAdapter adapter) async {
-    final c = ProviderContainer(
-      overrides: [
+  List<Override> overrides() => [
         appDatabaseProvider.overrideWithValue(db),
         tokenStoreProvider.overrideWithValue(tokenStore),
         sessionWipeProvider.overrideWithValue(wipe),
-      ],
-    );
+        identityDioFactoryProvider.overrideWithValue(
+          (baseUrl) => Dio(BaseOptions(baseUrl: baseUrl))
+            ..httpClientAdapter = StubAdapter((o) {
+              refreshes.add(o);
+              return refreshAnswer(o);
+            }),
+        ),
+      ];
+
+  Future<(ProviderContainer, Dio)> boot(_StubAdapter adapter) async {
+    final c = ProviderContainer(overrides: overrides());
     addTearDown(c.dispose);
     await c.read(serverConfigProvider.future);
     expect(await c.read(sessionControllerProvider.future), AuthStatus.loggedIn);
@@ -220,16 +237,12 @@ void main() {
       current = 'tok';
       when(() => tokenStore.readFor('session-1'))
           .thenAnswer((_) async => current);
+      when(() => tokenStore.writeFor('session-1', any()))
+          .thenAnswer((inv) async => current = inv.positionalArguments[1] as String);
     });
 
     Future<(ProviderContainer, Dio)> bootFn(_FnAdapter adapter) async {
-      final c = ProviderContainer(
-        overrides: [
-          appDatabaseProvider.overrideWithValue(db),
-          tokenStoreProvider.overrideWithValue(tokenStore),
-          sessionWipeProvider.overrideWithValue(wipe),
-        ],
-      );
+      final c = ProviderContainer(overrides: overrides());
       addTearDown(c.dispose);
       await c.read(serverConfigProvider.future);
       await c.read(sessionControllerProvider.future);
@@ -347,8 +360,147 @@ void main() {
       await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
 
       expect(adapter.seen, hasLength(1));
+      // The brain was asked about the token once, and refused it too.
+      expect(refreshes.single.headers['Authorization'], 'Bearer tok');
       expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
       expect(c.read(tokenRefreshGateProvider).sending('session-1'), 0);
+    });
+
+    test('a 401 with the bearer in use refreshes once first: a new token '
+        'asks again with it, and signs nobody out', () async {
+      refreshAnswer = (_) => (status: 200, body: '{"token":"tok-new"}');
+      final adapter = _FnAdapter(
+        (o) async => o.headers['Authorization'] == 'Bearer tok' ? 401 : 200,
+      );
+      final (c, dio) = await bootFn(adapter);
+
+      final res = await dio.get<void>('/api/x');
+
+      expect(res.statusCode, 200);
+      expect(refreshes, hasLength(1));
+      expect(adapter.bearers, ['Bearer tok', 'Bearer tok-new']);
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+      verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
+    });
+
+    test('a 401 with the bearer in use, which a refresh says is alive, is '
+        'an error and not a sign-out', () async {
+      refreshAnswer = (_) => (status: 200, body: '{"token":"tok"}');
+      final adapter = _FnAdapter((o) async => 401);
+      final (c, dio) = await bootFn(adapter);
+
+      await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
+
+      expect(refreshes, hasLength(1));
+      expect(adapter.seen, hasLength(1));
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+    });
+
+    test('a burst of 401s with the bearer in use asks for one refresh, and '
+        'every request learns what it said', () async {
+      refreshAnswer = (_) => (status: 200, body: '{"token":"tok"}');
+      final adapter = _FnAdapter((o) async => 401);
+      final (c, dio) = await bootFn(adapter);
+
+      final burst = [
+        for (var i = 0; i < 3; i++)
+          expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>())),
+      ];
+      await Future.wait(burst);
+
+      expect(refreshes, hasLength(1));
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+    });
+
+    test('a form refused with a bearer rotated meanwhile is not sent again, '
+        'and signs nobody out', () async {
+      var n = 0;
+      final adapter = _FnAdapter((o) async {
+        current = 'tok-${++n}'; // a rotation landed while each was out
+        return 401;
+      });
+      final (c, dio) = await bootFn(adapter);
+
+      await expectLater(
+        dio.post<void>('/api/files', data: FormData.fromMap({'name': 'a.txt'})),
+        throwsA(isA<DioException>()),
+      );
+      await expectLater(
+        dio.post<void>(
+          '/api/files',
+          data: Stream<List<int>>.fromIterable([
+            [1, 2, 3],
+          ]),
+        ),
+        throwsA(isA<DioException>()),
+      );
+
+      expect(adapter.seen, hasLength(2), reason: 'each sent once only');
+      expect(refreshes, isEmpty);
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+      verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
+    });
+
+    test('a request on its way across a switch of login hands its count '
+        'back, so the next refresh of that login goes ahead', () async {
+      final slow = Completer<void>();
+      final adapter = _FnAdapter((o) async {
+        if (o.path == '/api/slow') await slow.future;
+        return 200;
+      });
+      final (c, dio) = await bootFn(adapter);
+      final gate = c.read(tokenRefreshGateProvider);
+
+      final inFlight = dio.get<void>('/api/slow');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(gate.sending('session-1'), 1);
+
+      // A switch: the client is built again, and the one the request went
+      // out on is left behind.
+      c.read(sessionEpochProvider.notifier).bump();
+      expect(identical(c.read(dioProvider), dio), isFalse);
+
+      slow.complete();
+      final res = await inFlight;
+      expect(res.statusCode, 200);
+      expect(gate.sending('session-1'), 0);
+
+      var posted = false;
+      await gate
+          .run('session-1', () async => posted = true)
+          .timeout(const Duration(seconds: 2));
+      expect(posted, isTrue);
+    });
+
+    test('a 401 across a switch, for the login switched away from, signs '
+        'nobody out', () async {
+      final slow = Completer<void>();
+      final adapter = _FnAdapter((o) async {
+        await slow.future;
+        return 401;
+      });
+      final (c, dio) = await bootFn(adapter);
+      final now = DateTime.now();
+      await db.into(db.sessions).insert(
+            SessionsCompanion.insert(
+              id: 'session-2',
+              baseUrl: 'https://m.example.com',
+              addedAt: now,
+              lastUsedAt: now,
+            ),
+          );
+
+      final inFlight = dio.get<void>('/api/x');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await db.setSetting('active_session_id', 'session-2');
+      c.read(sessionEpochProvider.notifier).bump();
+      c.read(dioProvider);
+      slow.complete();
+
+      await expectLater(inFlight, throwsA(isA<DioException>()));
+      expect(refreshes, isEmpty);
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+      verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
     });
   });
 }
