@@ -6,10 +6,12 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../data/dashboard/dashboard_models.dart';
 import '../../theme/mantle_theme.dart';
 import '../../widgets/mantle_header.dart';
+import '../auth/login_access_controller.dart';
 import '../auth/logins_screen.dart';
 import '../dashboard/dashboard_controller.dart';
 import 'last_message_card.dart';
 import 'up_next_card.dart';
+import '../workspaces/workspace_switcher.dart';
 
 /// The landing dashboard: the latest message received, what is up next
 /// (events and tasks due), quick actions (chat / pending / settings) and
@@ -20,8 +22,76 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
-    final async = ref.watch(dashboardControllerProvider);
-    final pending = async.value?.summary.pendingCount;
+    // What this login may reach. Unknown for a moment at most (the answer is
+    // cached per login): until then only what every login has is offered.
+    final access = ref.watch(currentAccessProvider);
+    final ownerContent = access?.ownerContent ?? false;
+    final stats = access?.brainStats ?? false;
+    final approvals = access?.pendingApprovals ?? false;
+    // The brain overview is the settings area's: never asked for without it.
+    final async = stats ? ref.watch(dashboardControllerProvider) : null;
+    final pending = async?.value?.summary.pendingCount;
+
+    final tiles = <Widget>[
+      _ActionTile(
+        theme: theme,
+        icon: LucideIcons.messageCircle,
+        label: 'Chat',
+        onTap: () => openWorkspaceChat(context, ref),
+      ),
+      _ActionTile(
+        theme: theme,
+        icon: LucideIcons.fileText,
+        label: 'Pages',
+        onTap: () => context.push('/pages'),
+      ),
+      _ActionTile(
+        theme: theme,
+        icon: LucideIcons.stickyNote,
+        label: 'Notes',
+        onTap: () => context.push('/notes'),
+      ),
+      if (ownerContent) ...[
+        _ActionTile(
+          theme: theme,
+          icon: LucideIcons.listChecks,
+          label: 'Tasks',
+          onTap: () => context.push('/tasks'),
+        ),
+        _ActionTile(
+          theme: theme,
+          icon: LucideIcons.notebookPen,
+          label: 'Journal',
+          onTap: () => context.push('/journal'),
+        ),
+        _ActionTile(
+          theme: theme,
+          icon: LucideIcons.calendarClock,
+          label: 'Events',
+          onTap: () => context.push('/events'),
+        ),
+      ],
+      _ActionTile(
+        theme: theme,
+        icon: LucideIcons.search,
+        label: 'Search',
+        onTap: () => context.push('/search'),
+      ),
+      if (approvals)
+        _ActionTile(
+          theme: theme,
+          icon: LucideIcons.inbox,
+          label: 'Pending',
+          badge: pending,
+          onTap: () => context.push('/pending'),
+        ),
+      _ActionTile(
+        theme: theme,
+        icon: LucideIcons.folder,
+        label: 'Files',
+        onTap: () => context.push('/files'),
+      ),
+    ];
 
     return Container(
       color: theme.colorScheme.background,
@@ -58,115 +128,43 @@ class HomeScreen extends ConsumerWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
+                  // Which workspace the phone is in; a tap opens the switcher.
+                  const WorkspacePill(),
                   // The newest message received, above the controls: what a
                   // person opening the app after a notification came for.
                   const LastMessageCard(),
-                  // What is coming: the next events and the tasks due.
-                  const UpNextCard(),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.messageCircle,
-                          label: 'Chat',
-                          onTap: () => context.push('/chat'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.fileText,
-                          label: 'Pages',
-                          onTap: () => context.push('/pages'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.stickyNote,
-                          label: 'Notes',
-                          onTap: () => context.push('/notes'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.listChecks,
-                          label: 'Tasks',
-                          onTap: () => context.push('/tasks'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.notebookPen,
-                          label: 'Journal',
-                          onTap: () => context.push('/journal'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.calendarClock,
-                          label: 'Events',
-                          onTap: () => context.push('/events'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.search,
-                          label: 'Search',
-                          onTap: () => context.push('/search'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.inbox,
-                          label: 'Pending',
-                          badge: pending,
-                          onTap: () => context.push('/pending'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _ActionTile(
-                          theme: theme,
-                          icon: LucideIcons.folder,
-                          label: 'Files',
-                          onTap: () => context.push('/files'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  async.when(
-                    loading: () => Padding(
-                      padding: const EdgeInsets.only(top: 40),
-                      child: Center(
-                        child: Text('Loading…', style: theme.textTheme.muted),
-                      ),
+                  // What is coming: the next events and the tasks due (the
+                  // Admin workspace's own items).
+                  if (ownerContent) const UpNextCard(),
+                  for (var i = 0; i < tiles.length; i += 3) ...[
+                    if (i > 0) const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        for (var j = i; j < i + 3; j++) ...[
+                          if (j > i) const SizedBox(width: 12),
+                          Expanded(
+                            child: j < tiles.length
+                                ? tiles[j]
+                                : const SizedBox.shrink(),
+                          ),
+                        ],
+                      ],
                     ),
-                    error: (e, _) => _StatsError(theme: theme, ref: ref),
-                    data: (data) => _Stats(theme: theme, data: data),
-                  ),
+                  ],
+                  if (async != null) ...[
+                    const SizedBox(height: 20),
+                    async.when(
+                      loading: () => Padding(
+                        padding: const EdgeInsets.only(top: 40),
+                        child: Center(
+                          child:
+                              Text('Loading…', style: theme.textTheme.muted),
+                        ),
+                      ),
+                      error: (e, _) => _StatsError(theme: theme, ref: ref),
+                      data: (data) => _Stats(theme: theme, data: data),
+                    ),
+                  ],
                 ],
               ),
             ),

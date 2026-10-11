@@ -121,7 +121,7 @@ final class FileBytesProvider
   }
 }
 
-String _$fileBytesHash() => r'd6e6551a7815ac2f9904d739d9ed441c72320e3d';
+String _$fileBytesHash() => r'78d916b39c1fbeec642f9ec04e430a9d86d5f38e';
 
 /// Raw bytes of a Mantle file node (`GET /api/files/files/{nodeId}?raw=1`),
 /// fetched through the authed [Dio]. Backs inline image attachments when

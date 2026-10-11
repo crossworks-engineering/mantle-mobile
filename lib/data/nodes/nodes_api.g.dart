@@ -113,7 +113,7 @@ final class DrawSvgProvider
   }
 }
 
-String _$drawSvgHash() => r'eceb207c77d998509cda32c28eb0e20f905d1e8c';
+String _$drawSvgHash() => r'e4ad0d8791e38b165fe5d040f5eef5e00fe13c7e';
 
 /// `GET /api/draws/{id}/svg` — a drawing's committed SVG snapshot, as the
 /// JSON form (`{ svg }`) so the bearer rides the request. Null when the

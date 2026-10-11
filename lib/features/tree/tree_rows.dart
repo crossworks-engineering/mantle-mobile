@@ -122,17 +122,41 @@ class TreeBadge extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(left: 8),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      // A long workspace name must not push the row's title out.
+      constraints: const BoxConstraints(maxWidth: 112),
       decoration: BoxDecoration(
         color: scheme.muted,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: theme.textTheme.small.copyWith(color: scheme.mutedForeground),
       ),
     );
   }
 }
+
+/// How many workspace chips a row shows before it counts the rest.
+const kTreeChipsShown = 2;
+
+/// The chips that say who reads a folder or an item: its workspaces (the
+/// first [kTreeChipsShown], then "+N") and "Public" when a live link exists.
+/// Nothing when the brain sent none (an item only its home reads still names
+/// that workspace).
+List<Widget> workspaceChips(List<TreeWorkspace> workspaces, bool hasLink) => [
+      for (final w in workspaces.take(kTreeChipsShown)) TreeBadge(w.name),
+      if (workspaces.length > kTreeChipsShown)
+        TreeBadge('+${workspaces.length - kTreeChipsShown}'),
+      if (hasLink) const TreeBadge('Public'),
+    ];
+
+/// What a screen reader hears for the chips: "Team, Sales, public link".
+String workspaceChipsSpoken(List<TreeWorkspace> workspaces, bool hasLink) => [
+      for (final w in workspaces) w.name,
+      if (hasLink) 'public link',
+    ].join(', ');
 
 /// One folder row: glyph, name, what it holds, and who it is shared with.
 class TreeFolderTile extends StatelessWidget {
@@ -160,7 +184,10 @@ class TreeFolderTile extends StatelessWidget {
     final where = crumbPath(folder.crumbs);
     return Semantics(
       button: true,
-      label: 'Open folder ${folder.name}',
+      label: [
+        'Open folder ${folder.name}',
+        workspaceChipsSpoken(folder.workspaces, folder.hasLink),
+      ].where((p) => p.isNotEmpty).join(', read by '),
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -193,7 +220,11 @@ class TreeFolderTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (shared != null) TreeBadge(levelLabel(shared)),
+              // Workspaces read it (W5b2): the chips. An older brain's share
+              // badge only when it sends no workspaces.
+              ...workspaceChips(folder.workspaces, folder.hasLink),
+              if (folder.workspaces.isEmpty && shared != null)
+                TreeBadge(levelLabel(shared)),
               Padding(
                 padding: const EdgeInsets.only(left: 6),
                 child: Icon(LucideIcons.chevronRight, size: 16, color: muted),
@@ -244,7 +275,10 @@ class TreeItemTile extends StatelessWidget {
     ].join(' · ');
     return Semantics(
       button: true,
-      label: 'Open ${item.title}',
+      label: [
+        'Open ${item.title}',
+        workspaceChipsSpoken(item.workspaces, item.hasLink),
+      ].where((p) => p.isNotEmpty).join(', read by '),
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -292,7 +326,11 @@ class TreeItemTile extends StatelessWidget {
                 ),
               ),
               if (state != null) TreeBadge(stateLabel(state)),
-              if (state == null && level != null && level != 'admin')
+              if (state == null) ...workspaceChips(item.workspaces, item.hasLink),
+              if (state == null &&
+                  item.workspaces.isEmpty &&
+                  level != null &&
+                  level != 'admin')
                 TreeBadge(levelLabel(level)),
               if (updated != null)
                 Padding(

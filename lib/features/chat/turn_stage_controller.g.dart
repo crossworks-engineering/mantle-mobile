@@ -92,7 +92,7 @@ final class TurnStageProvider
   }
 }
 
-String _$turnStageHash() => r'1cc6cfe49d62d97ef35d479eef16a77f2ee916bc';
+String _$turnStageHash() => r'6228c6f933705f19ce5ddba17c34e30ba6776e6e';
 
 /// Streams the responder's coarse stage label ("Thinking…", "Searching the
 /// web…", …) while a send is in flight on [agentSlug]'s thread, by polling

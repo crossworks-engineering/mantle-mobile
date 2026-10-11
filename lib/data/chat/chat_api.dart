@@ -470,7 +470,11 @@ Future<Uint8List?> fileBytes(Ref ref, String nodeId) async {
     final res = await ref.watch(dioProvider).get<List<int>>(
       '/api/files/files/$nodeId',
       queryParameters: {'raw': 1},
-      options: Options(responseType: ResponseType.bytes),
+      // A picture the login may not read is a refusal, not a sign-out.
+      options: Options(
+        responseType: ResponseType.bytes,
+        extra: const {'skipAuthHandler': true},
+      ),
     );
     final data = res.data;
     return data == null ? null : Uint8List.fromList(data);

@@ -96,6 +96,8 @@ class TreeFolder {
     required this.itemCount,
     required this.own,
     this.crumbs = const [],
+    this.workspaces = const [],
+    this.hasLink = false,
   });
 
   final String id;
@@ -132,6 +134,12 @@ class TreeFolder {
   /// Where it lives, top-down. Search results only.
   final List<TreeCrumb> crumbs;
 
+  /// The workspaces that read the folder (the brain's list chips).
+  final List<TreeWorkspace> workspaces;
+
+  /// A live public link exists.
+  final bool hasLink;
+
   /// Who reads what is filed here: the folder's own share, else the one it
   /// takes from above.
   String? get sharedWith => share ?? inherited;
@@ -151,6 +159,8 @@ class TreeFolder {
         itemCount: (j['itemCount'] as num?)?.toInt() ?? 0,
         own: j['own'] == true,
         crumbs: TreeCrumb.listFrom(j['crumbs']),
+        workspaces: TreeWorkspace.listFrom(j['workspaces']),
+        hasLink: j['hasLink'] == true,
       );
 }
 
@@ -192,6 +202,8 @@ class TreeItem {
     required this.source,
     required this.author,
     this.crumbs = const [],
+    this.workspaces = const [],
+    this.hasLink = false,
   });
 
   final String id;
@@ -225,6 +237,13 @@ class TreeItem {
   /// Where it lives, top-down. Search results and mark lists only.
   final List<TreeCrumb> crumbs;
 
+  /// The workspaces that read the item (the brain's list chips). Grants
+  /// decide who reads an item since workspaces; [level] is no longer sent.
+  final List<TreeWorkspace> workspaces;
+
+  /// A live public link exists (the "Public" pill).
+  final bool hasLink;
+
   static TreeItem fromJson(Map<String, dynamic> j) {
     final updated = j['updatedAt'];
     return TreeItem(
@@ -242,7 +261,31 @@ class TreeItem {
       source: _str(j['source']),
       author: _str(j['author']),
       crumbs: TreeCrumb.listFrom(j['crumbs']),
+      workspaces: TreeWorkspace.listFrom(j['workspaces']),
+      hasLink: j['hasLink'] == true,
     );
+  }
+}
+
+/// A workspace that reads a folder or an item, as a row's chip names it.
+class TreeWorkspace {
+  const TreeWorkspace({required this.id, required this.name});
+
+  final String id;
+  final String name;
+
+  static List<TreeWorkspace> listFrom(Object? raw) {
+    if (raw is! List) return const [];
+    return [
+      for (final w in raw)
+        if (w is Map && w['id'] is String)
+          TreeWorkspace(
+            id: w['id'] as String,
+            name: w['name'] is String && (w['name'] as String).isNotEmpty
+                ? w['name'] as String
+                : w['id'] as String,
+          ),
+    ];
   }
 }
 

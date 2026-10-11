@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../data/auth/login_access.dart';
+import '../features/auth/login_access_controller.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/logins_screen.dart';
 import '../features/auth/scan_sign_in_screen.dart';
@@ -37,6 +39,8 @@ GoRouter goRouter(Ref ref) {
   final refresh = ValueNotifier(0);
   ref.onDispose(refresh.dispose);
   ref.listen(sessionControllerProvider, (_, _) => refresh.value++);
+  // What the login may reach changes the routes it may stay on.
+  ref.listen(currentAccessProvider, (_, _) => refresh.value++);
 
   return GoRouter(
     initialLocation: '/',
@@ -63,7 +67,12 @@ GoRouter goRouter(Ref ref) {
           return loc == '/login' || loc == '/scan' ? null : '/login';
         case AuthStatus.loggedIn:
           const transient = {'/splash', '/setup', '/login', '/scan'};
-          return transient.contains(loc) ? '/' : null;
+          if (transient.contains(loc)) return '/';
+          // A screen whose routes refuse this login (a stale link, a push
+          // meant for another login) goes home instead of failing to load.
+          final access = ref.read(currentAccessProvider);
+          if (access != null && !routeAllowed(loc, access)) return '/';
+          return null;
       }
     },
     routes: [
@@ -156,6 +165,20 @@ GoRouter goRouter(Ref ref) {
       ),
     ],
   );
+}
+
+/// Whether [location] is a screen [access] may open. The Admin workspace's
+/// own items (tasks, journal, events), pending approvals (the settings area)
+/// and the owner's push settings are not a member's.
+bool routeAllowed(String location, LoginAccess access) {
+  bool under(String root) =>
+      location == root || location.startsWith('$root/');
+  if (under('/tasks') || under('/journal') || under('/events')) {
+    return access.ownerContent;
+  }
+  if (under('/pending')) return access.pendingApprovals;
+  if (under('/settings/notifications')) return access.ownerSelf;
+  return true;
 }
 
 /// Shown for a location no route matches. Themed like every other screen,

@@ -47,7 +47,11 @@ Future<String?> drawSvg(Ref ref, String drawId) async {
   try {
     final res = await ref
         .watch(dioProvider)
-        .get<Map<String, dynamic>>('/api/draws/$drawId/svg');
+        .get<Map<String, dynamic>>(
+          '/api/draws/$drawId/svg',
+          // A drawing the login may not read is a refusal, not a sign-out.
+          options: Options(extra: const {'skipAuthHandler': true}),
+        );
     final svg = res.data?['svg'];
     return svg is String && svg.isNotEmpty ? svg : null;
   } catch (_) {

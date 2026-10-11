@@ -7,6 +7,7 @@ import '../../data/db/app_database.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/mantle_header.dart';
 import 'session_controller.dart';
+import '../workspaces/workspace_switcher.dart';
 
 /// Settings → Logins: every login this phone holds, on one brain or many.
 ///
@@ -294,6 +295,10 @@ class QuickSwitchSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // The drawer's first part: which workspace the phone is in.
+            WorkspaceSwitcher(
+              onSwitched: () => Navigator.of(context).maybePop(),
+            ),
             Text('Switch login', style: theme.textTheme.h4),
             const SizedBox(height: 12),
             HeldLoginsList(

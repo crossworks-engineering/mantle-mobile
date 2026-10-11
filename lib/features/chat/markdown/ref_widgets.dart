@@ -165,8 +165,50 @@ class RefChip extends ConsumerWidget {
   }
 }
 
-/// An image in markdown. Three sources: `media:<fileId>` (and the older
-/// `/api/files/files/<id>` form) fetch through the authed byte provider,
+/// The file an image in markdown points at: `media:<id>`, the owner route
+/// `/api/files/files/<id>`, or the member route `/api/member/files/<id>` a
+/// member's chat reply still names. Every login reads a file's bytes on the
+/// owner route now (in its own scope), so all three load from there; the
+/// member byte routes are deprecated. Null for anything else.
+String? imageFileId(Uri uri) {
+  if (uri.scheme == 'media') return uri.path.isEmpty ? null : uri.path;
+  if (uri.hasScheme && uri.scheme != 'http' && uri.scheme != 'https') {
+    return null;
+  }
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (segments.length < 4 || segments[0] != 'api') return null;
+  if (segments[1] == 'files' && segments[2] == 'files') return segments[3];
+  if (segments[1] == 'member' && segments[2] == 'files') return segments[3];
+  return null;
+}
+
+/// The drawing an image in markdown points at: `draw:<id>`, or a drawing's
+/// SVG route (`/api/draws/<id>/svg`, or the deprecated member one), all read
+/// on the owner route. Null for anything else.
+String? imageDrawId(Uri uri) {
+  if (uri.scheme == 'draw') return uri.path.isEmpty ? null : uri.path;
+  if (uri.hasScheme && uri.scheme != 'http' && uri.scheme != 'https') {
+    return null;
+  }
+  final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+  if (segments.length >= 4 &&
+      segments[0] == 'api' &&
+      segments[1] == 'draws' &&
+      segments[3] == 'svg') {
+    return segments[2];
+  }
+  if (segments.length >= 5 &&
+      segments[0] == 'api' &&
+      segments[1] == 'member' &&
+      segments[2] == 'draws' &&
+      segments[4] == 'svg') {
+    return segments[3];
+  }
+  return null;
+}
+
+/// An image in markdown. Three sources: `media:<fileId>` (and the file byte
+/// routes, see [imageFileId]) fetch through the authed byte provider,
 /// since an `Image.network` cannot send the bearer; `draw:<drawId>` fetches
 /// the drawing's SVG snapshot; plain http(s) loads directly. A fetch that
 /// fails shows a chip with the alt text, never an endless spinner.
@@ -176,17 +218,9 @@ class MantleImage extends ConsumerWidget {
   final Uri uri;
   final String? alt;
 
-  String? get _fileId {
-    if (uri.scheme == 'media') return uri.path;
-    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
-    if (segments.length >= 4 &&
-        segments[0] == 'api' &&
-        segments[1] == 'files' &&
-        segments[2] == 'files') {
-      return segments[3];
-    }
-    return null;
-  }
+  String? get _fileId => imageFileId(uri);
+
+  String? get _drawId => imageDrawId(uri);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -212,8 +246,9 @@ class MantleImage extends ConsumerWidget {
         ),
       );
     }
-    if (uri.scheme == 'draw') {
-      final svg = ref.watch(drawSvgProvider(uri.path));
+    final drawId = _drawId;
+    if (drawId != null) {
+      final svg = ref.watch(drawSvgProvider(drawId));
       final data = svg.value;
       if (data == null) {
         return _chip(theme, loading: svg.isLoading, icon: LucideIcons.penTool);

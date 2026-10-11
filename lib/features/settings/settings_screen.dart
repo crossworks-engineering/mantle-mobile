@@ -9,6 +9,7 @@ import '../../data/server/server_config.dart';
 import '../../data/server/server_version.dart';
 import '../../widgets/confirm_dialog.dart';
 import '../../widgets/mantle_header.dart';
+import '../auth/login_access_controller.dart';
 import '../auth/session_controller.dart';
 import '../chat/chat_controller.dart';
 import 'location_controller.dart';
@@ -23,6 +24,9 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ShadTheme.of(context);
     final scheme = theme.colorScheme;
+    // Push devices and the reminder channel are an Admin user's own things
+    // (`/api/push`, `/api/profile`): a member's routes refuse them.
+    final ownerSelf = ref.watch(currentAccessProvider)?.ownerSelf ?? true;
 
     return Container(
       color: scheme.background,
@@ -52,15 +56,17 @@ class SettingsScreen extends ConsumerWidget {
                     label: 'Theme & appearance',
                     onTap: () => context.push('/settings/appearance'),
                   ),
-                  const SizedBox(height: 24),
-                  Text('Notifications', style: theme.textTheme.small),
-                  const SizedBox(height: 8),
-                  _NavRow(
-                    theme: theme,
-                    icon: LucideIcons.bell,
-                    label: 'Push notifications',
-                    onTap: () => context.push('/settings/notifications'),
-                  ),
+                  if (ownerSelf) ...[
+                    const SizedBox(height: 24),
+                    Text('Notifications', style: theme.textTheme.small),
+                    const SizedBox(height: 8),
+                    _NavRow(
+                      theme: theme,
+                      icon: LucideIcons.bell,
+                      label: 'Push notifications',
+                      onTap: () => context.push('/settings/notifications'),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   Text('Privacy', style: theme.textTheme.small),
                   const SizedBox(height: 8),
