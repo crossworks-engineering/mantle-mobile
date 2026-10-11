@@ -70,6 +70,12 @@ class FakeDirectPush implements DirectPush {
     running = null;
     leftByOlderBuild = false;
   }
+
+  @override
+  Future<void> pauseForRotation(String sessionId) async {}
+
+  @override
+  Future<void> resumeAfterRotation(String sessionId) async {}
 }
 
 /// Answers the dashboard summary with a count that names the bearer it saw.

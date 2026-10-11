@@ -47,6 +47,31 @@ class _StubAdapter implements HttpClientAdapter {
   void close({bool force = false}) {}
 }
 
+/// Answers each request with whatever [answer] decides, when it decides.
+class _FnAdapter implements HttpClientAdapter {
+  _FnAdapter(this.answer);
+
+  final Future<int> Function(RequestOptions options) answer;
+  final List<RequestOptions> seen = [];
+
+  List<String?> get bearers => [
+        for (final o in seen) o.headers['Authorization'] as String?,
+      ];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    seen.add(options);
+    return ResponseBody.fromString('', await answer(options));
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   late AppDatabase db;
   late MockTokenStore tokenStore;
@@ -109,7 +134,9 @@ void main() {
     final adapter = _StubAdapter(200);
     final (c, dio) = await boot(adapter);
     final release = Completer<void>();
-    final rotation = c.read(tokenRefreshGateProvider).run(() => release.future);
+    final rotation = c
+        .read(tokenRefreshGateProvider)
+        .run('session-1', () => release.future);
     var sent = false;
     final request = dio.get<void>('/api/x').then((_) => sent = true);
     await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -184,5 +211,144 @@ void main() {
     await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
     expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
     verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
+  });
+
+  group('a token rotation under requests on their way', () {
+    late String current;
+
+    setUp(() {
+      current = 'tok';
+      when(() => tokenStore.readFor('session-1'))
+          .thenAnswer((_) async => current);
+    });
+
+    Future<(ProviderContainer, Dio)> bootFn(_FnAdapter adapter) async {
+      final c = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          tokenStoreProvider.overrideWithValue(tokenStore),
+          sessionWipeProvider.overrideWithValue(wipe),
+        ],
+      );
+      addTearDown(c.dispose);
+      await c.read(serverConfigProvider.future);
+      await c.read(sessionControllerProvider.future);
+      final dio = c.read(dioProvider)..httpClientAdapter = adapter;
+      return (c, dio);
+    }
+
+    test('concurrent requests during a refresh never send the old token once '
+        'the rotation has started, and the refresh waits for the ones already '
+        'sent', () async {
+      final slow = Completer<void>();
+      final adapter = _FnAdapter((o) async {
+        if (o.path == '/api/slow') await slow.future;
+        return 200;
+      });
+      final (c, dio) = await bootFn(adapter);
+      final gate = c.read(tokenRefreshGateProvider);
+
+      final inFlight = dio.get<void>('/api/slow');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(adapter.bearers, ['Bearer tok']);
+      expect(gate.sending('session-1'), 1);
+
+      var posted = false;
+      final rotation = gate.run('session-1', () async {
+        posted = true;
+        current = 'tok-new';
+      });
+      final more = [dio.get<void>('/api/a'), dio.get<void>('/api/b')];
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      // The old bearer is still on its way: no refresh, and nothing new
+      // leaves while the gate is closed.
+      expect(posted, isFalse);
+      expect(adapter.seen, hasLength(1));
+
+      slow.complete();
+      await inFlight;
+      await rotation;
+      await Future.wait(more);
+
+      expect(posted, isTrue);
+      expect(adapter.bearers, ['Bearer tok', 'Bearer tok-new', 'Bearer tok-new']);
+      expect(gate.sending('session-1'), 0);
+    });
+
+    test('a bearer read just before the rotation began is read again',
+        () async {
+      final adapter = _FnAdapter((o) async => 200);
+      final (c, dio) = await bootFn(adapter);
+      final gate = c.read(tokenRefreshGateProvider);
+      final firstRead = Completer<void>();
+      var reads = 0;
+      when(() => tokenStore.readFor('session-1')).thenAnswer((_) async {
+        final value = current;
+        if (++reads == 1) await firstRead.future;
+        return value;
+      });
+
+      final request = dio.get<void>('/api/x');
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      final rotate = Completer<void>();
+      final rotation = gate.run('session-1', () async {
+        await rotate.future;
+        current = 'tok-new';
+      });
+      // The read returns the old token while the rotation runs.
+      firstRead.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(adapter.seen, isEmpty);
+      rotate.complete();
+      await rotation;
+      await request;
+
+      expect(adapter.bearers, ['Bearer tok-new']);
+    });
+
+    test('a 401 sent with a bearer rotated meanwhile retries once with the '
+        'new one, and signs nobody out', () async {
+      final adapter = _FnAdapter((o) async {
+        if (o.headers['Authorization'] == 'Bearer tok') {
+          current = 'tok-new'; // the rotation landed while this was out
+          return 401;
+        }
+        return 200;
+      });
+      final (c, dio) = await bootFn(adapter);
+
+      final res = await dio.get<void>('/api/x');
+
+      expect(res.statusCode, 200);
+      expect(adapter.bearers, ['Bearer tok', 'Bearer tok-new']);
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+      verifyNever(() => wipe.wipeLocal(sessionId: any(named: 'sessionId')));
+    });
+
+    test('a stale-header retry happens once only', () async {
+      var n = 0;
+      final adapter = _FnAdapter((o) async {
+        current = 'tok-${++n}'; // rotated under every try
+        return 401;
+      });
+      final (c, dio) = await bootFn(adapter);
+
+      await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
+
+      expect(adapter.seen, hasLength(2));
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedIn);
+    });
+
+    test('a 401 with the bearer still in use ends the session as before',
+        () async {
+      final adapter = _FnAdapter((o) async => 401);
+      final (c, dio) = await bootFn(adapter);
+
+      await expectLater(dio.get<void>('/api/x'), throwsA(isA<DioException>()));
+
+      expect(adapter.seen, hasLength(1));
+      expect(c.read(sessionControllerProvider).value, AuthStatus.loggedOut);
+      expect(c.read(tokenRefreshGateProvider).sending('session-1'), 0);
+    });
   });
 }

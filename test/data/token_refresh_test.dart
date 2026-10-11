@@ -103,9 +103,9 @@ void main() {
   test('the gate holds requests until the rotation is stored', () async {
     final release = Completer<void>();
     var waited = false;
-    final running = gate.run(() => release.future);
+    final running = gate.run(sessionId, () => release.future);
     expect(gate.busy, isTrue);
-    final waiter = gate.wait().then((_) => waited = true);
+    final waiter = gate.wait(sessionId).then((_) => waited = true);
     await Future<void>.delayed(Duration.zero);
     expect(waited, isFalse);
     release.complete();
@@ -118,13 +118,104 @@ void main() {
   test('a second refresh while one runs joins it', () async {
     final release = Completer<void>();
     var runs = 0;
-    final first = gate.run(() {
+    final first = gate.run(sessionId, () {
       runs++;
       return release.future;
     });
-    final second = gate.run(() async => runs++);
+    final second = gate.run(sessionId, () async => runs++);
     release.complete();
     await Future.wait([first, second]);
     expect(runs, 1);
+  });
+
+  test('the refresh is posted only once every request sent with the old '
+      'bearer has its answer', () async {
+    final adapter = StubAdapter(
+      (o) => (status: 200, body: jsonEncode({'token': 'tok-new'})),
+    );
+    final held = await gate.acquire(sessionId, () => tokens.readFor(sessionId));
+    expect(held, 'tok-old');
+
+    final refresh = refresherFor(adapter).refreshActive();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(adapter.requests, isEmpty);
+    // Nothing new leaves with the old bearer meanwhile.
+    var late = '';
+    final next = gate
+        .acquire(sessionId, () => tokens.readFor(sessionId))
+        .then((t) => late = t ?? '');
+
+    gate.release(sessionId);
+    expect(await refresh, RefreshOutcome.rotated);
+    await next;
+    expect(adapter.requests.single.headers['Authorization'], 'Bearer tok-old');
+    expect(late, 'tok-new');
+    gate.release(sessionId);
+  });
+
+  test('a request that never answers does not rotate under it: the refresh '
+      'is skipped', () async {
+    gate = TokenRefreshGate(drainTimeout: const Duration(milliseconds: 20));
+    final adapter = StubAdapter(
+      (o) => (status: 200, body: jsonEncode({'token': 'tok-new'})),
+    );
+    await gate.acquire(sessionId, () => tokens.readFor(sessionId));
+
+    expect(await refresherFor(adapter).refreshActive(),
+        RefreshOutcome.skipped);
+    expect(adapter.requests, isEmpty);
+    expect(await tokens.readFor(sessionId), 'tok-old');
+    expect(gate.busy, isFalse);
+  });
+
+  test("one login's refresh does not hold another login's requests", () async {
+    final release = Completer<void>();
+    final running = gate.run('login-a', () => release.future);
+    final token = await gate
+        .acquire('login-b', () async => 'tok-b')
+        .timeout(const Duration(seconds: 1));
+    expect(token, 'tok-b');
+    gate.release('login-b');
+    release.complete();
+    await running;
+  });
+
+  test("a switch during another login's refresh runs the new login's "
+      'refresh after it, instead of joining it', () async {
+    final release = Completer<void>();
+    final order = <String>[];
+    final first = gate.run('login-a', () async {
+      order.add('a');
+      await release.future;
+      order.add('a done');
+    });
+    final second = gate.run('login-b', () async => order.add('b'));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(order, ['a']);
+    release.complete();
+    await Future.wait([first, second]);
+    expect(order, ['a', 'a done', 'b']);
+  });
+
+  test('the direct connection is paused around the rotation', () async {
+    final events = <String>[];
+    final adapter = StubAdapter((o) {
+      events.add('post');
+      return (status: 200, body: jsonEncode({'token': 'tok-new'}));
+    });
+    final refresher = TokenRefresher(
+      sessions,
+      tokens,
+      (_) => stubDio(adapter),
+      gate,
+      pauseStream: (id) async => events.add('pause $id'),
+      resumeStream: (id) async {
+        events.add('resume $id');
+        // Let go only once the new token is stored.
+        expect(await tokens.readFor(sessionId), 'tok-new');
+      },
+    );
+    expect(await refresher.refreshActive(), RefreshOutcome.rotated);
+    expect(events, ['pause $sessionId', 'post', 'resume $sessionId']);
   });
 }

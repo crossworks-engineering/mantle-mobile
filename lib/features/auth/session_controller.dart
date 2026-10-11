@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/auth/auth_api.dart';
@@ -7,6 +6,7 @@ import '../../data/auth/login_access.dart';
 import '../../data/auth/pairing_payload.dart';
 import '../../data/auth/session_repository.dart';
 import '../../data/auth/session_wipe.dart';
+import '../../data/auth/token_refresh.dart' show tokenRefreshGateProvider;
 import '../../data/auth/token_store.dart';
 import '../../data/db/app_database.dart';
 import '../../data/db/database_provider.dart';
@@ -15,6 +15,7 @@ import '../../data/server/server_config.dart';
 import '../agents/agent_controller.dart';
 import '../settings/settings_repository.dart';
 import 'login_access_controller.dart';
+import 'session_identity.dart' show identityDioFactoryProvider;
 
 part 'session_controller.g.dart';
 
@@ -267,17 +268,19 @@ class SessionController extends _$SessionController {
     if (await sessions.activeId() == sessionId) return signOut();
     final session = await sessions.byId(sessionId);
     if (session == null) return;
-    final token = await ref.read(tokenStoreProvider).readFor(sessionId);
-    if (token != null && token.isNotEmpty) {
-      final dio = Dio(
-        BaseOptions(
-          baseUrl: session.baseUrl,
-          headers: {'Authorization': 'Bearer $token'},
-          followRedirects: false,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 10),
-        ),
-      );
+    // Through the refresh gate: a rotation of this login still running (it
+    // was in use a moment ago) is waited out, so the revoke goes with the
+    // newest bearer, never the one being replaced.
+    final gate = ref.read(tokenRefreshGateProvider);
+    final token = await gate.acquire(
+      sessionId,
+      () => ref.read(tokenStoreProvider).readFor(sessionId),
+    );
+    if (token != null) {
+      // The identity client: ITS brain only, no auth handler (a 401 here
+      // must not sign out the login in use), and the build header.
+      final dio = ref.read(identityDioFactoryProvider)(session.baseUrl);
+      dio.options.headers['Authorization'] = 'Bearer $token';
       try {
         final keys = await ref.read(pushKeyStoreProvider.future);
         final subscription = await keys.subscriptionIdFor(sessionId);
@@ -292,6 +295,7 @@ class SessionController extends _$SessionController {
       } catch (_) {
         /* offline: the bearer expires on its own, or is revoked on the brain */
       } finally {
+        gate.release(sessionId);
         dio.close();
       }
     }
