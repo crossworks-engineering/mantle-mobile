@@ -114,22 +114,26 @@ class LoginAccessController extends _$LoginAccessController {
   Future<LoginAccess?> _fetch(String sessionId) async {
     try {
       final dio = ref.read(dioProvider);
-      final access =
-          await fetchWhoami(dio) ?? const LoginAccess.legacyAdmin();
+      final (:access, :sent) = await fetchWhoamiSent(dio);
       // The client asks as the login in use when the request goes out: a
       // switch meanwhile makes this another login's answer, and caching it
-      // under [sessionId] would hand one login another's surface.
+      // under [sessionId] would hand one login another's surface. The
+      // session the request was sent as says so, not the one in use when
+      // the answer lands: a switch away and back while it was on its way
+      // leaves [sessionId] in use and the answer another login's.
+      if (sent.extra[kBearerSessionExtra] != sessionId) return null;
       final sessions = ref.read(sessionRepositoryProvider);
       if (await sessions.activeId() != sessionId) return null;
       final known = (await sessions.byId(sessionId))?.loginId;
-      final said = access.loginId;
+      final answer = access ?? const LoginAccess.legacyAdmin();
+      final said = answer.loginId;
       if (known != null && said != null && known != said) return null;
       await writeCachedAccess(
         ref.read(appDatabaseProvider),
         sessionId,
-        access,
+        answer,
       );
-      return access;
+      return answer;
     } catch (_) {
       return null;
     }

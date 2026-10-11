@@ -3,6 +3,7 @@
 
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,13 +66,30 @@ void main() {
   });
   tearDown(() => db.close());
 
+  // Runs as a request goes out, before the client looks at the login in use.
+  Future<void> Function()? beforeSend;
+
   ProviderContainer boot(StubAdapter adapter) {
+    beforeSend = null;
+    // As the app's client does: the request carries the login in use when it
+    // goes out, and names it.
+    final dio = stubDio(adapter)
+      ..interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) async {
+            await beforeSend?.call();
+            final active = await db.getSetting('active_session_id');
+            options.extra = {...options.extra, kBearerSessionExtra: active};
+            handler.next(options);
+          },
+        ),
+      );
     final c = ProviderContainer(
       overrides: [
         appDatabaseProvider.overrideWithValue(db),
         tokenStoreProvider.overrideWithValue(tokens),
         sessionWipeProvider.overrideWithValue(wipe),
-        dioProvider.overrideWithValue(stubDio(adapter)),
+        dioProvider.overrideWithValue(dio),
       ],
     );
     addTearDown(c.dispose);
@@ -211,5 +229,31 @@ void main() {
 
     expect(adapter.requests, isNotEmpty);
     expect((await readCachedAccess(db, 's1'))?.loginId, isNull);
+  });
+  test('a switch away and back while whoami is on its way (A, B, A): the '
+      "answer is B's, and is not cached as A's", () async {
+    final now = DateTime.now();
+    await db.into(db.sessions).insert(
+          SessionsCompanion.insert(
+            id: 's2',
+            baseUrl: 'http://brain.test',
+            addedAt: now,
+            lastUsedAt: now,
+          ),
+        );
+    final adapter = StubAdapter((o) {
+      // Back to A before B's answer lands.
+      db.setSetting('active_session_id', 's1');
+      return (status: 200, body: jsonEncode(_memberWhoami()));
+    });
+    final c = boot(adapter);
+    // The switch to B lands as the request goes out: it carries B's bearer.
+    beforeSend = () => db.setSetting('active_session_id', 's2');
+    final access = await c.read(loginAccessControllerProvider.future);
+
+    expect(adapter.requests.single.extra[kBearerSessionExtra], 's2');
+    expect(await db.getSetting('active_session_id'), 's1');
+    expect(await readCachedAccess(db, 's1'), isNull);
+    expect(access.loginId, isNull, reason: "not B's answer");
   });
 }

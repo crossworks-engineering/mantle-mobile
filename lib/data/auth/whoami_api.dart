@@ -13,12 +13,25 @@ typedef BrainIdentity = ({String brainId, String loginId});
 ///
 /// Null on a brain older than whoami (404). Network and auth failures throw,
 /// as any request does.
-Future<LoginAccess?> fetchWhoami(Dio dio) async {
+Future<LoginAccess?> fetchWhoami(Dio dio) async =>
+    (await fetchWhoamiSent(dio)).access;
+
+/// [fetchWhoami], with the options the request was answered for: the app's
+/// client records in them whose bearer it carried, so a caller can tell
+/// which login the answer is about.
+Future<({LoginAccess? access, RequestOptions sent})> fetchWhoamiSent(
+  Dio dio,
+) async {
   try {
     final res = await dio.get<Map<String, dynamic>>('/api/auth/whoami');
-    return LoginAccess.fromWhoami(res.data ?? const {});
+    return (
+      access: LoginAccess.fromWhoami(res.data ?? const {}),
+      sent: res.requestOptions,
+    );
   } on DioException catch (e) {
-    if (e.response?.statusCode == 404) return null;
+    if (e.response?.statusCode == 404) {
+      return (access: null, sent: e.requestOptions);
+    }
     rethrow;
   }
 }
