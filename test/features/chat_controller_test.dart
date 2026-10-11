@@ -4,7 +4,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart'
-    show CancelToken, DioException, DioExceptionType, RequestOptions;
+    show CancelToken, DioException, DioExceptionType, RequestOptions, Response;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
@@ -15,9 +15,13 @@ import 'package:jackdaw/data/chat/chat_repository.dart';
 import 'package:jackdaw/data/chat/conversation_stream.dart';
 import 'package:jackdaw/data/db/app_database.dart';
 import 'package:jackdaw/data/chat/turn_event.dart';
+import 'package:jackdaw/data/auth/login_access.dart';
+import 'package:jackdaw/features/auth/login_access_controller.dart';
 import 'package:jackdaw/features/chat/chat_controller.dart';
 import 'package:jackdaw/features/settings/settings_repository.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../helpers/fixed_access.dart';
 
 class MockChatRepository extends Mock implements ChatRepository {}
 
@@ -82,9 +86,10 @@ void main() {
     }
   }
 
-  ProviderContainer makeContainer() {
+  ProviderContainer makeContainer({LoginAccess? access}) {
     final c = ProviderContainer(
       overrides: [
+        currentAccessProvider.overrideWithValue(access),
         chatRepositoryProvider.overrideWithValue(repo),
         settingsRepositoryProvider.overrideWithValue(settings),
         // No live SSE in unit tests — an empty stream keeps the listen inert.
@@ -797,5 +802,120 @@ void main() {
     // The old turn still finishes the normal way.
     events.add(_ev(1, 'done', {'status': 'complete'}));
     expect(await oldSend, SendOutcome.sent);
+  });
+
+  group('a member (no live turn stream)', () {
+    setUp(() {
+      ChatController.replyPollEvery = Duration.zero;
+      ChatController.replyPollMax = 5;
+    });
+    tearDown(() {
+      ChatController.replyPollEvery = const Duration(seconds: 3);
+      ChatController.replyPollMax = 60;
+    });
+
+    test('a queued turn (202) is polled until the reply lands; the stream is '
+        'never opened', () async {
+      final at = DateTime(2026, 10, 12, 9);
+      var polls = 0;
+      when(() => repo.history(
+            before: any(named: 'before'),
+            limit: any(named: 'limit'),
+            agentSlug: any(named: 'agentSlug'),
+          )).thenAnswer((_) async {
+        polls++;
+        // Build: empty. Then the message, then the pending reply, then the
+        // finished reply.
+        if (polls == 1) return const HistoryPage(messages: []);
+        final inbound = _msg('i1', MessageDirection.inbound, 'hello', at: at);
+        if (polls == 2) return HistoryPage(messages: [inbound]);
+        final reply = ChatMessage(
+          id: 'o1',
+          direction: MessageDirection.outbound,
+          text: polls == 3 ? '' : 'Hi there',
+          createdAt: at.add(const Duration(seconds: 2)),
+          status: polls == 3 ? MessageStatus.pending : MessageStatus.sent,
+        );
+        return HistoryPage(messages: [inbound, reply]);
+      });
+      whenSend().thenAnswer((_) async => const TurnAccepted('ws-m.k1'));
+
+      final c = makeContainer(access: memberAccess);
+      await c.read(chatControllerProvider(_slug).future);
+      final outcome =
+          await c.read(chatControllerProvider(_slug).notifier).send('hello');
+
+      expect(outcome, SendOutcome.sent);
+      final state = c.read(chatControllerProvider(_slug)).value!;
+      expect(state.active, isNull);
+      expect(state.messages.map((m) => m.id), ['i1', 'o1']);
+      expect(state.messages.last.text, 'Hi there');
+      verifyNever(() => repo.streamTurn(any(),
+          cancelToken: any(named: 'cancelToken')));
+    });
+
+    test('a reply that never comes leaves the message sent, not sending',
+        () async {
+      stubHistory(<ChatMessage>[]);
+      whenSend().thenAnswer((_) async => const TurnAccepted('ws-m.k2'));
+
+      final c = makeContainer(access: memberAccess);
+      await c.read(chatControllerProvider(_slug).future);
+      await c.read(chatControllerProvider(_slug).notifier).send('anyone?');
+
+      final state = c.read(chatControllerProvider(_slug)).value!;
+      expect(state.active, isNull);
+      expect(state.messages.single.status, MessageStatus.sent);
+    });
+
+    DioException refusal(int status, Map<String, dynamic> body) =>
+        DioException(
+          requestOptions: RequestOptions(path: '/api/assistant/turn'),
+          response: Response(
+            requestOptions: RequestOptions(path: '/api/assistant/turn'),
+            statusCode: status,
+            data: body,
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+    for (final (status, body, words) in [
+      (429, {'error': 'x', 'reason': 'daily_cap'}, "today's message limit"),
+      (429, {'error': 'x', 'reason': 'token_budget'}, 'ask an admin'),
+      (409, {'error': 'x', 'reason': 'idempotency-key-reused'},
+          'already sent'),
+      (404, {'error': 'x', 'reason': 'no-chat-agent'}, 'no assistant'),
+      (415, {'error': 'x'}, 'text only'),
+    ]) {
+      test('a $status ${body['reason'] ?? 'text-only'} refusal says why on '
+          'the bubble', 
+          () async {
+        stubHistory(<ChatMessage>[]);
+        whenSend().thenThrow(refusal(status, body));
+
+        final c = makeContainer(access: memberAccess);
+        await c.read(chatControllerProvider(_slug).future);
+        final outcome =
+            await c.read(chatControllerProvider(_slug).notifier).send('hey');
+
+        expect(outcome, SendOutcome.failed);
+        final bubble =
+            c.read(chatControllerProvider(_slug)).value!.messages.single;
+        expect(bubble.status, MessageStatus.failed);
+        expect(bubble.error, contains(words));
+      });
+    }
+
+    test('a plain network failure carries no reason', () async {
+      stubHistory(<ChatMessage>[]);
+      whenSend().thenThrow(Exception('network down'));
+      final c = makeContainer(access: memberAccess);
+      await c.read(chatControllerProvider(_slug).future);
+      await c.read(chatControllerProvider(_slug).notifier).send('hey');
+      expect(
+        c.read(chatControllerProvider(_slug)).value!.messages.single.error,
+        isNull,
+      );
+    });
   });
 }

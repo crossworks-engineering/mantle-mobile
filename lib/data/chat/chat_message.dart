@@ -45,8 +45,9 @@ class ChatMessage {
   /// status for history rows (see [MessageStatus]).
   final MessageStatus status;
 
-  /// Human-readable failure reason when [status] is [MessageStatus.failed] on
-  /// an outbound row; null otherwise.
+  /// Human-readable failure reason when [status] is [MessageStatus.failed]:
+  /// the server's on an outbound row, the brain's refusal of the send on an
+  /// inbound one (a daily limit, no assistant here); null otherwise.
   final String? error;
 
   /// Images / files riding on this message — shown inline (images) or as a
@@ -72,6 +73,7 @@ class ChatMessage {
     String? id,
     String? text,
     MessageStatus? status,
+    String? error,
     List<ChatAttachment>? attachments,
   }) {
     return ChatMessage(
@@ -81,7 +83,7 @@ class ChatMessage {
       createdAt: createdAt,
       model: model,
       status: status ?? this.status,
-      error: error,
+      error: error ?? this.error,
       attachments: attachments ?? this.attachments,
       thoughts: thoughts,
       toolStats: toolStats,

@@ -272,6 +272,9 @@ class ChatApi {
         final code = e.response?.statusCode ?? 0;
         if (code == 404) return; // streaming flag dark → caller uses POST result
         if (code == 401) return; // interceptor handled logout
+        // Not this login's route (a member has no live stream): asking again
+        // would only be refused again. The caller reconciles from history.
+        if (code == 403) return;
         // otherwise transient — fall through to backoff
       } catch (_) {
         /* unexpected — fall through to backoff */

@@ -2,6 +2,7 @@ import 'dart:async' show Completer, unawaited;
 import 'dart:math';
 
 import 'package:dio/dio.dart' show CancelToken, DioException, DioExceptionType;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -9,11 +10,13 @@ import '../../core/lifecycle/app_lifecycle.dart';
 import '../../data/chat/chat_api.dart';
 import '../../data/chat/chat_attachment.dart';
 import '../../data/chat/chat_message.dart';
+import '../../data/chat/chat_refusal.dart';
 import '../../data/chat/chat_repository.dart';
 import '../../data/chat/conversation_stream.dart';
 import '../../data/chat/turn_event.dart';
 import '../../data/chat/turn_meta.dart';
 import '../../data/location/location_service.dart';
+import '../auth/login_access_controller.dart';
 import '../conversations/conversations_controller.dart';
 import '../settings/settings_repository.dart';
 
@@ -261,6 +264,18 @@ class ChatController extends _$ChatController {
 
   /// True while [_watchPendingRows] is looping (one poll per thread at a time).
   bool _pollingPending = false;
+
+  /// True while [_runPolledTurn] waits for a reply.
+  bool _pollingTurn = false;
+
+  /// How often a turn with no live stream asks for its reply.
+  @visibleForTesting
+  static Duration replyPollEvery = const Duration(seconds: 3);
+
+  /// How many times it asks before leaving the reply to the conversation
+  /// stream and the foreground refetch (about three minutes).
+  @visibleForTesting
+  static int replyPollMax = 60;
 
   @override
   Future<ChatState> build(String agentSlug) async {
@@ -620,8 +635,20 @@ class ChatController extends _$ChatController {
             location: location,
           );
 
-      // Streaming on (202): drive the reply off the live SSE bus.
+      // Accepted (202). An Admin user watches the reply type out on the live
+      // turn stream. Any other login has no live stream: its turn is queued
+      // and the reply lands in its thread, so the phone polls for it.
       if (resp is TurnAccepted) {
+        final live = ref.read(currentAccessProvider)?.liveTurnStream ?? true;
+        if (!live) {
+          return await _runPolledTurn(
+            resp.turnId,
+            tempId,
+            trimmed,
+            localAttachments,
+            known: {for (final m in base.messages) m.id},
+          );
+        }
         return await _runStreamingTurn(resp.turnId, tempId, localAttachments);
       }
 
@@ -666,12 +693,15 @@ class ChatController extends _$ChatController {
       }
       // On cancel, drop the optimistic bubble entirely (the composer restores
       // the text); on a real failure, keep it and mark it failed.
+      // A refusal the brain explains (a daily limit, no assistant here, text
+      // only) rides on the failed bubble.
+      final refusal = cancelled ? null : chatRefusalText(e);
       final messages = <ChatMessage>[];
       for (final m in current.messages) {
         if (m.id != tempId) {
           messages.add(m);
         } else if (!cancelled) {
-          messages.add(m.copyWith(status: MessageStatus.failed));
+          messages.add(m.copyWith(status: MessageStatus.failed, error: refusal));
         }
       }
       state = AsyncData(current.copyWith(messages: messages, clearActive: true));
@@ -745,6 +775,117 @@ class ChatController extends _$ChatController {
       combineCorrectedPrompt(original, text),
       idempotencyKey: newTurnId,
     );
+  }
+
+  /// A turn with no live stream (a login that is not an Admin user): the
+  /// brain queued it and answered 202. Show the typing bubble and ask for the
+  /// thread every [replyPollEvery] until the reply lands: the turn's own
+  /// message replaces the optimistic bubble as soon as it is stored, and the
+  /// wait ends on a reply newer than it that is no longer `pending`. Bounded
+  /// by [replyPollMax]; past that the conversation stream and the foreground
+  /// refetch bring the reply. Never throws.
+  ///
+  /// Stop only stops the waiting: the brain has the message and answers it
+  /// anyway, so the composer must not put the text back ([SendOutcome.sent]).
+  Future<SendOutcome> _runPolledTurn(
+    String turnId,
+    String tempId,
+    String text,
+    List<ChatAttachment> localAttachments, {
+    required Set<String> known,
+  }) async {
+    final current = state.value;
+    if (current == null) return SendOutcome.sent;
+    state = AsyncData(current.copyWith(
+      active: ActiveTurn(turnId: turnId, startedAt: DateTime.now()),
+    ));
+    _pollingTurn = true;
+    try {
+      String? inboundId;
+      for (var i = 0; i < replyPollMax; i++) {
+        await Future<void>.delayed(replyPollEvery);
+        if (!ref.mounted || _stopRequested) break;
+        final List<ChatMessage> latest;
+        try {
+          latest = (await ref
+                  .read(chatRepositoryProvider)
+                  .history(limit: chatPageSize, agentSlug: agentSlug))
+              .messages;
+        } catch (_) {
+          continue; // a blip: ask again next time
+        }
+        if (!ref.mounted) break;
+        final fresh = [
+          for (final m in latest)
+            if (!known.contains(m.id)) m,
+        ];
+        ChatMessage? inbound;
+        for (final m in fresh) {
+          if (!m.isFromUser) continue;
+          if (inbound == null || m.text.trim() == text) inbound = m;
+        }
+        inboundId ??= inbound?.id;
+        ChatMessage? mine;
+        for (final m in latest) {
+          if (m.id == inboundId) mine = m;
+        }
+        final answered = mine != null &&
+            fresh.any(
+              (m) =>
+                  !m.isFromUser &&
+                  m.status != MessageStatus.pending &&
+                  !m.createdAt.isBefore(mine!.createdAt),
+            );
+        final now = state.value;
+        if (now == null) break;
+        if (mine != null) {
+          // Our message is stored: the real row takes the optimistic
+          // bubble's place (with the local preview, if any).
+          final withPreview = localAttachments.isEmpty
+              ? latest
+              : [
+                  for (final m in latest)
+                    if (m.id == inboundId)
+                      m.copyWith(attachments: localAttachments)
+                    else
+                      m,
+                ];
+          final kept = now.copyWith(messages: [
+            for (final m in now.messages)
+              if (m.id != tempId) m,
+          ]);
+          state = AsyncData(kept.copyWith(
+            messages: _mergeLatest(kept, withPreview),
+            offline: false,
+          ));
+        }
+        if (answered) break;
+      }
+    } finally {
+      _pollingTurn = false;
+      if (ref.mounted) {
+        final now = state.value;
+        if (now != null) {
+          // The brain took the message (202) even when its row was not seen
+          // yet: the bubble is sent, not sending.
+          state = AsyncData(now.copyWith(
+            messages: [
+              for (final m in now.messages)
+                if (m.id == tempId)
+                  m.copyWith(status: MessageStatus.sent)
+                else
+                  m,
+            ],
+            clearActive: true,
+          ));
+          // A reply still being written shows as a pending row: keep asking
+          // for it at the gentler cadence.
+          _watchPendingRows();
+        }
+        ref.invalidate(conversationsControllerProvider);
+      }
+    }
+    return SendOutcome.sent;
   }
 
   /// Drive a streamed turn: set [ChatState.active], consume the SSE bus until the
@@ -987,6 +1128,9 @@ class ChatController extends _$ChatController {
   Future<void> stopTurn() async {
     if (!ref.mounted) return; // the turn finishes durably without us
     _stopRequested = true;
+    // No live stream to stop: the brain answers the queued turn anyway, the
+    // wait just ends (the reply arrives with the next refetch).
+    if (_pollingTurn) return;
     final active = state.value?.active;
     if (active == null) {
       // Legacy blocking turn (or the brief pre-202 window) — abort the POST.

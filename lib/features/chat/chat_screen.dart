@@ -9,6 +9,8 @@ import '../../data/agents/agent.dart';
 import '../../widgets/mantle_header.dart';
 import '../agents/agent_avatar.dart';
 import '../agents/agent_controller.dart';
+import '../auth/login_access_controller.dart';
+import '../workspaces/workspace_controller.dart';
 import '../conversations/conversations_controller.dart';
 import '../../data/chat/chat_message.dart';
 import '../../data/chat/turn_meta.dart';
@@ -315,10 +317,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             provider: _provider,
             textController: _input,
             agentName: agent?.name ?? widget.agentSlug,
+            allowAttachments: _attachmentsAllowed(agent),
           ),
         ],
       ),
     );
+  }
+
+  /// Pictures and files go only to the owner surface's assistants, and only
+  /// from an Admin user: an assistant of another workspace takes text (the
+  /// brain answers a file there with 415), and so does any other login.
+  bool _attachmentsAllowed(Agent? agent) {
+    final access = ref.watch(currentAccessProvider);
+    if (access != null && !access.chatAttachments) return false;
+    final id = agent?.id;
+    if (id == null) return true;
+    final workspaceAgents = ref.watch(workspaceAgentIdsProvider).value;
+    return !(workspaceAgents?.contains(id) ?? false);
   }
 }
 
@@ -581,10 +596,16 @@ class _Bubble extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Failed to send',
-                    style: theme.textTheme.small
-                        .copyWith(color: scheme.destructive),
+                  Flexible(
+                    child: Text(
+                      // The brain's reason when it refused the message (a
+                      // daily limit, no assistant here, text only).
+                      message.error?.isNotEmpty == true
+                          ? message.error!
+                          : 'Failed to send',
+                      style: theme.textTheme.small
+                          .copyWith(color: scheme.destructive),
+                    ),
                   ),
                   if (onRetry != null) ...[
                     Text('  ·  ',

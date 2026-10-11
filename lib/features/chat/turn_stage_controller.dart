@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../data/chat/chat_message.dart';
 import '../../data/chat/chat_repository.dart';
+import '../auth/login_access_controller.dart';
 import 'chat_controller.dart';
 
 part 'turn_stage_controller.g.dart';
@@ -24,8 +25,10 @@ Stream<String?> turnStage(Ref ref, String agentSlug) async* {
   final chat = ref.watch(chatControllerProvider(agentSlug)).value;
   final sending =
       chat?.messages.any((m) => m.status == MessageStatus.sending) ?? false;
-  // A streamed turn carries its own live label — don't also poll.
-  if (!sending || chat?.active != null) {
+  // A streamed turn carries its own live label — don't also poll. Nor does a
+  // login that is not an Admin user: the stage route is the owner surface's.
+  final ownerSurface = ref.watch(currentAccessProvider)?.liveTurnStream ?? true;
+  if (!sending || chat?.active != null || !ownerSurface) {
     yield null;
     return;
   }

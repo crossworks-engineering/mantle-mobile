@@ -52,9 +52,15 @@ class ChatComposer extends ConsumerStatefulWidget {
     required this.provider,
     required this.textController,
     required this.agentName,
+    this.allowAttachments = true,
   });
 
   final ChatControllerProvider provider;
+
+  /// Whether this chat takes pictures and files. A login that is not an
+  /// Admin user, and any assistant of a workspace other than Admin, chats in
+  /// text only: the attach button is not offered there.
+  final bool allowAttachments;
   final TextEditingController textController;
 
   /// Who the message goes to; the placeholder names them.
@@ -401,12 +407,13 @@ class _ChatComposerState extends ConsumerState<ChatComposer> {
         const SizedBox(height: 8),
         Row(
           children: [
-            _circleIcon(
-              LucideIcons.paperclip,
-              muted,
-              label: 'Attach a photo or file',
-              onPressed: _sending ? null : _openAttachMenu,
-            ),
+            if (widget.allowAttachments)
+              _circleIcon(
+                LucideIcons.paperclip,
+                muted,
+                label: 'Attach a photo or file',
+                onPressed: _sending ? null : _openAttachMenu,
+              ),
             HoldToTalkButton(
               enabled: !_sending,
               onTranscript: _dictated,
