@@ -94,7 +94,7 @@ final class TokenRefresherProvider
   }
 }
 
-String _$tokenRefresherHash() => r'9c09f89b54087985438ea6e4d13ca33b67622a90';
+String _$tokenRefresherHash() => r'a070e9e2542d1b3d1e794a53870ca518a74560cc';
 
 /// Refreshes the login in use's token once it is signed in: at start, after
 /// a sign-in and after a switch, and on a return to the foreground when the

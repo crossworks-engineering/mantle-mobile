@@ -110,7 +110,7 @@ final class SessionIdentityProvider
   }
 }
 
-String _$sessionIdentityHash() => r'b72253a537f7637ef99b065dc9bc89800348dfb5';
+String _$sessionIdentityHash() => r'0f377aac2e6f803bf10d5d983110337c6d286177';
 
 /// Learns the login in use's pair once it is signed in (a sign-in, a switch,
 /// the first start after the update that added the pair). Watched once from

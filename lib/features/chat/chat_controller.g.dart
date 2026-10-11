@@ -80,7 +80,7 @@ final class ChatControllerProvider
   }
 }
 
-String _$chatControllerHash() => r'9a2dffcd1d35429643a155ac7fc93b10842f6418';
+String _$chatControllerHash() => r'fe46b78d8bc6bf1aa1a68b69b2c85c64d8213917';
 
 /// Owns one agent's thread (keyed by [agentSlug]). Loads the latest page on
 /// build, pages older history on demand ([loadMore]), and sends messages
