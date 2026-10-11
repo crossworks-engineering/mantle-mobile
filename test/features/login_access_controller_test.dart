@@ -3,6 +3,7 @@
 
 import 'dart:convert';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -163,5 +164,52 @@ void main() {
     expect(access.isAdminUser, isFalse);
     expect(access.ownerContent, isFalse);
     expect(adapter.requests, isEmpty);
+  });
+
+  test("an answer for another login (a switch meanwhile) is dropped, not "
+      "cached as this login's", () async {
+    // s1 is known to be login-a; the brain answers for login-m.
+    await (db.update(db.sessions)..where((s) => s.id.equals('s1')))
+        .write(const SessionsCompanion(loginId: Value('login-a')));
+    await writeCachedAccess(db, 's1', LoginAccess.fromRole('member'));
+    final adapter = StubAdapter(
+      (o) => (status: 200, body: jsonEncode(_memberWhoami())),
+    );
+    final c = boot(adapter);
+    c.listen(loginAccessControllerProvider, (_, _) {});
+    await c.read(loginAccessControllerProvider.future);
+    await c.read(loginAccessControllerProvider.notifier).refresh();
+
+    expect(adapter.requests, isNotEmpty);
+    expect((await readCachedAccess(db, 's1'))?.loginId, isNull);
+    expect(c.read(loginAccessControllerProvider).value?.loginId, isNull);
+  });
+
+  test('an answer that lands after a switch is not cached under the login '
+      'that asked', () async {
+    final now = DateTime.now();
+    await db.into(db.sessions).insert(
+          SessionsCompanion.insert(
+            id: 's2',
+            baseUrl: 'http://brain.test',
+            addedAt: now,
+            lastUsedAt: now,
+          ),
+        );
+    await writeCachedAccess(db, 's1', LoginAccess.fromRole('member'));
+    final adapter = StubAdapter((o) {
+      // The switch lands while whoami is on its way.
+      db.setSetting('active_session_id', 's2');
+      return (status: 200, body: jsonEncode(_memberWhoami()));
+    });
+    final c = boot(adapter);
+    c.listen(loginAccessControllerProvider, (_, _) {});
+    await c.read(loginAccessControllerProvider.future);
+    for (var i = 0; i < 20; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    expect(adapter.requests, isNotEmpty);
+    expect((await readCachedAccess(db, 's1'))?.loginId, isNull);
   });
 }

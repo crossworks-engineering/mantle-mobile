@@ -109,13 +109,21 @@ class LoginAccessController extends _$LoginAccessController {
   }
 
   /// whoami for [sessionId], cached on success. Null when it could not be
-  /// learned (offline, refused). A brain without whoami answers the legacy
-  /// Admin user.
+  /// learned (offline, refused), or when the answer is not [sessionId]'s.
+  /// A brain without whoami answers the legacy Admin user.
   Future<LoginAccess?> _fetch(String sessionId) async {
     try {
       final dio = ref.read(dioProvider);
       final access =
           await fetchWhoami(dio) ?? const LoginAccess.legacyAdmin();
+      // The client asks as the login in use when the request goes out: a
+      // switch meanwhile makes this another login's answer, and caching it
+      // under [sessionId] would hand one login another's surface.
+      final sessions = ref.read(sessionRepositoryProvider);
+      if (await sessions.activeId() != sessionId) return null;
+      final known = (await sessions.byId(sessionId))?.loginId;
+      final said = access.loginId;
+      if (known != null && said != null && known != said) return null;
       await writeCachedAccess(
         ref.read(appDatabaseProvider),
         sessionId,
