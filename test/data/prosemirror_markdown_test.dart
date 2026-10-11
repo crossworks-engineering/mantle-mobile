@@ -48,7 +48,7 @@ void main() {
     expect(
       md,
       '## Plan\n\nShip **now**, *carefully* with `flutter test` and '
-      '[the docs](https://example.com)',
+      '[the docs](<https://example.com>)',
     );
   });
 
@@ -146,5 +146,141 @@ void main() {
     expect(html, isNot(contains('<img')));
     expect(html, isNot(contains('<a ')));
     expect(html, contains('![x](https://tracker.example/p.png)'));
+  });
+  group('nothing typed can break out of its mark or block', () {
+    Map<String, dynamic> link(String text, String href) => {
+          'type': 'text',
+          'text': text,
+          'marks': [
+            {
+              'type': 'link',
+              'attrs': {'href': href},
+            },
+          ],
+        };
+
+    test('inline code with a backtick, then a picture, stays code and words',
+        () {
+      final md = proseMirrorToMarkdown({
+        'type': 'doc',
+        'content': [
+          _p([_t('`![x](https://host/p.png)', ['code'])]),
+          _p([_t('`', ['code']), _t('![x](https://host/p.png)')]),
+          _p([_t('a``b', ['code']), _t(' then '), _t('c', ['code'])]),
+        ],
+      });
+      final html = markdownToHtml(md);
+      expect(html, isNot(contains('<img')));
+      expect(html, contains('<code>`![x](https://host/p.png)</code>'));
+      expect(html, contains('<code>`</code>![x](https://host/p.png)'));
+      expect(html, contains('<code>a``b</code> then <code>c</code>'));
+    });
+
+    test('a fence line inside a code block does not end it', () {
+      final md = proseMirrorToMarkdown({
+        'type': 'doc',
+        'content': [
+          {
+            'type': 'codeBlock',
+            'attrs': {'language': 'md'},
+            'content': [
+              _t('before\n```\n![x](https://host/p.png)\n````\nafter'),
+            ],
+          },
+          _p([_t('next')]),
+        ],
+      });
+      final html = markdownToHtml(md);
+      expect(html, isNot(contains('<img')));
+      expect(
+        html,
+        contains('```\n![x](https://host/p.png)\n````\nafter\n</code></pre>'),
+      );
+      expect(html, contains('<p>next</p>'));
+    });
+
+    test('a language cannot carry markdown into the fence', () {
+      final md = proseMirrorToMarkdown({
+        'type': 'doc',
+        'content': [
+          {
+            'type': 'codeBlock',
+            'attrs': {'language': 'js ```\n![x](https://host/p.png)'},
+            'content': [_t('x')],
+          },
+        ],
+      });
+      expect(markdownToHtml(md), isNot(contains('<img')));
+    });
+
+    test('a ) or a space in an address stays part of it', () {
+      final md = proseMirrorToMarkdown({
+        'type': 'doc',
+        'content': [
+          _p([
+            link('docs', 'https://a.example/x) ![y](https://host/p.png'),
+            _t(' and '),
+            link('more', 'https://a.example/<b> c\\'),
+          ]),
+        ],
+      });
+      final html = markdownToHtml(md);
+      expect(html, isNot(contains('<img')));
+      expect(
+        html,
+        contains('href="https://a.example/x)%20!%5By%5D(https://host/p.png"'),
+      );
+      expect(html, contains('href="https://a.example/%3Cb%3E%20c%5C"'));
+      expect(html, contains('>docs</a>'));
+    });
+
+    test('only the web and mail are linked; anything else is its words', () {
+      final md = proseMirrorToMarkdown({
+        'type': 'doc',
+        'content': [
+          _p([
+            link('one', 'javascript:alert(1)'),
+            _t(' '),
+            link('two', ' JavaScript:alert(1)'),
+            _t(' '),
+            link('three', 'file:///etc/hosts'),
+            _t(' '),
+            link('four', '/pages/x'),
+            _t(' '),
+            link('mail', 'mailto:mia@example.invalid'),
+            _t(' '),
+            link('web', 'HTTPS://a.example'),
+          ]),
+        ],
+      });
+      final html = markdownToHtml(md);
+      expect(html, isNot(contains('javascript')));
+      expect(html, isNot(contains('JavaScript')));
+      expect(html, isNot(contains('file:')));
+      expect(html, isNot(contains('/pages/x')));
+      expect(html, contains('one two three four'));
+      expect(html, contains('href="mailto:mia@example.invalid"'));
+      expect(html, contains('href="HTTPS://a.example"'));
+      expect('<a '.allMatches(html), hasLength(2));
+    });
+
+    test("a picture's description is words, never markdown", () {
+      final md = proseMirrorToMarkdown({
+        'type': 'doc',
+        'content': [
+          {
+            'type': 'image',
+            'attrs': {
+              'src': 'https://a.example/p.png',
+              'alt': 'x](https://host/q.png) ![y',
+            },
+          },
+        ],
+      });
+      final html = markdownToHtml(md);
+      expect('<img'.allMatches(html), hasLength(1));
+      expect(html, contains('src="https://a.example/p.png"'));
+      expect(html, isNot(contains('host/q.png"')));
+    });
   });
 }

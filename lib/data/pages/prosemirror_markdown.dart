@@ -1,3 +1,5 @@
+import 'dart:math' show max;
+
 /// A page's ProseMirror document as markdown, for the phone's renderer.
 ///
 /// The brain's markdown export (`/api/export/:id`) is an Admin user's route:
@@ -59,11 +61,15 @@ void _block(Map node, StringBuffer out, {required String indent}) {
     case 'codeBlock':
       final lang = _attrs(node)['language'];
       final code = _plain(_content(node));
-      out.write('$indent```${lang is String ? lang : ''}\n');
+      // A fence longer than any run of backticks in the code: no line of it
+      // can close the block and carry on as markdown.
+      final fence = '`' * max(3, _longestBacktickRun(code) + 1);
+      final info = lang is String ? lang.replaceAll(_notInfo, '') : '';
+      out.write('$indent$fence$info\n');
       for (final line in code.split('\n')) {
         out.write('$indent$line\n');
       }
-      out.write('$indent```\n\n');
+      out.write('$indent$fence\n\n');
     case 'horizontalRule':
       out.write('$indent---\n\n');
     case 'image':
@@ -160,7 +166,7 @@ String _marked(Map node) {
       for (final m in marks)
         if (m is Map && m['type'] is String) m['type'] as String: m,
   };
-  if (types.containsKey('code')) return '`$raw`';
+  if (types.containsKey('code')) return _codeSpan(raw);
   var text = _escaped(raw);
   if (types.containsKey('bold')) text = '**$text**';
   if (types.containsKey('italic')) text = '*$text*';
@@ -168,7 +174,9 @@ String _marked(Map node) {
   final link = types['link'];
   if (link is Map) {
     final href = _attrs(link)['href'];
-    if (href is String && href.isNotEmpty) text = '[$text]($href)';
+    final target = href is String ? _linkTarget(href) : null;
+    // A link anywhere but the web or mail keeps its words, and goes nowhere.
+    if (target != null) text = '[$text]($target)';
   }
   return text;
 }
@@ -176,10 +184,68 @@ String _marked(Map node) {
 String _image(Map node) {
   final a = _attrs(node);
   final src = a['src'];
-  if (src is! String || src.isEmpty) return '';
+  if (src is! String || src.trim().isEmpty) return '';
   final alt = a['alt'] is String ? a['alt'] as String : '';
-  return '![$alt]($src)';
+  return '![${_escaped(alt)}](${_destination(src.trim())})';
 }
+
+/// The schemes a link may lead to.
+const _linkSchemes = {'http', 'https', 'mailto'};
+
+final _scheme = RegExp(r'^([A-Za-z][A-Za-z0-9+.\-]*):');
+
+/// [href] as a link destination, or null when it leads anywhere but the web
+/// or mail (a script, a file, an app's own scheme, a path with none).
+String? _linkTarget(String href) {
+  final trimmed = href.trim();
+  final scheme = _scheme.firstMatch(trimmed)?.group(1)?.toLowerCase();
+  if (scheme == null || !_linkSchemes.contains(scheme)) return null;
+  return _destination(trimmed);
+}
+
+/// The characters that could end a `<...>` destination early, or break it
+/// across lines.
+final _notInDestination = RegExp(r'[<>\\ \r\n]');
+
+/// [url] as a `<...>` destination: a `)`, a space or a quote inside it stays
+/// part of the address, and whatever could end the brackets early is
+/// percent-encoded.
+String _destination(String url) => '<${url.replaceAllMapped(
+      _notInDestination,
+      (m) => '%${m[0]!.codeUnitAt(0).toRadixString(16).toUpperCase().padLeft(2, '0')}',
+    )}>';
+
+/// [raw] as inline code, fenced by more backticks than any run inside it, so
+/// the code cannot close early and leave the rest to be read as markdown.
+/// Padded with a space each side (which the reader drops) when it begins or
+/// ends with a backtick, or with a space at both ends.
+String _codeSpan(String raw) {
+  final code = raw.replaceAll(RegExp(r'[\r\n]'), ' ');
+  final fence = '`' * (_longestBacktickRun(code) + 1);
+  final pad = code.startsWith('`') ||
+      code.endsWith('`') ||
+      (code.startsWith(' ') && code.endsWith(' ') && code.trim().isNotEmpty);
+  return pad ? '$fence $code $fence' : '$fence$code$fence';
+}
+
+/// The longest run of backticks in [text].
+int _longestBacktickRun(String text) {
+  var longest = 0;
+  var run = 0;
+  for (final unit in text.codeUnits) {
+    if (unit == 0x60) {
+      run++;
+      if (run > longest) longest = run;
+    } else {
+      run = 0;
+    }
+  }
+  return longest;
+}
+
+/// What may not stand in a code block's language: a backtick or a space
+/// would end the fence's info string, so it keeps only a name's characters.
+final _notInfo = RegExp(r'[^A-Za-z0-9_+.#\-]');
 
 /// The words a leaf node without text carries (a mention's label, a chip's
 /// title).
