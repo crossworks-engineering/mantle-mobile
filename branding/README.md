@@ -9,8 +9,8 @@ and desktop client is "MantleOS Desktop".
 These files are copies. The source of truth is
 [`brand/` in the mantle repo](https://github.com/crossworks-engineering/mantle/tree/main/brand)
 (`mantle-sun-icon.svg`, `mantle-logo-os.svg`, `mantle-logo-os-sun-icon.svg`).
-The copies here have the live "OS" text outlined to paths, so they render
-the same without the font installed. If a mark changes, it changes there first
+All three are true vectors with the text converted to curves, so they render
+the same anywhere, no font needed. If a mark changes, it changes there first
 and gets copied here.
 
 | file | what it is | use it for |
