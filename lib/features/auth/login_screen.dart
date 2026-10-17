@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import '../../widgets/jackdaw_lockup.dart';
+import '../../widgets/mantleos_lockup.dart';
 import '../../widgets/secret_input.dart';
 
 import '../../data/auth/auth_api.dart';
@@ -99,7 +99,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const JackdawLockup(),
+                  const MantleOSLockup(),
                   const SizedBox(height: 24),
                   Text(adding ? 'Add a login' : 'Sign in',
                       style: theme.textTheme.h2),

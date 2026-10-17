@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../widgets/jackdaw_lockup.dart';
+import '../../widgets/mantleos_lockup.dart';
 
 import '../../data/server/server_config.dart';
 import 'scan_sign_in_screen.dart';
@@ -99,7 +99,7 @@ class _ServerSetupScreenState extends ConsumerState<ServerSetupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const JackdawLockup(),
+                  const MantleOSLockup(),
                   const SizedBox(height: 24),
                   Text('Connect to Mantle', style: theme.textTheme.h2),
                   const SizedBox(height: 8),

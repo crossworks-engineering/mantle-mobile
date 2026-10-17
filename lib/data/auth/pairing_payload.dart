@@ -18,7 +18,7 @@ class PairingPayload {
   final String code;
 
   /// Parse a scanned string. Null for anything that is not a version-1
-  /// Jackdaw pairing URL, or whose server address the app would refuse to
+  /// MantleOS pairing URL, or whose server address the app would refuse to
   /// use (see [serverUrlProblem]).
   static PairingPayload? parse(String raw) {
     final uri = Uri.tryParse(raw.trim());

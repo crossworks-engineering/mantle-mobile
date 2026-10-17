@@ -50,11 +50,11 @@ class AuthRepository {
     await _tokenStore.clear();
   }
 
-  /// A human label for Mantle's device list, e.g. "Jackdaw (Ios)".
+  /// A human label for Mantle's device list, e.g. "MantleOS (Ios)".
   String _deviceName() {
     final os = Platform.operatingSystem;
     final pretty = os.isEmpty ? 'mobile' : '${os[0].toUpperCase()}${os.substring(1)}';
-    return 'Jackdaw ($pretty)';
+    return 'MantleOS ($pretty)';
   }
 }
 

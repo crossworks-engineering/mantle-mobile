@@ -233,7 +233,7 @@ class _IdentityCardState extends ConsumerState<_IdentityCard> {
             theme: theme,
             icon: LucideIcons.smartphone,
             label: 'App',
-            value: app == null ? 'Jackdaw' : 'Jackdaw $app',
+            value: app == null ? 'MantleOS' : 'MantleOS $app',
           ),
           divider,
           _InfoRow(

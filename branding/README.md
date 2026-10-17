@@ -1,45 +1,50 @@
 # Branding
 
-## Jackdaw marks (`jackdaw-*`) — this app's brand
+## MantleOS marks (`mantleos-*`) — this app's brand
 
-The app's own marks, as of the 2026-08-21 rename. These are copies — the source
-of truth is [`brand/` in the jackdaw repo](https://github.com/crossworks-engineering/jackdaw/tree/main/brand).
-If the mark changes, it changes there first and gets copied here.
+On 2026-10-17 Jackdaw and Mantle merged into one brand, **MantleOS** (always
+written so: capital M, capital OS). The phone app is just "MantleOS"; the web
+and desktop client is "MantleOS Desktop".
 
-`dark` / `light` name the **background the mark is drawn for**, not the mark's
-own colour: the `dark` variants have a cream ring and cream wordmark and belong
-on a dark ground; the `light` variants have a dark brown ring and belong on a
-pale one.
+These files are copies. The source of truth is
+[`brand/` in the mantle repo](https://github.com/crossworks-engineering/mantle/tree/main/brand)
+(`mantle-sun-icon.svg`, `mantle-logo-os.svg`, `mantle-logo-os-sun-icon.svg`).
+The copies here have the live "OS" text outlined to paths, so they render
+the same without the font installed. If a mark changes, it changes there first
+and gets copied here.
 
-| file | what it is |
-|---|---|
-| `jackdaw-icon-logo-{dark,light}-trans.png` | The badge alone — the jackdaw in a ringed circle |
-| `jackdaw-name-logo-{dark,light}-trans.png` | The wordmark alone |
-| `jackdaw-icon-name-logo-{dark,light}-row-trans.png` | Horizontal lockup — badge left, wordmark right |
-| `jackdaw-icon-name-logo-{dark,light}-trans.png` | Stacked lockup — badge above wordmark |
+| file | what it is | use it for |
+|---|---|---|
+| `mantleos-icon.svg` / `mantleos-icon-2048.png` | The sun badge: a deep rust ring (`#5C1E02`) round a rust sun over amber, orange and rust bands. Fully **opaque** inside the circle, transparent outside, cut tight (no margin). | App icons, and anywhere small or square |
+| `mantleos-logo.svg` / `mantleos-logo-2048w.png` | The wordmark: rust script "mantle" plus a rust rounded tag with a cream "OS". 1829×441 (≈4.15:1), cut tight. | Anywhere with horizontal room |
+| `mantleos-stacked.svg` | Badge above wordmark in one square. | Rare big square placements only — never at small sizes. Nothing here uses it. |
+
+The wordmark is **one artwork for light and dark grounds** — there is no
+light/dark pair. The PNGs are what the generators read; the SVGs are the
+masters. To render another size from an SVG, any SVG renderer (resvg,
+`rsvg-convert`) will do.
 
 ### Brand colours
 
-| swatch | hex | where it comes from |
-|---|---|---|
-| Brand brown | `#2D1500` | the ring of the light-background badge; the darkest swatch in the Affinity palette |
-| Brand cream | `#FDE7BC` | the ring and wordmark of the dark-background variants (the wordmark is 100% this one colour) |
+| swatch | hex |
+|---|---|
+| Cream | `#FDE7BC` |
+| Brown | `#2D1500` |
+| Amber | `#EB9F13` |
+| Orange | `#E46E08` |
+| Rust | `#C83C04` |
 
-Cream, brown and amber `#EB9F13` are the colour base Jackdaw shares with
-Mantle; Jackdaw's own lead is sunset orange `#E46E08`. The full table is in
-the jackdaw repo's `brand/README.md`. The in-app themes come from mantle via
-`tool/sync_themes.sh`; never edit `lib/theme/mantle_themes.g.dart` by hand.
+The in-app themes come from mantle via `tool/sync_themes.sh`; never edit
+`lib/theme/mantle_themes.g.dart` by hand. (The default theme's id and label
+are still `jackdaw` / "Jackdaw" there — that is mantle's to rename.)
 
-### ⚠️ The badge's cream field is semi-transparent
+### ⚠️ Keep the badge off brown
 
-Only about **32% opaque**. The artwork was drawn against a light page, so
-compositing it straight onto the brand brown turns the whole interior a muddy
-olive — it looks fine in any image viewer (which shows it on white) and wrong
-in the app.
-
-Both generators handle this by sliding an opaque `#FDE7BC` disc underneath the
-badge first, inset slightly so its edge hides beneath the cream ring. If you
-ever composite the badge yourself, do the same.
+The badge's outer ring is a deep rust that all but disappears on the brand
+brown, leaving a half-sun with no edge. Every place this app composes it puts
+it on **cream**: the app icon ground, the Android adaptive background, and the
+cream icon disc on the Android 12+ launch screen (which also shows in dark
+mode, where the launch background is brown).
 
 ## Generated app icon and splash
 
@@ -47,33 +52,28 @@ Neither is committed by hand — both are generated, and **regenerating is a
 deliberate step**: it changes the installed app icon and needs a rebuild.
 
 ```
-fvm dart run tool/generate_app_icon.dart   # badge  → assets/icon/app_icon*.png
+fvm dart run tool/generate_app_icon.dart   # badge → assets/icon/app_icon*.png + splash_android12.png
 fvm dart run flutter_launcher_icons        # fan out to iOS + Android
 
-fvm dart run tool/generate_lockups.dart    # lockups → assets/brand/jackdaw_lockup_{dark,light}.png
+fvm dart run tool/generate_lockups.dart    # wordmark → assets/brand/mantleos_{logo,wordmark}.png
 fvm dart run flutter_native_splash:create  # fan the launch screen out to iOS + Android
 ```
 
-The composed look: the badge on brand brown for the icon, and the horizontal
-lockup centred on brand brown for the launch screen — identical in light and
-dark, so a dark-mode launch never flashes white. Configuration lives at the
-bottom of `pubspec.yaml`.
+The composed look:
+
+- **App icon** — the badge on cream, 86% of the canvas for iOS (clear of the
+  squircle mask); the Android adaptive foreground is sized to the 66dp safe
+  zone over a cream background.
+- **Launch screen** — the full-colour wordmark centred on cream in light mode
+  and on brown in dark mode. Android 12+ masks its splash icon to a circle, so
+  it gets the badge alone (`splash_android12.png`, sized inside that circle) on
+  a cream icon disc.
+
+Configuration lives at the bottom of `pubspec.yaml`.
 
 ## In-app brand assets (`assets/brand/`)
 
 | asset | used by | why |
 |---|---|---|
-| `jackdaw_wordmark.png` | `JackdawWordmark` — the home header | One flat colour, so `BlendMode.srcIn` tints it to any theme token. One file serves all 43 themes. |
-| `jackdaw_lockup_{dark,light}.png` | `JackdawLockup` — server setup + sign-in, and the launch screen | The badge is illustrated, so it can NOT be tinted. Two files, picked by brightness. |
-
-The colours also drive the app's default **Jackdaw theme**
-(`lib/theme/jackdaw_theme.dart`): brown `primary` carrying a cream
-`primaryForeground`, so the header bar reproduces the icon.
-
-## Mantle marks (`mantle-logo-*`, `mantle_logo*`) — the brain's brand, not this app's
-
-Kept for reference only. Mantle is the system this app talks to, and its marks
-still appear in that context — but they are **no longer this app's brand** and
-nothing here generates from them any more. Source of truth is
-[`brand/` in the mantle repo](https://github.com/crossworks-engineering/mantle/tree/main/brand).
-Safe to delete from this repo once nothing refers to them.
+| `mantleos_logo.png` | `MantleOSLockup` — server setup + sign-in, and the launch screen | Full colour, never tinted. One file serves light and dark. |
+| `mantleos_wordmark.png` | `MantleOSWordmark` — the home header | One flat colour with the "OS" knocked out of the tag, so `BlendMode.srcIn` tints it to any theme token and the bar colour shows through the "OS". One file serves all the themes; the full-colour mark would vanish on a rust or red header. |

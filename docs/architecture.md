@@ -1,4 +1,4 @@
-# Jackdaw (mobile) — Architecture
+# MantleOS (mobile) — Architecture
 
 A handover-oriented map of the app: what it is, how it's structured, and how it
 talks to Mantle. Pair this with [styling-guide.md](styling-guide.md) for UI rules.
@@ -962,7 +962,7 @@ Two standalone generators (not `build_runner`, run by hand, output committed):
 fvm dart run tool/generate_themes.dart      # color themes ← web globals.css (see caveat above)
 fvm dart run tool/generate_app_icon.dart    # icon masters ← branding/
 fvm dart run flutter_launcher_icons         # then fan the icon out to platforms
-fvm dart run tool/generate_lockups.dart     # badge+wordmark lockups ← branding/
+fvm dart run tool/generate_lockups.dart     # MantleOS wordmarks ← branding/
 fvm dart run flutter_native_splash:create   # then fan the launch screen out
 ```
 

@@ -1,4 +1,4 @@
-# Jackdaw (mobile) — Styling Guide
+# MantleOS (mobile) — Styling Guide
 
 The rulebook for UI. **Read this before building or tweaking any screen**, so the
 whole app stays visually consistent. When in doubt, match the existing screens
@@ -206,7 +206,7 @@ it, don't re-derive it.
 - **Header title.** `MantleHeaderTitle(text, wordmark: false)` for a
   sub-screen, which draws with `headerTitleStyle(theme)` (`h4` in
   `primaryForeground`). The chat header's agent name uses the same style.
-  The script face is the Jackdaw wordmark only; never set it on other text.
+  The script face is the MantleOS wordmark only; never set it on other text.
 - **Dates.** `lib/core/format/dates.dart`: `formatWhen` for a past instant
   (`5m`, `3h`, `2d`, `18 Sep`), `formatDay` for a calendar day (`Today`,
   `Tomorrow`, `Fri 18 Sep`), `formatDue` for a deadline (`In 3 days`,

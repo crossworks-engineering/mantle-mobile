@@ -200,7 +200,7 @@ class _SplashScreen extends StatelessWidget {
     return Container(
       color: theme.colorScheme.background,
       alignment: Alignment.center,
-      child: Text('Jackdaw', style: theme.textTheme.muted),
+      child: Text('MantleOS', style: theme.textTheme.muted),
     );
   }
 }

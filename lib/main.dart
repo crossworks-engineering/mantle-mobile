@@ -112,7 +112,7 @@ class _JackdawAppState extends ConsumerState<JackdawApp>
     return MantleColors(
       def: MantleTheme.defFor(themeId),
       child: ShadApp.router(
-        title: 'Jackdaw',
+        title: 'MantleOS',
         themeMode: themeMode,
         theme: MantleTheme.light(themeId),
         darkTheme: MantleTheme.dark(themeId),

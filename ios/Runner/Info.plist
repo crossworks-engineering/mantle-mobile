@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Jackdaw</string>
+	<string>MantleOS</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Jackdaw</string>
+	<string>MantleOS</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -36,17 +36,17 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Jackdaw uses the camera to take a photo for your assistant and to scan the sign-in code shown by the web app.</string>
+	<string>MantleOS uses the camera to take a photo for your assistant and to scan the sign-in code shown by the web app.</string>
 	<!-- Never requested: the geolocator plugin references the always-on API,
 	     and Apple requires a purpose string for any referenced API (ITMS-90683). -->
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Jackdaw attaches your location to a message only while you are using the app, and only when you ask it to. It never tracks you in the background.</string>
+	<string>MantleOS attaches your location to a message only while you are using the app, and only when you ask it to. It never tracks you in the background.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Jackdaw attaches your location to a message so your assistant has context about where a request is coming from. Location is only used while you are using the app.</string>
+	<string>MantleOS attaches your location to a message so your assistant has context about where a request is coming from. Location is only used while you are using the app.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Jackdaw records voice notes that your assistant transcribes.</string>
+	<string>MantleOS records voice notes that your assistant transcribes.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Jackdaw lets you attach photos to a message for your assistant.</string>
+	<string>MantleOS lets you attach photos to a message for your assistant.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

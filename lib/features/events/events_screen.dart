@@ -550,7 +550,7 @@ class _AlarmRationaleSheet extends StatelessWidget {
     return ShadSheet(
       title: const Text('Ring for your events?'),
       description: const Text(
-        'Jackdaw can sound an alarm on this phone when an event starts, '
+        'MantleOS can sound an alarm on this phone when an event starts, '
         'even with no signal. If your phone asks, allow notifications. You '
         "can change this any time in the phone's Settings.",
       ),

@@ -52,7 +52,7 @@ void main() {
           code: 'the-code',
           deviceName: captureAny(named: 'deviceName'),
         )).captured.single as String;
-    expect(label, startsWith('Jackdaw ('));
+    expect(label, startsWith('MantleOS ('));
     expect(label, endsWith('paired by QR'));
   });
 

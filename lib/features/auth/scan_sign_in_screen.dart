@@ -49,7 +49,7 @@ class _ScanSignInScreenState extends ConsumerState<ScanSignInScreen> {
     if (raw.isEmpty) return;
     final payload = PairingPayload.parse(raw);
     if (payload == null) {
-      setState(() => _error = "That's not a Jackdaw sign-in code.");
+      setState(() => _error = "That's not a MantleOS sign-in code.");
       return;
     }
     setState(() {

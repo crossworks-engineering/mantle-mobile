@@ -36,7 +36,7 @@ class HomeScreen extends ConsumerWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => QuickSwitchSheet.show(context),
-                child: const MantleHeaderTitle('Jackdaw'),
+                child: const MantleHeaderTitle('MantleOS'),
               ),
             ),
             trailing: [

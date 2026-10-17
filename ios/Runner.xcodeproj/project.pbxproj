@@ -641,7 +641,7 @@
 				DEVELOPMENT_TEAM = P6NLP32L8H;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Jackdaw;
+				INFOPLIST_KEY_CFBundleDisplayName = MantleOS;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -984,7 +984,7 @@
 				DEVELOPMENT_TEAM = P6NLP32L8H;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Jackdaw;
+				INFOPLIST_KEY_CFBundleDisplayName = MantleOS;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1017,7 +1017,7 @@
 				DEVELOPMENT_TEAM = P6NLP32L8H;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = Runner/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Jackdaw;
+				INFOPLIST_KEY_CFBundleDisplayName = MantleOS;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -1,5 +1,5 @@
 name: jackdaw
-description: "Jackdaw — the mobile client for Mantle brains: chat, notifications, and message-attached location."
+description: "MantleOS — the mobile client for Mantle brains: chat, notifications, and message-attached location."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -113,7 +113,7 @@ dev_dependencies:
   path_provider_platform_interface: ^2.1.3
   plugin_platform_interface: ^2.1.8
   # App-icon + splash generation (dev-only). `image` is used by
-  # tool/generate_app_icon.dart and tool/generate_splash.dart to compose the
+  # tool/generate_app_icon.dart and tool/generate_lockups.dart to compose the
   # masters; flutter_launcher_icons / flutter_native_splash fan them out to all
   # platforms.
   image: ^4.3.0
@@ -145,16 +145,15 @@ flutter:
         - asset: assets/fonts/BukhariScript-Regular.ttf
 
   assets:
-    # The Jackdaw wordmark. A single flat colour (#FDE7BC) on transparent, which
-    # is what lets JackdawWordmark tint it to a theme token with BlendMode.srcIn
-    # instead of shipping one PNG per theme.
-    - assets/brand/jackdaw_wordmark.png
-    # The full badge+wordmark lockup. Two files, not one tinted file: the badge
-    # is illustrated artwork and srcIn would flatten it to a silhouette.
-    # dark/light name the BACKGROUND each is drawn for. Composed by
+    # The MantleOS wordmark in full colour (rust script + rust tag with a cream
+    # "OS"). The same artwork works on light and dark grounds, so one file
+    # serves both; used by MantleOSLockup and the launch screen. Composed by
     # tool/generate_lockups.dart.
-    - assets/brand/jackdaw_lockup_dark.png
-    - assets/brand/jackdaw_lockup_light.png
+    - assets/brand/mantleos_logo.png
+    # The same wordmark in one flat colour with the "OS" knocked out, which is
+    # what lets MantleOSWordmark tint it to a theme token with BlendMode.srcIn
+    # instead of shipping one PNG per theme.
+    - assets/brand/mantleos_wordmark.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -183,8 +182,9 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 # App icon generation. The masters are composed by tool/generate_app_icon.dart
-# from branding/jackdaw-icon-logo-dark-trans.png (the full-colour jackdaw badge
-# with the cream ring). Colour is preserved — the badge is illustrated artwork.
+# from branding/mantleos-icon-2048.png (the MantleOS sun badge, opaque inside
+# its circle). Colour is preserved — the badge is illustrated artwork. Cream
+# ground, not brown: the badge's deep rust ring vanishes on brown.
 # Run:
 #   fvm dart run tool/generate_app_icon.dart   # (re)build the masters
 #   fvm dart run flutter_launcher_icons        # fan out to iOS + Android
@@ -194,27 +194,31 @@ flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   # iOS forbids alpha; the master is already opaque, but flatten to be safe.
   remove_alpha_ios: true
-  background_color_ios: "#2D1500"
-  # Android adaptive icon: the badge over Jackdaw brand brown.
-  adaptive_icon_background: "#2D1500"
+  background_color_ios: "#FDE7BC"
+  # Android adaptive icon: the badge over MantleOS brand cream.
+  adaptive_icon_background: "#FDE7BC"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
 
-# Launch / splash screen. Reuses the dark-background lockup the app itself
-# shows on its auth screens, composed by tool/generate_lockups.dart. Run:
-#   fvm dart run tool/generate_lockups.dart         # (re)build both lockups
+# Launch / splash screen. The full-colour MantleOS wordmark the app itself shows
+# on its sign-in screens, composed by tool/generate_lockups.dart. Run:
+#   fvm dart run tool/generate_lockups.dart         # (re)build the wordmarks
 #   fvm dart run flutter_native_splash:create       # fan out to iOS + Android
-# Brand brown (#2D1500) background with the centered badge + cream wordmark,
-# identical in light and dark so dark-mode launches don't flash white. The
-# Android 12+ splash masks its image to a circle, so it reuses the badge-only
-# icon foreground instead of the wide lockup.
+# Brand cream (#FDE7BC) in light mode and brand brown (#2D1500) in dark, with
+# the same centred wordmark in both — the rust mark reads on either. The
+# Android 12+ splash masks its icon to a circle, so it uses the badge alone
+# (assets/icon/splash_android12.png, sized inside that circle by
+# tool/generate_app_icon.dart) on a cream icon disc, so the badge's dark ring
+# never sinks into the dark-mode brown.
 flutter_native_splash:
-  color: "#2D1500"
+  color: "#FDE7BC"
   color_dark: "#2D1500"
-  image: assets/brand/jackdaw_lockup_dark.png
-  image_dark: assets/brand/jackdaw_lockup_dark.png
+  image: assets/brand/mantleos_logo.png
+  image_dark: assets/brand/mantleos_logo.png
   ios_content_mode: center
   android_12:
-    color: "#2D1500"
+    color: "#FDE7BC"
     color_dark: "#2D1500"
-    image: assets/icon/app_icon_foreground.png
-    image_dark: assets/icon/app_icon_foreground.png
+    image: assets/icon/splash_android12.png
+    image_dark: assets/icon/splash_android12.png
+    icon_background_color: "#FDE7BC"
+    icon_background_color_dark: "#FDE7BC"

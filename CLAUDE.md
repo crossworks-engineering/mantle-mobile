@@ -1,4 +1,9 @@
-# Jackdaw (mobile) — repo guide
+# MantleOS (mobile) — repo guide
+
+The app was called **Jackdaw** until 2026-10-17; the brand is now **MantleOS**
+(written exactly so). Identifiers keep the old name on purpose: the repo, the
+Dart package `jackdaw`, bundle/application IDs `crossworks.engineering.jackdaw`,
+the keychain group, `jackdaw.sqlite`, the `jackdaw` theme ids.
 
 Cross-platform Flutter companion app for the self-hosted **Mantle** assistant
 (chat, notifications, message-attached location).

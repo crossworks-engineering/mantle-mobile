@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
-import 'jackdaw_wordmark.dart';
+import 'mantleos_wordmark.dart';
 
 /// The app's standard header: a flat primary-filled bar that runs edge-to-edge
 /// under the status bar. [leading] (identity/title) fills the start; [trailing]
@@ -74,7 +74,7 @@ class HeaderAction extends StatelessWidget {
 
 /// Title for the leading slot of a [MantleHeader], in `primaryForeground`.
 ///
-/// [wordmark] (default) draws the Jackdaw brand mark itself and ignores [text]
+/// [wordmark] (default) draws the MantleOS brand mark itself and ignores [text]
 /// apart from using it as the accessibility label — the wordmark is custom
 /// lettering, so it cannot be reproduced by setting type. Pass
 /// `wordmark: false` for a plain screen title on sub-screens (Settings,
@@ -91,7 +91,7 @@ class MantleHeaderTitle extends StatelessWidget {
     return Align(
       alignment: Alignment.centerLeft,
       child: wordmark
-          ? JackdawWordmark(color: theme.colorScheme.primaryForeground)
+          ? MantleOSWordmark(color: theme.colorScheme.primaryForeground)
           : Text(
               text,
               maxLines: 1,
@@ -104,6 +104,6 @@ class MantleHeaderTitle extends StatelessWidget {
 
 /// The one style for a title in the primary header bar: the scale's `h4` in
 /// `primaryForeground`. Sub-screen titles and the chat's agent name share it;
-/// the script face is reserved for the Jackdaw wordmark itself.
+/// the script face is reserved for the MantleOS wordmark itself.
 TextStyle headerTitleStyle(ShadThemeData theme) =>
     theme.textTheme.h4.copyWith(color: theme.colorScheme.primaryForeground);

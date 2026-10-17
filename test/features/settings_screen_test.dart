@@ -37,7 +37,7 @@ void main() {
 
     expect(find.text('https://brain.example.com'), findsOneWidget);
     expect(find.text('owner@example.com'), findsOneWidget);
-    expect(find.text('Jackdaw 1.2.3 (4)'), findsOneWidget);
+    expect(find.text('MantleOS 1.2.3 (4)'), findsOneWidget);
     expect(find.text('Mantle 0.9.9'), findsOneWidget);
     expect(find.text('Change server'), findsOneWidget);
     expect(find.text('Account & profile settings coming soon.'), findsNothing);

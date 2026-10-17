@@ -1,6 +1,7 @@
-# Jackdaw (mobile)
+# MantleOS (mobile)
 
-The phone client for a [Mantle](https://github.com/crossworks-engineering/mantle)
+MantleOS on the phone (repo `jackdaw-mobile`; the app was called Jackdaw
+until 2026-10-17). The phone client for a [Mantle](https://github.com/crossworks-engineering/mantle)
 brain. iOS and Android, built with Flutter and themed with
 [shadcn/ui for Flutter](https://flutter-shadcn-ui.mariuti.com/), no Material
 design language. You point it at your own self-hosted Mantle server and sign in
