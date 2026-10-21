@@ -2,7 +2,7 @@
   "groupName": "Public Beta",
   "description": "MantleOS is the phone app for a Mantle brain, the self-hosted AI memory you run on your own server. Chat with your assistant, search everything, notes, pages, tasks, journal, files and events. No Mantle server yet? Enter https://demo.mantle-ai.tech on the first screen and sign in with any email and password; the demo is read only.",
   "feedbackEmail": "jason@crossworks.engineering",
-  "marketingUrl": "https://jackdaw.run",
-  "privacyPolicyUrl": "https://mantle-ai.tech/privacy/",
+  "marketingUrl": "https://mantleos.io",
+  "privacyPolicyUrl": "https://mantleos.io/privacy/",
   "whatsNew": "Up next on the home screen shows your next events and the tasks that are due. Tap a notification to go straight to the event or task it is about, on the right login. Alarm taps now open their event on iPhone too."
 }
