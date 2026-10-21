@@ -100,7 +100,7 @@ TestFlight.)
      -c "select platform, last_push_at from devices;"'
    ```
 3. **Background the app.** Trigger an outbound assistant turn — e.g. from the
-   **web** app (`https://jason.crossworks.network`) message the assistant so it
+   **web** app (`https://your-brain.example.com`) message the assistant so it
    replies, or fire a heartbeat. The reply is an `outbound` turn →
    `worker_push` seals the teaser → relay → APNs → your phone.
 4. You should get a banner with the **agent name + message preview** (decrypted by

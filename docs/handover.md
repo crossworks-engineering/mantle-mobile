@@ -226,7 +226,7 @@ Then: M4 Android (Play-services device) and M6 (Play-less device) on-device veri
 Jason (remote, 8 GB M2) wants to **drop Colima** and run **local `next dev` against the prod DB**. Agreed
 guardrails: workers stay prod-only (local = web/API only, or duplicate notifications); migrations deliberate +
 `scripts/db-dump.sh` first; keep a prod dump; reach prod Postgres via SSH tunnel → local `.env DATABASE_URL`.
-Phone app must point at **prod** (`https://jason.crossworks.network`), never localhost.
+Phone app must point at **prod** (`https://your-brain.example.com`), never localhost.
 
 ### Environment & prod
 - **macOS 26 (Tahoe) + Xcode 26 (iOS 26 SDK)** — now required for App Store upload. Disk freed to ~51 GB.
