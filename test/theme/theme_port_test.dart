@@ -99,7 +99,8 @@ void main() {
   test('the phone has every web theme, and nothing else, in web order', () {
     expect(kMantleThemes.map((t) => t.id).toList(), webIds);
     expect(webIds, contains('jackdaw'));
-    expect(webIds, contains('jackdaw-harvest'));
+    expect(webIds, isNot(contains('jackdaw-harvest')), reason: 'retired 2026-10-21');
+    expect(webLabels['jackdaw'], 'MantleOS');
     expect(webIds, contains('pinnacle'));
     expect(webIds.toSet().length, webIds.length, reason: 'duplicate ids');
   });

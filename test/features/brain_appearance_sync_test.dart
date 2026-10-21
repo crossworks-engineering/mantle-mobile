@@ -65,7 +65,7 @@ void main() {
   test('a signed-in, foregrounded app syncs the brain theme once and paints it',
       () async {
     when(() => api.get()).thenAnswer(
-      (_) async => const BrainAppearance(colorTheme: 'jackdaw-harvest'),
+      (_) async => const BrainAppearance(colorTheme: 'clean-slate'),
     );
     final container = make();
     expect(await container.read(colorThemeControllerProvider.future), 'jackdaw');
@@ -73,9 +73,9 @@ void main() {
     await startSync(container);
 
     verify(() => api.get()).called(1);
-    expect(await repo.brainColorTheme(), 'jackdaw-harvest');
-    expect(container.read(colorThemeControllerProvider).value, 'jackdaw-harvest');
-    expect(await container.read(brainColorThemeProvider.future), 'jackdaw-harvest');
+    expect(await repo.brainColorTheme(), 'clean-slate');
+    expect(container.read(colorThemeControllerProvider).value, 'clean-slate');
+    expect(await container.read(brainColorThemeProvider.future), 'clean-slate');
   });
 
   test('a theme picked on the phone wins over the brain', () async {

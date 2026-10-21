@@ -7,9 +7,9 @@ export 'mantle_theme_def.dart';
 
 /// Every theme the picker offers: the web's registry, in the web's order, as
 /// ported by `tool/generate_themes.dart` into `mantle_themes.g.dart`. The
-/// phone adds nothing of its own: the brand themes (`jackdaw`,
-/// `jackdaw-harvest`, `pinnacle`) are authored once, in mantle's seeds, and
-/// arrive here through the same port as every other theme.
+/// phone adds nothing of its own: the brand themes (`jackdaw`, labelled
+/// MantleOS since 2026-10-21, and `pinnacle`) are authored once, in mantle's
+/// seeds, and arrive here through the same port as every other theme.
 const List<MantleThemeDef> kMantleThemes = kGeneratedThemes;
 
 /// Builds [ShadThemeData] for any theme in [kMantleThemes]. This class only
