@@ -13,7 +13,7 @@ jackdaw-mobile audit" (tag `mantle-roadmap`)._
       `android/key.properties` is absent; that is fine for this pass):
 
   ```bash
-  cd ~/Projects/jackdaw-mobile && fvm flutter run --release
+  cd ~/Projects/mantle-mobile && fvm flutter run --release
   ```
 
 - [ ] Note the phone model and Android version here: ______

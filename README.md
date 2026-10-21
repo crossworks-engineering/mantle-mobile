@@ -1,7 +1,8 @@
 # MantleOS (mobile)
 
-MantleOS on the phone (repo `jackdaw-mobile`; the app was called Jackdaw
-until 2026-10-17). The phone client for a [Mantle](https://github.com/crossworks-engineering/mantle)
+MantleOS on the phone (repo `mantle-mobile`, which continues the frozen
+`jackdaw-mobile` repo since 2026-10-21; the app was called Jackdaw until
+2026-10-17). The phone client for a [Mantle](https://github.com/crossworks-engineering/mantle)
 brain. iOS and Android, built with Flutter and themed with
 [shadcn/ui for Flutter](https://flutter-shadcn-ui.mariuti.com/), no Material
 design language. You point it at your own self-hosted Mantle server and sign in
@@ -60,8 +61,8 @@ To build it yourself from source:
 
 ```bash
 brew install fvm                 # once, on macOS
-git clone https://github.com/crossworks-engineering/jackdaw-mobile.git
-cd jackdaw-mobile
+git clone https://github.com/crossworks-engineering/mantle-mobile.git
+cd mantle-mobile
 fvm install                      # installs the Flutter release pinned in .fvmrc
 fvm flutter pub get
 ```
