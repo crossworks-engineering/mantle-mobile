@@ -59,6 +59,12 @@ post_install do |installer|
       # during `xcodebuild archive` ("Sodium.framework.dSYM … already exists").
       # dwarf (no .dSYM) avoids all of it; cost is no crash symbolication. See memory.
       config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf'
+      # Xcode 27 refuses deployment targets below iOS 15.0, and several plugin
+      # pods still declare 9.0 to 14.0. Lift them to the app's own floor (the
+      # `platform` line above); pods that already ask for more keep their value.
+      if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 15.0
+        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      end
     end
   end
 end
