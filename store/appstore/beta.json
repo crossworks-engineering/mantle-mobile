@@ -1,6 +1,6 @@
 {
   "groupName": "Public Beta",
-  "description": "MantleOS is the phone app for a Mantle brain, the self-hosted AI memory you run on your own server. Chat with your assistant, search everything, notes, pages, tasks, journal, files and events. No Mantle server yet? Enter https://demo.mantle-ai.tech on the first screen and sign in with any email and password; the demo is read only.",
+  "description": "MantleOS is the phone app for a Mantle brain, the self-hosted AI memory you run on your own server. Chat with your assistant, search everything, notes, pages, tasks, journal, files and events. No Mantle server yet? Enter https://review.mantleos.io on the first screen and sign in with any email and password; it holds fictional data and is read only.",
   "feedbackEmail": "jason@crossworks.engineering",
   "marketingUrl": "https://mantleos.io",
   "privacyPolicyUrl": "https://mantleos.io/privacy/",
